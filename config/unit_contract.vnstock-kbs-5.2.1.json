@@ -1,0 +1,16 @@
+{
+  "provider": "vnstock",
+  "upstream_source": "kbs",
+  "provider_version": "5.2.1",
+  "verification_status": "VERIFIED",
+  "price_multiplier_to_vnd": "1",
+  "volume_multiplier_to_shares": "1",
+  "verified_at": "2026-10-28T07:40:04.593177+00:00",
+  "evidence_type": "contemporaneous_board_comparison",
+  "review_note": "Empirical review: official KBS display caption price x1000 VND and volume x10; 8 exact side/price/volume pairs across ACB HPG FPT, including bid and ask. User screenshot approximately 14:30, SDK received 14:34:47.898765+07:00, not synchronized. SDK already returns VND and shares; apply factors 1/1. See bundled review for disagreements and restricted scope. Source timestamp remains unknown.",
+  "evidence": {
+    "source_url": "https://kbbuddywts.kbsec.com.vn/",
+    "local_path": "../report/github_unit_evidence_2026-10-28.json",
+    "sha256": "605287bdc4328150a4799d55369aeed17d739352f10988c843d33cbefb70a73d"
+  }
+}

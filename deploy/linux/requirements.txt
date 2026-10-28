@@ -1,0 +1,6 @@
+# Collector-only dependencies; the dashboard need not run on the server.
+--extra-index-url https://vnstocks.com/api/packages
+vnstock==5.2.1
+pandas==2.3.3
+python-dotenv>=1,<2
+tzdata>=2024.1

@@ -1,0 +1,12 @@
+[Unit]
+Description=NEO LiquidityLab weekdays 09:10 Vietnam time
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:10:00 Asia/Ho_Chi_Minh
+OnBootSec=2min
+Persistent=true
+AccuracySec=1min
+Unit=neo-collector.service
+
+[Install]
+WantedBy=timers.target

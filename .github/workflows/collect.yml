@@ -1,0 +1,87 @@
+name: Vnstock market collector
+
+on:
+  schedule:
+    - cron: '7 2 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preflight connectivity or collect the current trading window
+        type: choice
+        default: preflight
+        options: [preflight, collect]
+      resume_after_failure:
+        description: Explicit recovery after investigating a same-day source failure
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquiditylab-market-writer
+  cancel-in-progress: false
+
+jobs:
+  collector:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && (inputs.mode == 'preflight' || vars.LIQUIDITYLAB_WORKER_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    permissions:
+      contents: write
+    env:
+      PYTHONUTF8: '1'
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            deploy/linux/requirements.txt
+            requirements-github.txt
+      - name: Install collector dependencies
+        run: python -m pip install -r deploy/linux/requirements.txt cryptography==46.0.7
+      - name: Wait for configured Vietnam start time
+        env:
+          MODE: ${{ inputs.mode || 'collect' }}
+        run: |
+          python - <<'PY'
+          import os,time
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          if os.environ['MODE']=='collect':
+              now=datetime.now(ZoneInfo('Asia/Ho_Chi_Minh'))
+              start=now.replace(hour=9,minute=10,second=0,microsecond=0)
+              while now<start:
+                  time.sleep(min(30,(start-now).total_seconds()))
+                  now=datetime.now(ZoneInfo('Asia/Ho_Chi_Minh'))
+          PY
+      - name: Execute authenticated operation
+        env:
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
+          LIQUIDITYLAB_STATE_KEY: ${{ secrets.LIQUIDITYLAB_STATE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode || 'collect' }}
+          RESUME: ${{ inputs.resume_after_failure }}
+        run: |
+          args=()
+          if [ "$RESUME" = 'true' ]; then args+=(--resume-after-failure); fi
+          python -m scripts.github_worker "$MODE" "${args[@]}"
+      - name: Write sanitized run summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:
+              for name in ('preflight','checkpoint','failure'):
+                  p=Path('report/github')/(name+'.json')
+                  if p.exists():
+                      summary.write('```json\n'+json.dumps(json.loads(p.read_text()),ensure_ascii=False,indent=2)+'\n```\n')
+          PY

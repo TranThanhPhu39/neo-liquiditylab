@@ -1,0 +1,4 @@
+-r requirements-collector.txt
+cryptography==46.0.7
+PyNaCl==1.6.2
+truststore==0.10.5

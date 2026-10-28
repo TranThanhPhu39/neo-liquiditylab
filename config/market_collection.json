@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "scope": "all_listed_equities",
+  "exchanges": ["HOSE", "HNX", "UPCOM"],
+  "timezone": "Asia/Ho_Chi_Minh",
+  "start_time": "09:10",
+  "database": "data/liquidity.db",
+  "target_cycle_seconds": 180,
+  "batch_size": 100,
+  "minimum_batch_spacing_seconds": 5,
+  "quota_utilization": 0.75,
+  "monthly_reserve_sessions": 20,
+  "minimum_free_disk_gb": 5,
+  "collection_windows": [["09:15", "11:30"], ["13:00", "14:30"]],
+  "holidays": [],
+  "market_status_required": true,
+  "normalize_symbols": ["FPT", "HPG", "ACB"],
+  "unit_contract": "config/unit_contract.vnstock-kbs-5.2.1.json",
+  "stop_file": "data/control/STOP_VNSTOCK",
+  "neo_ready_file": "data/control/NEO_READY",
+  "note": "Collect all equities raw; normalize only symbols within the empirical unit review. No ETF, warrants, futures or bonds. Stop on errors/quota and when NEO_READY is set."
+}

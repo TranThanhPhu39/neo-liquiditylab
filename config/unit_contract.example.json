@@ -1,0 +1,16 @@
+{
+  "provider": "vnstock",
+  "upstream_source": "kbs",
+  "provider_version": "5.2.1",
+  "verification_status": "UNVERIFIED",
+  "price_multiplier_to_vnd": null,
+  "volume_multiplier_to_shares": null,
+  "verified_at": null,
+  "evidence_type": null,
+  "review_note": "Chỉ điền sau khi có bằng chứng xác định đơn vị của SDK, không dùng hệ số hiển thị web thay thế.",
+  "evidence": {
+    "source_url": "https://vnstocks.com/docs/vnstock/thi-truong-market",
+    "local_path": null,
+    "sha256": null
+  }
+}

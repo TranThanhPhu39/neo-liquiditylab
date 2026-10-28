@@ -1,0 +1,10 @@
+scenarios:
+  - name: Cơ sở
+    depth_reduction: 0
+    price_shock: 0
+  - name: Độ sâu giảm 40%
+    depth_reduction: 0.4
+    price_shock: 0
+  - name: Độ sâu giảm 50%
+    depth_reduction: 0.5
+    price_shock: 0

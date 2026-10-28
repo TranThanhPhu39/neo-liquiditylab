@@ -1,0 +1,459 @@
+{
+  "status": "REVIEWED_EMPIRICAL_UNIT_EVIDENCE",
+  "scope": "vnstock 5.2.1 kbs equity quote: ACB HPG FPT",
+  "review": "# Thẩm định đơn vị Vnstock 5.2.1 / KBS · 28/10/2026\n\nKết luận thẩm định thực nghiệm cho quote cổ phiếu ACB, HPG, FPT: **giá SDK theo VND/CP, volume SDK theo CP; hai hệ số chuẩn hóa đều bằng 1**. Đây là kết luận đối chiếu bảng giá, không phải hợp đồng đơn vị do Vnstock phát hành.\n\nNguồn đơn vị hiển thị: [bảng KBS chính thức](https://kbbuddywts.kbsec.com.vn/) được công cụ tìm kiếm lập chỉ mục với chú thích “Giá x1,000 VNĐ; Khối lượng x10; Giá trị x1,000,000 VNĐ”. Bản lập chỉ mục không phải bảng giá live ngày 28/10. Người dùng chỉ nói *nghĩ* volume x10; ý kiến đó không được dùng làm tuyên bố đơn vị của nhà cung cấp.\n\nẢnh do người dùng gửi trong cuộc hội thoại có ba hàng mã và đầy đủ sáu mức. Người dùng cho biết chụp **tầm 14:30** ngày 28/10, không có timestamp chính xác hoặc chú thích đơn vị trong phần ảnh cắt. Không tạo timestamp chính xác cho ảnh. Bản chép tay nằm ở `kbs_board_transcription_2026-10-28.json`; ảnh gốc nằm trong cuộc hội thoại, không giả định đã lưu được bản pixel cục bộ.\n\nSDK được gọi đúng một lần, nhận lúc **14:34:47.898765+07:00**, có version 5.2.1, route market.equity.quote, source kbs và đủ 16 trường. Bằng chứng gốc đã lọc thông tin nhạy cảm: `vnstock_board_comparison_2026-10-28.json`. Đây là mẫu chẩn đoán riêng sau cửa sổ collector, không cộng vào 66 quan sát lịch sử.\n\nĐối chiếu theo **mã + bên + giá**, không ghép cứng thứ tự level vì giá mới có thể đẩy mức cũ sang vị trí khác. KBS hiển thị volume dạng nhóm chữ số có dấu phẩy: `2,00` chứa 200 đơn vị hiển thị, không đọc như 2,00 số thập phân. Nhân hệ số hiển thị 10 rồi so với SDK. Có **8/18 cặp khớp chính xác**: ACB Bid3 và Ask ở 21,35/21,40; HPG ba Ask; FPT Ask ở 54,20/54,40. Các cặp này bao gồm cả bid lẫn ask, ba mã và nhiều vị trí trong top 3.\n\n| Mã / bên / giá hiển thị | Volume hiển thị | ×10 thành CP | SDK cùng giá |\n|---|---:|---:|---:|\n| ACB Bid / 21,05 | 236,40 | 236.400 | 236.400 |\n| ACB Ask / 21,35 | 222,90 | 222.900 | 222.900 |\n| ACB Ask / 21,40 | 257,10 | 257.100 | 257.100 |\n| HPG Ask / 20,75 | 2,00 | 2.000 | 2.000 |\n| HPG Ask / 20,80 | 1,00 | 1.000 | 1.000 |\n| HPG Ask / 20,85 | 1,00 | 1.000 | 1.000 |\n| FPT Ask / 54,20 | 10 | 100 | 100 |\n| FPT Ask / 54,40 | 50,40 | 50.400 | 50.400 |\n\nNhững mức còn lại được lưu nguyên trạng với QUANTITY_DIFFERS hoặc PRICE_NOT_IN_SDK_TOP3 trong `kbs_sdk_comparison_2026-10-28.json`. Hai ảnh chụp thị trường cách nhau xấp xỉ 4 phút 48 giây nên không khẳng định các mức phải bằng nhau, không chỉnh volume để ép khớp và không chứng nhận hai nguồn đồng bộ. Các cặp trùng chính xác ở nhiều giá/mã/bên cùng chú thích của bảng KBS cung cấp cơ sở cho hệ số SDK bằng 1. Không lấy một cặp chênh lệch để suy ra hệ số khác.\n\nHồ sơ chỉ áp dụng vnstock 5.2.1 / kbs / quote cổ phiếu đã kiểm tra, không mở rộng sang OHLCV, nguồn khác, phái sinh, NEO hoặc bản SDK mới. Chuẩn hóa 66 quan sát giữ raw bất biến, giữ timestamp nhận ban đầu và source_timestamp null. Chưa chứng minh độ mới của quote hoặc phiên đầy đủ. Collector tự động mới không được bật chỉ nhờ hồ sơ này; quyền/quota và kiểm tra nguồn vẫn giữ riêng.\n",
+  "board_transcription": {
+    "source_url": "https://kbbuddywts.kbsec.com.vn/",
+    "evidence_origin": "User-supplied cropped screenshot in this conversation; manual transcription, not an original image archive",
+    "captured_at_local": null,
+    "user_reported_capture_time": "Khoang 14:30 ngay 2026-10-28, Asia/Ho_Chi_Minh; approximate, no exact timestamp visible",
+    "user_reported_volume_unit": "User thinks x10; this is not treated as the unit declaration",
+    "unit_caption_visible_in_image": false,
+    "display_volume_format": "comma_grouped_digits",
+    "candidate_price_multiplier_to_vnd": "1000",
+    "candidate_volume_multiplier_to_shares": "10",
+    "candidate_basis": "Indexed official KBS board caption: Gia x1,000 VND; Khoi luong x10. Current screenshot caption/time still need confirmation.",
+    "rows": [
+      {
+        "symbol": "ACB",
+        "bids": [
+          [
+            "21.15",
+            "164,80"
+          ],
+          [
+            "21.10",
+            "124,50"
+          ],
+          [
+            "21.05",
+            "236,40"
+          ]
+        ],
+        "asks": [
+          [
+            "21.35",
+            "222,90"
+          ],
+          [
+            "21.40",
+            "257,10"
+          ],
+          [
+            "21.45",
+            "299,90"
+          ]
+        ]
+      },
+      {
+        "symbol": "HPG",
+        "bids": [
+          [
+            "20.60",
+            "368,50"
+          ],
+          [
+            "20.55",
+            "245,20"
+          ],
+          [
+            "20.50",
+            "369,20"
+          ]
+        ],
+        "asks": [
+          [
+            "20.75",
+            "2,00"
+          ],
+          [
+            "20.80",
+            "1,00"
+          ],
+          [
+            "20.85",
+            "1,00"
+          ]
+        ]
+      },
+      {
+        "symbol": "FPT",
+        "bids": [
+          [
+            "54.00",
+            "328,60"
+          ],
+          [
+            "53.90",
+            "178,20"
+          ],
+          [
+            "53.80",
+            "169,90"
+          ]
+        ],
+        "asks": [
+          [
+            "54.20",
+            "10"
+          ],
+          [
+            "54.30",
+            "60"
+          ],
+          [
+            "54.40",
+            "50,40"
+          ]
+        ]
+      }
+    ]
+  },
+  "numeric_comparison": {
+    "status": "NUMERIC_CORROBORATION_ONLY",
+    "units_verified": false,
+    "finance_enabled": false,
+    "sdk_received_at_utc": "2026-10-28T07:34:47.898765+00:00",
+    "board_captured_at_local": null,
+    "capture_gap_seconds": null,
+    "board_capture_time_description": "Khoang 14:30 ngay 2026-10-28, Asia/Ho_Chi_Minh; approximate, no exact timestamp visible",
+    "candidate_sdk_price_multiplier_to_vnd": "1",
+    "candidate_sdk_volume_multiplier_to_shares": "1",
+    "board_volume_multiplier_tested": "10",
+    "exact_pairs": 8,
+    "total_board_pairs": 18,
+    "symbols_with_exact_pairs": [
+      "ACB",
+      "FPT",
+      "HPG"
+    ],
+    "comparisons": [
+      {
+        "symbol": "ACB",
+        "side": "bid",
+        "board_level": 1,
+        "board_price_text": "21.15",
+        "board_volume_text": "164,80",
+        "candidate_price_vnd": "21150.00",
+        "candidate_volume_shares": "164800",
+        "sdk_level_at_same_price": 1,
+        "sdk_volume": 174400,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "ACB",
+        "side": "bid",
+        "board_level": 2,
+        "board_price_text": "21.10",
+        "board_volume_text": "124,50",
+        "candidate_price_vnd": "21100.00",
+        "candidate_volume_shares": "124500",
+        "sdk_level_at_same_price": 2,
+        "sdk_volume": 125500,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "ACB",
+        "side": "bid",
+        "board_level": 3,
+        "board_price_text": "21.05",
+        "board_volume_text": "236,40",
+        "candidate_price_vnd": "21050.00",
+        "candidate_volume_shares": "236400",
+        "sdk_level_at_same_price": 3,
+        "sdk_volume": 236400,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "ACB",
+        "side": "ask",
+        "board_level": 1,
+        "board_price_text": "21.35",
+        "board_volume_text": "222,90",
+        "candidate_price_vnd": "21350.00",
+        "candidate_volume_shares": "222900",
+        "sdk_level_at_same_price": 2,
+        "sdk_volume": 222900,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "ACB",
+        "side": "ask",
+        "board_level": 2,
+        "board_price_text": "21.40",
+        "board_volume_text": "257,10",
+        "candidate_price_vnd": "21400.00",
+        "candidate_volume_shares": "257100",
+        "sdk_level_at_same_price": 3,
+        "sdk_volume": 257100,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "ACB",
+        "side": "ask",
+        "board_level": 3,
+        "board_price_text": "21.45",
+        "board_volume_text": "299,90",
+        "candidate_price_vnd": "21450.00",
+        "candidate_volume_shares": "299900",
+        "sdk_level_at_same_price": null,
+        "sdk_volume": null,
+        "comparison": "PRICE_NOT_IN_SDK_TOP3"
+      },
+      {
+        "symbol": "HPG",
+        "side": "bid",
+        "board_level": 1,
+        "board_price_text": "20.60",
+        "board_volume_text": "368,50",
+        "candidate_price_vnd": "20600.00",
+        "candidate_volume_shares": "368500",
+        "sdk_level_at_same_price": 2,
+        "sdk_volume": 398900,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "HPG",
+        "side": "bid",
+        "board_level": 2,
+        "board_price_text": "20.55",
+        "board_volume_text": "245,20",
+        "candidate_price_vnd": "20550.00",
+        "candidate_volume_shares": "245200",
+        "sdk_level_at_same_price": 3,
+        "sdk_volume": 246400,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "HPG",
+        "side": "bid",
+        "board_level": 3,
+        "board_price_text": "20.50",
+        "board_volume_text": "369,20",
+        "candidate_price_vnd": "20500.00",
+        "candidate_volume_shares": "369200",
+        "sdk_level_at_same_price": null,
+        "sdk_volume": null,
+        "comparison": "PRICE_NOT_IN_SDK_TOP3"
+      },
+      {
+        "symbol": "HPG",
+        "side": "ask",
+        "board_level": 1,
+        "board_price_text": "20.75",
+        "board_volume_text": "2,00",
+        "candidate_price_vnd": "20750.00",
+        "candidate_volume_shares": "2000",
+        "sdk_level_at_same_price": 1,
+        "sdk_volume": 2000,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "HPG",
+        "side": "ask",
+        "board_level": 2,
+        "board_price_text": "20.80",
+        "board_volume_text": "1,00",
+        "candidate_price_vnd": "20800.00",
+        "candidate_volume_shares": "1000",
+        "sdk_level_at_same_price": 2,
+        "sdk_volume": 1000,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "HPG",
+        "side": "ask",
+        "board_level": 3,
+        "board_price_text": "20.85",
+        "board_volume_text": "1,00",
+        "candidate_price_vnd": "20850.00",
+        "candidate_volume_shares": "1000",
+        "sdk_level_at_same_price": 3,
+        "sdk_volume": 1000,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "FPT",
+        "side": "bid",
+        "board_level": 1,
+        "board_price_text": "54.00",
+        "board_volume_text": "328,60",
+        "candidate_price_vnd": "54000.00",
+        "candidate_volume_shares": "328600",
+        "sdk_level_at_same_price": 1,
+        "sdk_volume": 355200,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "FPT",
+        "side": "bid",
+        "board_level": 2,
+        "board_price_text": "53.90",
+        "board_volume_text": "178,20",
+        "candidate_price_vnd": "53900.00",
+        "candidate_volume_shares": "178200",
+        "sdk_level_at_same_price": 2,
+        "sdk_volume": 178500,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "FPT",
+        "side": "bid",
+        "board_level": 3,
+        "board_price_text": "53.80",
+        "board_volume_text": "169,90",
+        "candidate_price_vnd": "53800.00",
+        "candidate_volume_shares": "169900",
+        "sdk_level_at_same_price": 3,
+        "sdk_volume": 171500,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "FPT",
+        "side": "ask",
+        "board_level": 1,
+        "board_price_text": "54.20",
+        "board_volume_text": "10",
+        "candidate_price_vnd": "54200.00",
+        "candidate_volume_shares": "100",
+        "sdk_level_at_same_price": 1,
+        "sdk_volume": 100,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      },
+      {
+        "symbol": "FPT",
+        "side": "ask",
+        "board_level": 2,
+        "board_price_text": "54.30",
+        "board_volume_text": "60",
+        "candidate_price_vnd": "54300.00",
+        "candidate_volume_shares": "600",
+        "sdk_level_at_same_price": 2,
+        "sdk_volume": 900,
+        "comparison": "QUANTITY_DIFFERS"
+      },
+      {
+        "symbol": "FPT",
+        "side": "ask",
+        "board_level": 3,
+        "board_price_text": "54.40",
+        "board_volume_text": "50,40",
+        "candidate_price_vnd": "54400.00",
+        "candidate_volume_shares": "50400",
+        "sdk_level_at_same_price": 3,
+        "sdk_volume": 50400,
+        "comparison": "EXACT_UNDER_CANDIDATE_FACTORS"
+      }
+    ],
+    "limitations": [
+      "Capture time and current board unit caption require independent review.",
+      "Changing quotes are recorded as differences; no interpolation or correction.",
+      "Candidate multipliers are hypotheses. This report never creates a verified contract or modifies SQLite."
+    ],
+    "board_artifact": "report/kbs_board_transcription_2026-10-28.json",
+    "sdk_artifact": "report/vnstock_board_comparison_2026-10-28.json"
+  },
+  "official_board_caption": {
+    "url": "https://kbbuddywts.kbsec.com.vn/",
+    "text": "Gia x1,000 VND; Khoi luong x10; Gia tri x1,000,000 VND",
+    "retrieval": "Web search indexed content, reviewed 2026-10-28; not live quotes"
+  },
+  "source_timestamp_verified": false,
+  "exact_screenshot_timestamp_available": false,
+  "sdk_probe": {
+    "probe_at_local": "2026-10-28T14:34:45.567593+07:00",
+    "provider": "vnstock",
+    "upstream_source": "kbs",
+    "symbols_requested": [
+      "FPT",
+      "HPG",
+      "ACB"
+    ],
+    "purpose": "one-shot diagnostic; not a collection session",
+    "units_verified": false,
+    "collection_enabled": false,
+    "version": "5.2.1",
+    "market_request_attempted": true,
+    "market_request_succeeded": true,
+    "received_at_utc": "2026-10-28T07:34:47.898765+00:00",
+    "rows": [
+      {
+        "symbol": "FPT",
+        "exchange": "HOSE",
+        "reference_price": 55400.0,
+        "close_price": 54000.0,
+        "bid_price_1": 54000.0,
+        "bid_price_2": 53900.0,
+        "bid_price_3": 53800.0,
+        "bid_vol_1": 355200,
+        "bid_vol_2": 178500,
+        "bid_vol_3": 171500,
+        "ask_price_1": 54200.0,
+        "ask_price_2": 54300.0,
+        "ask_price_3": 54400.0,
+        "ask_vol_1": 100,
+        "ask_vol_2": 900,
+        "ask_vol_3": 50400
+      },
+      {
+        "symbol": "HPG",
+        "exchange": "HOSE",
+        "reference_price": 21000.0,
+        "close_price": 20650.0,
+        "bid_price_1": 20650.0,
+        "bid_price_2": 20600.0,
+        "bid_price_3": 20550.0,
+        "bid_vol_1": 63000,
+        "bid_vol_2": 398900,
+        "bid_vol_3": 246400,
+        "ask_price_1": 20750.0,
+        "ask_price_2": 20800.0,
+        "ask_price_3": 20850.0,
+        "ask_vol_1": 2000,
+        "ask_vol_2": 1000,
+        "ask_vol_3": 1000
+      },
+      {
+        "symbol": "ACB",
+        "exchange": "HOSE",
+        "reference_price": 21300.0,
+        "close_price": 21150.0,
+        "bid_price_1": 21150.0,
+        "bid_price_2": 21100.0,
+        "bid_price_3": 21050.0,
+        "bid_vol_1": 174400,
+        "bid_vol_2": 125500,
+        "bid_vol_3": 236400,
+        "ask_price_1": 21200.0,
+        "ask_price_2": 21350.0,
+        "ask_price_3": 21400.0,
+        "ask_vol_1": 100,
+        "ask_vol_2": 222900,
+        "ask_vol_3": 257100
+      }
+    ],
+    "columns": [
+      "symbol",
+      "exchange",
+      "reference_price",
+      "close_price",
+      "bid_price_1",
+      "bid_price_2",
+      "bid_price_3",
+      "bid_vol_1",
+      "bid_vol_2",
+      "bid_vol_3",
+      "ask_price_1",
+      "ask_price_2",
+      "ask_price_3",
+      "ask_vol_1",
+      "ask_vol_2",
+      "ask_vol_3"
+    ],
+    "missing_columns": [],
+    "metadata": {
+      "route": "market.equity.quote",
+      "source": "kbs"
+    }
+  }
+}

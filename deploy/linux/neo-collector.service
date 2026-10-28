@@ -1,0 +1,28 @@
+[Unit]
+Description=NEO LiquidityLab daily Vnstock market collector
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=liquiditylab
+Group=liquiditylab
+WorkingDirectory=/opt/neo-liquiditylab
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONUTF8=1
+Environment=HOME=/var/lib/neo-liquiditylab
+EnvironmentFile=/opt/neo-liquiditylab/.env
+StateDirectory=neo-liquiditylab
+ExecStart=/opt/neo-liquiditylab/.venv/bin/python -m scripts.scheduled_collection
+TimeoutStartSec=8h
+TimeoutStopSec=180
+KillSignal=SIGINT
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/neo-liquiditylab/data /opt/neo-liquiditylab/report /var/lib/neo-liquiditylab
+StandardOutput=journal
+StandardError=journal
+
