@@ -125,7 +125,7 @@ def set_secrets(include_vnstock=False):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation",choices=["prepare","publish","secrets","preflight","enable","disable","status"])
+    parser.add_argument("operation",choices=["prepare","publish","secrets","preflight","storage-test","enable","disable","status"])
     parser.add_argument("--include-vnstock",action="store_true")
     args=parser.parse_args()
     if args.operation in ("prepare","publish"):
@@ -139,9 +139,9 @@ def main():
     else:
         api=GitHubAPI()
         base=repository_path(REPOSITORY)
-        if args.operation=="preflight":
-            api.request("POST",base+"/actions/workflows/collect.yml/dispatches",{"ref":"main","inputs":{"mode":"preflight"}})
-            result={"preflight_dispatched":True}
+        if args.operation in ("preflight","storage-test"):
+            api.request("POST",base+"/actions/workflows/collect.yml/dispatches",{"ref":"main","inputs":{"mode":args.operation}})
+            result={"dispatched_mode":args.operation}
         elif args.operation in ("enable","disable"):
             value="true" if args.operation=="enable" else "false"
             try:

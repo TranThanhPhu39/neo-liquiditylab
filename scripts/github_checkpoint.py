@@ -152,7 +152,7 @@ class ReleaseStore:
             encrypted=folder/"encrypted"
             manifest=pack_state(files,encrypted,self.key,context)
             release=self.api.request("POST",self.base+"/releases",{
-                "tag_name":tag,"target_commitish":"main","name":f"Encrypted market checkpoint {day} {stamp}",
+                "tag_name":tag,"target_commitish":"main","name":f"Encrypted {'synthetic storage test' if day=='storage-probe' else 'market checkpoint '+day} {stamp}",
                 "draft":True,"prerelease":True,"body":"Encrypted SQLite and operational reports. No API keys or SDK authentication state. Source run "+str(run_id)})
             upload=release["upload_url"].split("{")[0]
             for name in [p["name"] for p in manifest["parts"]]+["manifest.json"]:

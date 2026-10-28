@@ -73,6 +73,7 @@ def test_github_entry_requires_expected_repo_ref_and_api_secret(monkeypatch):
 
 def test_preflight_uses_diagnostic_namespace_without_collection(tmp_path,monkeypatch):
     monkeypatch.setattr(github_worker,'ROOT',tmp_path)
+    monkeypatch.delenv('LIQUIDITYLAB_STATE_KEY',raising=False)
     monkeypatch.setattr(github_worker,'require_environment',lambda:None)
     calls=[]
     def request(operation,**kwargs):
@@ -98,3 +99,12 @@ def test_workflows_do_not_collect_on_push_or_pull_request():
     assert job['runs-on']=='ubuntu-24.04' and int(job['timeout-minutes'])<360
     assert 'LIQUIDITYLAB_WORKER_ENABLED' in job['if']
     assert workflow['concurrency']['cancel-in-progress']=='false'
+
+
+def test_sdk_diagnostic_keeps_safe_error_code_without_raw_message():
+    from scripts.market_preflight import SDKRequestError
+    error=SDKRequestError({'error':'EntitlementError','error_code':'VNSTOCK_AUTH_DEVICE_LIMIT','message':'private-value'})
+    assert error.category=='EntitlementError' and error.code=='VNSTOCK_AUTH_DEVICE_LIMIT'
+    assert 'private-value' not in str(error)
+    invalid=SDKRequestError({'error':'private-value: auth header','error_code':'unsafe private-value'})
+    assert invalid.category=='UNKNOWN_SDK_ERROR' and invalid.code is None

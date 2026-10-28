@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import time
+import tempfile
 
 from config.settings import ROOT,get_vnstock_api_key
 from scripts.github_checkpoint import ReleaseStore,state_key
@@ -17,10 +18,10 @@ from src.models.orderbook import LOCAL_TZ
 REPOSITORY="TranThanhPhu39/neo-liquiditylab"
 
 
-def require_environment():
+def require_environment(require_api=True):
     if os.environ.get("GITHUB_REPOSITORY")!=REPOSITORY or os.environ.get("GITHUB_REF")!="refs/heads/main":
         raise RuntimeError("UNEXPECTED_REPOSITORY_OR_REF")
-    if not get_vnstock_api_key():
+    if require_api and not get_vnstock_api_key():
         raise RuntimeError("VNSTOCK_API_KEY_SECRET_REQUIRED")
 
 
@@ -37,6 +38,31 @@ def preflight():
         "collection_history_added":False,"source_timestamp_verified":False,
         "note":"One CI runner only; a second fresh runner must also pass before claiming recurring authentication works."}
     write_json(ROOT/"report/github/preflight.json",result)
+    print(json.dumps(result))
+    if os.environ.get("LIQUIDITYLAB_STATE_KEY"):
+        storage_probe()
+
+
+def storage_probe():
+    require_environment(require_api=False)
+    store=ReleaseStore(REPOSITORY,state_key(os.environ.get("LIQUIDITYLAB_STATE_KEY","")))
+    with tempfile.TemporaryDirectory() as temporary:
+        folder=Path(temporary)
+        restored=store.restore("storage-probe",folder/"restored.db",folder/"restored-reports")
+        if restored:
+            with Storage(folder/"restored.db") as db:
+                marker=db.connection.execute("SELECT marker FROM storage_probe").fetchone()[0]
+                if marker!="SYNTHETIC_STORAGE_TEST_ONLY":
+                    raise RuntimeError("STORAGE_PROBE_MARKER_MISMATCH")
+        database=folder/"probe.db"
+        with Storage(database) as db:
+            db.connection.execute("CREATE TABLE storage_probe(marker TEXT)")
+            db.connection.execute("INSERT INTO storage_probe VALUES(?)",("SYNTHETIC_STORAGE_TEST_ONLY",))
+            db.connection.commit()
+        tag=store.publish("storage-probe",database,folder,os.environ["GITHUB_RUN_ID"],os.environ.get("GITHUB_RUN_ATTEMPT","1"))
+    result={"status":"PASSED","scope":"SYNTHETIC_STORAGE_TEST_ONLY","checkpoint":tag,
+            "restored_previous_runner_checkpoint":restored is not None,"contains_market_observations":False}
+    write_json(ROOT/"report/github/storage.json",result)
     print(json.dumps(result))
 
 
@@ -79,17 +105,22 @@ def collect(resume=False):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode",choices=["preflight","collect"])
+    parser.add_argument("mode",choices=["preflight","collect","storage-test"])
     parser.add_argument("--resume-after-failure",action="store_true")
     args=parser.parse_args()
     try:
         if args.mode=="preflight":
             preflight()
             return 0
+        if args.mode=="storage-test":
+            storage_probe()
+            return 0
         return collect(args.resume_after_failure)
     except Exception as error:
         # Never echo arbitrary authentication/network errors with possible request details.
         report={"status":"FAILED","error_category":type(error).__name__}
+        if hasattr(error,"category"):
+            report.update(sdk_error_category=error.category,sdk_error_code=error.code)
         if isinstance(error,RuntimeError) and str(error).isupper():
             report["error_code"]=str(error)
         write_json(ROOT/"report/github/failure.json",report)

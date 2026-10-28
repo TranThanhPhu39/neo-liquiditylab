@@ -4,8 +4,20 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import re
 
 from config.settings import ROOT
+
+
+class SDKRequestError(RuntimeError):
+    def __init__(self,response):
+        self.category=response.get("error")
+        self.code=response.get("error_code")
+        if not isinstance(self.category,str) or not re.fullmatch(r"[A-Za-z0-9_]{1,100}",self.category):
+            self.category="UNKNOWN_SDK_ERROR"
+        if not isinstance(self.code,str) or not re.fullmatch(r"[A-Z0-9_]{1,100}",self.code):
+            self.code=None
+        super().__init__("SDK_REQUEST_FAILED")
 
 
 def sdk_request(operation, *, symbols=None, timeout=60):
@@ -19,7 +31,7 @@ def sdk_request(operation, *, symbols=None, timeout=60):
     except (ValueError,TypeError):
         raise RuntimeError("INVALID_WORKER_RESPONSE") from None
     if result.returncode or response.get("error"):
-        raise RuntimeError("SDK_REQUEST_FAILED:"+str(response.get("error","WORKER_FAILED")))
+        raise SDKRequestError(response)
     return response
 
 
