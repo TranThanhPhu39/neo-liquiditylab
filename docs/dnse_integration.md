@@ -2,6 +2,8 @@
 
 Ngày xem xét: 28/10/2026. Người dùng đã lưu đủ bộ khóa mới cục bộ. Latest quotes và một khoảng lịch sử nhỏ đã trả dữ liệu thật cho FPT/HPG/ACB; chưa kết luận quyền toàn thị trường hoặc khả năng chạy trên GitHub từ kết quả cục bộ.
 
+Đã bổ sung [bộ tải lại cả ngày trên máy](dnse_daily_history.md) theo yêu cầu tải toàn thị trường, có danh mục DNSE 1.520 cổ phiếu, checkpoint SQLite và audit/export raw. Lượt tải thủ công cục bộ này độc lập với workflow GitHub đang lỗi kết nối; không bật lại lịch tự động. Kết quả nghiệm thu nằm trong báo cáo ngày cục bộ sau khi chạy, không suy ra hoàn tất chỉ từ sự hiện diện của script.
+
 ## Hai lượt GitHub đã thực hiện
 
 Người dùng đã cho phép riêng và đã cấu hình hai Actions Secrets `DNSE_API_KEY`, `DNSE_API_SECRET` trong `TranThanhPhu39/neo-liquiditylab`. Không đổi hai secret Vnstock/state và không bật lịch thu.

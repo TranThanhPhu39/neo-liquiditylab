@@ -1,4 +1,4 @@
-"""DNSE Market Data diagnostics only; no account or order routes are exposed."""
+"""Read-only DNSE quotes and equity reference data; no account or order routes."""
 import base64
 from datetime import datetime,timezone
 import hashlib
@@ -90,15 +90,20 @@ class DNSEReadOnly:
             opener=build_opener(HTTPSHandler(context=context),NoRedirect())
         self._opener=opener
         self._last=None
-        self._interval=max(2,min_interval)
+        # Quotes: documented 10,000/hour. 0.5s permits at most 7,200/hour.
+        self._interval=max(0.5,min_interval)
 
     def get(self,path,params=None):
-        if not re.fullmatch(r"/price/[A-Z0-9]{1,12}/quotes(?:/latest)?",path):
+        instruments=path=="/instruments"
+        if not instruments and not re.fullmatch(r"/price/[A-Z0-9]{1,12}/quotes(?:/latest)?",path):
             raise ValueError("DNSE_ROUTE_NOT_ALLOWED")
-        if set(params or {})-{"boardId","from","to","limit","order","nextPageToken"}:
+        allowed={"symbol","marketId","securityGroupId","indexName","limit","page"} if instruments else {
+            "boardId","from","to","limit","order","nextPageToken"}
+        if set(params or {})-allowed:
             raise ValueError("DNSE_QUERY_NOT_ALLOWED")
         if self._last is not None:
-            time.sleep(max(0,self._interval-(time.monotonic()-self._last)))
+            spacing=max(4,self._interval) if instruments else self._interval
+            time.sleep(max(0,spacing-(time.monotonic()-self._last)))
         headers=signed_headers(self._key,self._secret,path)
         url=BASE_URL+path+("?"+urlencode(params) if params else "")
         request=Request(url,method="GET",headers=headers)

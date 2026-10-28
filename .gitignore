@@ -15,6 +15,7 @@ data/portfolio.csv
 data/backups/
 data/control/
 data/github/
+data/history/
 report/github/
 report/automation/logs/
 report/*.png
