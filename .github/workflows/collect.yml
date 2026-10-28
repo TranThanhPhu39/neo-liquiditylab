@@ -9,7 +9,7 @@ on:
         description: Preflight connectivity or collect the current trading window
         type: choice
         default: preflight
-        options: [preflight, storage-test, collect]
+        options: [preflight, storage-test, scope-test, collect]
       resume_after_failure:
         description: Explicit recovery after investigating a same-day source failure
         type: boolean
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   collector:
-    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && (inputs.mode == 'preflight' || inputs.mode == 'storage-test' || vars.LIQUIDITYLAB_WORKER_ENABLED == 'true')
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && (inputs.mode == 'preflight' || inputs.mode == 'storage-test' || inputs.mode == 'scope-test' || vars.LIQUIDITYLAB_WORKER_ENABLED == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 355
     permissions:
@@ -80,8 +80,11 @@ jobs:
           import json,os
           from pathlib import Path
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:
-              for name in ('preflight','storage','checkpoint','failure'):
+              for name in ('preflight','storage','scope','checkpoint','failure'):
                   p=Path('report/github')/(name+'.json')
                   if p.exists():
-                      summary.write('```json\n'+json.dumps(json.loads(p.read_text()),ensure_ascii=False,indent=2)+'\n```\n')
+                      value=json.loads(p.read_text())
+                      if name=='scope':
+                          value={k:value[k] for k in ('status','scope','universe_symbols','symbols_requested','symbols_returned','exchange_counts','missing_symbols')}
+                      summary.write('```json\n'+json.dumps(value,ensure_ascii=False,indent=2)+'\n```\n')
           PY

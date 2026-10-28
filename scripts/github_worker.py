@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import time
 import tempfile
+import subprocess
+import sys
 
 from config.settings import ROOT,get_vnstock_api_key
 from scripts.github_checkpoint import ReleaseStore,state_key
@@ -66,6 +68,17 @@ def storage_probe():
     print(json.dumps(result))
 
 
+def scope_probe():
+    require_environment()
+    reference=sdk_request("universe")
+    source=ROOT/"data/raw/github_scope_universe.json"
+    write_json(source,reference)
+    result=subprocess.run([sys.executable,"-m","scripts.preflight_market_scope","--universe",str(source),
+        "--all-batches","--report",str(ROOT/"report/github/scope.json")],cwd=ROOT,check=False)
+    if result.returncode:
+        raise RuntimeError("FULL_MARKET_SCOPE_PREFLIGHT_FAILED")
+
+
 def collect(resume=False):
     require_environment()
     day=datetime.now(LOCAL_TZ).date().isoformat()
@@ -105,7 +118,7 @@ def collect(resume=False):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode",choices=["preflight","collect","storage-test"])
+    parser.add_argument("mode",choices=["preflight","collect","storage-test","scope-test"])
     parser.add_argument("--resume-after-failure",action="store_true")
     args=parser.parse_args()
     try:
@@ -114,6 +127,9 @@ def main():
             return 0
         if args.mode=="storage-test":
             storage_probe()
+            return 0
+        if args.mode=="scope-test":
+            scope_probe()
             return 0
         return collect(args.resume_after_failure)
     except Exception as error:

@@ -2,6 +2,12 @@
 
 Đích được người dùng chọn: **repo public `TranThanhPhu39/neo-liquiditylab`**. Kiến trúc tham khảo từ [worker crypto](https://github.com/TranThanhPhu39/dashboard_crypto/blob/main/.github/workflows/worker.yml): worker có lịch, preflight tách riêng và checkpoint mã hóa. Không sửa repo crypto. GitHub Pages không chạy collector; ứng dụng Streamlit vẫn là giao diện local, chưa xuất bản một dashboard Pages cho LiquidityLab.
 
+## Tình trạng nghiệm thu ngày 28/10/2026
+
+Repo đã công khai mã nguồn và cấu hình hai secrets Vnstock/state theo chấp thuận của người dùng. CI offline Ubuntu đạt; hai lượt storage-test trên runner mới đã tạo và khôi phục checkpoint **synthetic**, chưa phải dữ liệu thị trường. Sau khi người dùng gỡ thiết bị Vnstock cũ, [preflight 40697208938](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/40697208938) đăng nhập được, lấy danh mục 1.754 dòng và quote ba mã; [runner mới kế tiếp 40697460635](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/40697460635) bị `VNSTOCK_AUTH_DEVICE_LIMIT`. Vì vậy chưa nghiệm thu nguồn thu Vnstock định kỳ trên hosted runners.
+
+`LIQUIDITYLAB_WORKER_ENABLED=false`; task Windows **NEO LiquidityLab - Vnstock Whole Market** cũng Disabled trong quá trình bàn giao. Không có bộ thu tự động đang hoạt động. Không tự bật lại Windows vì slot Vnstock đã được runner đầu sử dụng. Người dùng đang kiểm tra [nguồn DNSE](dnse_integration.md); chưa có API Secret cục bộ, chưa thử DNSE thật, chưa đưa khóa DNSE lên GitHub.
+
 ## Workflow và giới hạn
 
 `.github/workflows/test.yml` kiểm thử offline trên Ubuntu/Python 3.12 khi push/PR. Không nhận secret hoặc gọi SDK mạng. `.github/workflows/collect.yml` chỉ cho repo đích và nhánh main; không chạy worker trên push hoặc PR. Mặc định lịch chưa bật cho tới khi repository variable `LIQUIDITYLAB_WORKER_ENABLED=true`.

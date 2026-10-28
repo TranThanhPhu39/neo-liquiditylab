@@ -108,3 +108,24 @@ def test_sdk_diagnostic_keeps_safe_error_code_without_raw_message():
     assert 'private-value' not in str(error)
     invalid=SDKRequestError({'error':'private-value: auth header','error_code':'unsafe private-value'})
     assert invalid.category=='UNKNOWN_SDK_ERROR' and invalid.code is None
+
+
+def test_log_monitor_excludes_unapproved_secret_objects():
+    from scripts.github_monitor import summarize_log
+    result=summarize_log('2026-10-28 {"status":"FAILED","sdk_error_code":"VNSTOCK_AUTH_DEVICE_LIMIT"}\n'
+                         '{"token":"synthetic-private-value"}\n128 passed in 2.59s')
+    assert len(result['worker_summaries'])==1 and len(result['pytest_totals'])==1
+    assert 'synthetic-private-value' not in json.dumps(result)
+
+
+def test_scope_probe_runs_one_bounded_diagnostic_sweep(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(github_worker,'ROOT',tmp_path)
+    monkeypatch.setattr(github_worker,'require_environment',lambda:None)
+    monkeypatch.setattr(github_worker,'sdk_request',lambda op:{'rows':[{'symbol':'FPT'}]})
+    calls=[]
+    monkeypatch.setattr(github_worker.subprocess,'run',lambda args,**kwargs:calls.append(args) or SimpleNamespace(returncode=0))
+    github_worker.scope_probe()
+    assert len(calls)==1 and '--all-batches' in calls[0]
+    assert (tmp_path/'data/raw/github_scope_universe.json').is_file()
+    assert not (tmp_path/'data/github').exists()
