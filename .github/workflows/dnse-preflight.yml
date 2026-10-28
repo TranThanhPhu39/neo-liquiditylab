@@ -1,0 +1,59 @@
+name: DNSE read-only preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      history_date:
+        description: Optional YYYY-MM-DD; probe only 11:29-11:30 Vietnam time, two pages per symbol
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquiditylab-dnse-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install diagnostic dependency
+        run: python -m pip install python-dotenv==1.2.4
+      - name: Probe three symbols without trading or normalization
+        env:
+          DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
+          DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
+          HISTORY_DATE: ${{ inputs.history_date }}
+        run: |
+          python -m scripts.probe_dnse --report report/dnse_preflight.json
+          if [ -n "$HISTORY_DATE" ]; then
+            python -m scripts.probe_dnse --history-date "$HISTORY_DATE" --report report/dnse_history_preflight.json
+          fi
+      - name: Write diagnostic summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:
+              for name in ('dnse_preflight','dnse_history_preflight'):
+                  p=Path('report')/(name+'.json')
+                  if p.exists():
+                      value=json.loads(p.read_text())
+                      for sample in value.get('samples',[]):
+                          sample.pop('rate_limit_headers',None)
+                      summary.write('```json\n'+json.dumps(value,ensure_ascii=False,indent=2)+'\n```\n')
+          PY

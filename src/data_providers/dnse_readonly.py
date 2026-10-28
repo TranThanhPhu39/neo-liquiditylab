@@ -93,6 +93,10 @@ class DNSEReadOnly:
                 if len(raw)>8*1024*1024:
                     raise ProviderError("DNSE_RESPONSE_TOO_LARGE")
                 received=datetime.now(timezone.utc).isoformat()
+                response_headers=getattr(response,"headers",{})
+                limits={name:response_headers.get(name) for name in
+                        ("X-RateLimit-Limit","X-RateLimit-Remaining","X-RateLimit-Reset")
+                        if re.fullmatch(r"[0-9]{1,20}",str(response_headers.get(name,"")))}
         except HTTPError as error:
             raise DNSEHTTPError(error.code) from None
         except (URLError,TimeoutError):
@@ -103,4 +107,5 @@ class DNSEReadOnly:
             raise ProviderError("DNSE_INVALID_JSON") from None
         return {"provider":"dnse","method":"GET","path":path,"received_at_utc":received,
                 "api_version":API_VERSION,"units_verified":False,
+                "rate_limit_headers":limits,
                 "payload":redact_payload(payload,(self._key,self._secret))}

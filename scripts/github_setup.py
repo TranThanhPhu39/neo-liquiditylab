@@ -106,18 +106,23 @@ def protected_state_key():
     return result.stdout
 
 
-def set_secrets(include_vnstock=False):
+def set_secrets(include_vnstock=False,*,dnse_only=False):
     from nacl.public import PublicKey,SealedBox
+    if dnse_only:
+        values={name:os.getenv(name) for name in ("DNSE_API_KEY","DNSE_API_SECRET")}
+        if not all(values.values()):
+            raise RuntimeError("LOCAL_DNSE_CREDENTIALS_MISSING")
+    else:
+        values={"LIQUIDITYLAB_STATE_KEY":protected_state_key()}
+        if include_vnstock:
+            key=get_vnstock_api_key()
+            if not key:
+                raise RuntimeError("LOCAL_VNSTOCK_KEY_MISSING")
+            values["VNSTOCK_API_KEY"]=key
     api=GitHubAPI()
     base=repository_path(REPOSITORY)
     public=api.request("GET",base+"/actions/secrets/public-key")
     cipher=SealedBox(PublicKey(base64.b64decode(public["key"])))
-    values={"LIQUIDITYLAB_STATE_KEY":protected_state_key()}
-    if include_vnstock:
-        key=get_vnstock_api_key()
-        if not key:
-            raise RuntimeError("LOCAL_VNSTOCK_KEY_MISSING")
-        values["VNSTOCK_API_KEY"]=key
     for name,value in values.items():
         encrypted=base64.b64encode(cipher.encrypt(value.encode())).decode()
         api.request("PUT",base+"/actions/secrets/"+name,{"encrypted_value":encrypted,"key_id":public["key_id"]})
@@ -126,8 +131,9 @@ def set_secrets(include_vnstock=False):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation",choices=["prepare","publish","secrets","preflight","storage-test","scope-test","enable","disable","status"])
+    parser.add_argument("operation",choices=["prepare","publish","secrets","dnse-secrets","dnse-preflight","preflight","storage-test","scope-test","enable","disable","status"])
     parser.add_argument("--include-vnstock",action="store_true")
+    parser.add_argument("--history-date",default="",help="Optional bounded DNSE historical diagnostic date")
     args=parser.parse_args()
     if args.operation in ("prepare","publish"):
         prepare_public_contract()
@@ -137,10 +143,19 @@ def main():
                 "paths":list(files)} if args.operation=="prepare" else publish(files)
     elif args.operation=="secrets":
         result=set_secrets(args.include_vnstock)
+    elif args.operation=="dnse-secrets":
+        result=set_secrets(dnse_only=True)
     else:
         api=GitHubAPI()
         base=repository_path(REPOSITORY)
-        if args.operation in ("preflight","storage-test","scope-test"):
+        if args.operation=="dnse-preflight":
+            if args.history_date:
+                from scripts.probe_dnse import history_window
+                history_window(args.history_date)
+            api.request("POST",base+"/actions/workflows/dnse-preflight.yml/dispatches",
+                        {"ref":"main","inputs":{"history_date":args.history_date}})
+            result={"dispatched_mode":"dnse-preflight","history_date":args.history_date}
+        elif args.operation in ("preflight","storage-test","scope-test"):
             api.request("POST",base+"/actions/workflows/collect.yml/dispatches",{"ref":"main","inputs":{"mode":args.operation}})
             result={"dispatched_mode":args.operation}
         elif args.operation in ("enable","disable"):
