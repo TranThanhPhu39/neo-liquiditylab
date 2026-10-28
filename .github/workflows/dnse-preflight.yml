@@ -32,6 +32,8 @@ jobs:
           python-version: '3.12'
       - name: Install diagnostic dependency
         run: python -m pip install python-dotenv==1.2.4
+      - name: Check public DNS TCP and TLS without credentials
+        run: python -m scripts.probe_dnse_network
       - name: Probe three symbols without trading or normalization
         env:
           DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
@@ -49,7 +51,7 @@ jobs:
           import json,os
           from pathlib import Path
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:
-              for name in ('dnse_preflight','dnse_history_preflight'):
+              for name in ('dnse_network','dnse_preflight','dnse_history_preflight'):
                   p=Path('report')/(name+'.json')
                   if p.exists():
                       value=json.loads(p.read_text())

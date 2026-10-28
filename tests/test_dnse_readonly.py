@@ -102,6 +102,38 @@ def test_dnse_network_failure_is_sanitized_and_redirects_are_disabled():
     assert NoRedirect().redirect_request(None, None, 302, 'Found', {}, 'https://example.com') is None
 
 
+def test_dnse_network_errors_separate_timeout_dns_and_certificate_without_raw_messages():
+    import socket
+    import ssl
+    from src.data_providers.dnse_readonly import network_error_code
+    assert network_error_code(URLError(TimeoutError('synthetic-private'))) == 'DNSE_TIMEOUT'
+    assert network_error_code(socket.gaierror('synthetic-private')) == 'DNSE_DNS_ERROR'
+    assert network_error_code(ssl.SSLCertVerificationError('synthetic-private')) == 'DNSE_TLS_VERIFICATION_FAILED'
+    assert network_error_code(ConnectionResetError('synthetic-private')) == 'DNSE_CONNECTION_ERROR'
+
+
+def test_public_network_probe_reports_tcp_stage_and_sends_no_credentials(monkeypatch):
+    from scripts import probe_dnse_network
+    import socket
+    class Connection:
+        def __enter__(self):
+            return self
+        def __exit__(self,*args):
+            pass
+        def settimeout(self,seconds):
+            assert seconds == 5
+        def connect(self,address):
+            assert address == ('192.0.2.1',443)
+            raise TimeoutError('synthetic-private')
+    monkeypatch.setattr(probe_dnse_network.socket,'getaddrinfo',lambda *a,**k:[
+        (socket.AF_INET,socket.SOCK_STREAM,6,'',('192.0.2.1',443))])
+    monkeypatch.setattr(probe_dnse_network.socket,'socket',lambda *a:Connection())
+    result=probe_dnse_network.diagnose()
+    assert result['status']=='NETWORK_FAILED'
+    assert result['attempts'][0]['stage']=='TCP' and result['attempts'][0]['error_code']=='DNSE_TIMEOUT'
+    assert 'synthetic-private' not in json.dumps(result)
+
+
 def test_dnse_saves_only_numeric_rate_limit_headers():
     class Response(BytesIO):
         headers = {'X-RateLimit-Limit': '100000', 'X-RateLimit-Remaining': '99999',

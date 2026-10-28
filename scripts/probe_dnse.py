@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from config.settings import ROOT
 from src.data_providers.dnse_readonly import DNSEReadOnly,DNSEHTTPError
+from src.data_providers.base import ProviderError
 
 VN=ZoneInfo("Asia/Ho_Chi_Minh")
 
@@ -114,6 +115,10 @@ def main():
         report.update(status="FAILED",error_category=type(error).__name__)
         if isinstance(error,DNSEHTTPError):
             report["http_status"]=error.status
+        elif isinstance(error,ProviderError) and str(error) in {
+                "DNSE_TLS_VERIFICATION_FAILED","DNSE_DNS_ERROR","DNSE_TIMEOUT","DNSE_TLS_ERROR",
+                "DNSE_CONNECTION_ERROR","DNSE_NETWORK_ERROR","DNSE_INVALID_JSON","DNSE_RESPONSE_TOO_LARGE"}:
+            report["error_code"]=str(error)
         code=1
     path=Path(args.report)
     path.parent.mkdir(parents=True,exist_ok=True)

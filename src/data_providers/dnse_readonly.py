@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import re
+import socket
 import ssl
 import time
 from urllib.error import HTTPError,URLError
@@ -23,6 +24,21 @@ class DNSEHTTPError(ProviderError):
     def __init__(self,status):
         self.status=status
         super().__init__(f"DNSE_HTTP_{status}")
+
+
+def network_error_code(error):
+    reason=error.reason if isinstance(error,URLError) else error
+    if isinstance(reason,ssl.SSLCertVerificationError):
+        return "DNSE_TLS_VERIFICATION_FAILED"
+    if isinstance(reason,socket.gaierror):
+        return "DNSE_DNS_ERROR"
+    if isinstance(reason,TimeoutError):
+        return "DNSE_TIMEOUT"
+    if isinstance(reason,ssl.SSLError):
+        return "DNSE_TLS_ERROR"
+    if isinstance(reason,ConnectionError):
+        return "DNSE_CONNECTION_ERROR"
+    return "DNSE_NETWORK_ERROR"
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -99,8 +115,8 @@ class DNSEReadOnly:
                         if re.fullmatch(r"[0-9]{1,20}",str(response_headers.get(name,"")))}
         except HTTPError as error:
             raise DNSEHTTPError(error.code) from None
-        except (URLError,TimeoutError):
-            raise ProviderError("DNSE_NETWORK_ERROR") from None
+        except (URLError,TimeoutError,ConnectionError,ssl.SSLError) as error:
+            raise ProviderError(network_error_code(error)) from None
         try:
             payload=json.loads(raw)
         except (ValueError,UnicodeError):

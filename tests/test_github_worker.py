@@ -118,6 +118,18 @@ def test_log_monitor_excludes_unapproved_secret_objects():
     assert 'synthetic-private-value' not in json.dumps(result)
 
 
+def test_dnse_monitor_keeps_counts_without_raw_quota_paths_or_page_tokens():
+    from scripts.github_monitor import summarize_log
+    log=json.dumps({'provider':'dnse','status':'HTTP_JSON_PROBE_COMPLETED_NOT_UNIT_VERIFIED',
+        'units_verified':False,'finance_enabled':False,'samples':[{'symbol':'FPT','quote_count':2,
+        'artifact':'private-local-path','rate_limit_headers':{'X-RateLimit-Remaining':99999},
+        'nextPageToken':'private-page-token','quote_shapes':[{'symbol':'FPT','bid_levels':3,'ask_levels':3}]}]})
+    result=summarize_log(log)
+    summary=result['worker_summaries'][0]
+    assert summary['samples'][0]['quote_count']==2 and summary['mode']=='latest'
+    assert 'private-' not in json.dumps(result) and '99999' not in json.dumps(result)
+
+
 def test_scope_probe_runs_one_bounded_diagnostic_sweep(tmp_path,monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setattr(github_worker,'ROOT',tmp_path)
