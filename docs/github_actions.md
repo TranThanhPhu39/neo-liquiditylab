@@ -6,7 +6,7 @@
 
 Repo đã công khai mã nguồn và cấu hình hai secrets Vnstock/state theo chấp thuận của người dùng. CI offline Ubuntu đạt; hai lượt storage-test trên runner mới đã tạo và khôi phục checkpoint **synthetic**, chưa phải dữ liệu thị trường. Sau khi người dùng gỡ thiết bị Vnstock cũ, [preflight 40697208938](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/40697208938) đăng nhập được, lấy danh mục 1.754 dòng và quote ba mã; [runner mới kế tiếp 40697460635](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/40697460635) bị `VNSTOCK_AUTH_DEVICE_LIMIT`. Vì vậy chưa nghiệm thu nguồn thu Vnstock định kỳ trên hosted runners.
 
-`LIQUIDITYLAB_WORKER_ENABLED=false`; task Windows **NEO LiquidityLab - Vnstock Whole Market** cũng Disabled trong quá trình bàn giao. Không có bộ thu tự động đang hoạt động. Không tự bật lại Windows vì slot Vnstock đã được runner đầu sử dụng. [Nguồn DNSE](dnse_integration.md) đã thử latest ba mã và hai trang lịch sử/mã thành công trên máy. Workflow DNSE manual riêng đã chuẩn bị; chưa đưa khóa DNSE lên GitHub hoặc kiểm chứng runner mới.
+`LIQUIDITYLAB_WORKER_ENABLED=false`; task Windows **NEO LiquidityLab - Vnstock Whole Market** cũng Disabled trong quá trình bàn giao. Không có bộ thu tự động đang hoạt động. Không tự bật lại Windows vì slot Vnstock đã được runner đầu sử dụng. [Nguồn DNSE](dnse_integration.md) đã thử latest ba mã và hai trang lịch sử/mã thành công trên máy. Hai secrets DNSE đã cấu hình theo chấp thuận riêng; hai lượt GitHub chưa kết nối được, lượt thứ hai xác nhận DNS thành công nhưng TCP 443 timeout trước TLS/xác thực. Chưa đạt nghiệm thu DNSE chạy GitHub; xem [nội dung hỏi hỗ trợ](dnse_support_request.md).
 
 ## Workflow và giới hạn
 
