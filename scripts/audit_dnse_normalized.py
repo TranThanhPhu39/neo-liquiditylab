@@ -11,7 +11,7 @@ import time
 import zlib
 
 from config.settings import ROOT
-from scripts.collect_dnse_history import keep_awake,utcnow
+from scripts.collect_dnse_history import exclusive_job,keep_awake,utcnow
 from scripts.normalize_dnse_history import file_sha
 from scripts.scheduled_collection import write_json
 from src.models.orderbook import LOCAL_TZ
@@ -68,7 +68,7 @@ def audit(root=ROOT,export=False):
     path=folder/'normalized.db'
     checked=quarantined=pages_checked=0
     last_progress=0
-    with keep_awake(),closing(sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)) as db:
+    with exclusive_job(root/'data/control/dnse_history.lock'),exclusive_job(root/'data/control/dnse_normalization.lock'),keep_awake(),closing(sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)) as db:
         db.row_factory=sqlite3.Row
         rules=db.execute('SELECT hash,payload FROM normalization_rules').fetchone()
         actual_rule_hash=hashlib.sha256(json.dumps(json.loads(rules['payload']),sort_keys=True,

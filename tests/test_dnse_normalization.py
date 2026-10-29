@@ -179,3 +179,13 @@ def test_independent_audit_checks_values_against_raw_and_exports(tmp_path,quote)
     db.close()
     with pytest.raises(ValueError,match='SCALE_MISMATCH'):
         audit(root=tmp_path)
+
+
+def test_audit_refuses_to_run_while_normalizer_has_exclusive_lock(tmp_path,quote):
+    from scripts.audit_dnse_normalized import audit
+    from scripts.collect_dnse_history import exclusive_job
+    prepare_fixture(tmp_path,quote)
+    run(root=tmp_path)
+    with exclusive_job(tmp_path/'data/control/dnse_normalization.lock'):
+        with pytest.raises(RuntimeError,match='ANOTHER_COLLECTION_JOB'):
+            audit(root=tmp_path)
