@@ -12,8 +12,12 @@ from scripts.collect_dnse_history import token_hash,utcnow
 from scripts.scheduled_collection import write_json
 
 
-def audit(day,*,root=ROOT,export=False):
+def audit(day,*,root=ROOT,export=False,session='day'):
+    if session not in ('day','morning'):
+        raise ValueError('INVALID_COLLECTION_SESSION')
     folder=root/'data/history/dnse'/day
+    if session!='day':
+        folder=folder/session
     db=sqlite3.connect((folder/'history.db').as_uri()+'?mode=ro',uri=True)
     db.row_factory=sqlite3.Row
     integrity=db.execute('PRAGMA quick_check').fetchone()[0]
@@ -71,7 +75,7 @@ def audit(day,*,root=ROOT,export=False):
             output=None
             temporary.replace(destination)
         counts=Counter(row['status'] for row in symbols.values())
-        result={'date':day,'checked_at_utc':utcnow(),'provider':'dnse','units_verified':False,
+        result={'date':day,'session':session,'checked_at_utc':utcnow(),'provider':'dnse','units_verified':False,
             'sqlite_integrity':integrity,'page_checksums_verified':total_pages,
             'raw_quote_count_verified':total_quotes,'symbols_total':len(symbols),'symbol_status':dict(counts),
             'all_symbols_fully_paginated':sum(counts[key] for key in ('COMPLETE','NO_DATA_RETURNED'))==len(symbols),
@@ -81,7 +85,7 @@ def audit(day,*,root=ROOT,export=False):
             'last_source_time':max(last_times.values()) if last_times else None,
             'export':str(destination) if export else None,
             'note':'Provider page chain exhausted per symbol; this does not independently certify upstream data completeness. G1 equity raw only; no trading or normalization.'}
-        write_json(root/'report'/f'dnse_history_audit_{day}.json',result)
+        write_json(root/'report'/f"dnse_history_audit_{day}{'_'+session if session!='day' else ''}.json",result)
         return result
     finally:
         if output:
@@ -93,8 +97,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--date',required=True)
     parser.add_argument('--export',action='store_true')
+    parser.add_argument('--session',choices=['day','morning'],default='day')
     args=parser.parse_args()
-    print(json.dumps(audit(args.date,export=args.export),ensure_ascii=True))
+    print(json.dumps(audit(args.date,export=args.export,session=args.session),ensure_ascii=True))
 
 
 if __name__=='__main__':

@@ -70,17 +70,21 @@ def connect(path):
     return db
 
 
-def initialize(db,day,page_size):
+def initialize(db,day,page_size,session='day'):
+    if session not in ('day','morning'):
+        raise ValueError('INVALID_COLLECTION_SESSION')
     if date.fromisoformat(day)>datetime.now(VN).date():
         raise ValueError('FUTURE_DATE_NOT_ALLOWED')
     # Includes pre-open book messages, all morning/afternoon phases, and closing messages.
     start=datetime.fromisoformat(day+'T00:00:00').replace(tzinfo=VN)
-    end=datetime.fromisoformat(day+'T15:10:00').replace(tzinfo=VN)
+    end=datetime.fromisoformat(day+('T11:30:00' if session=='morning' else 'T15:10:00')).replace(tzinfo=VN)
     if end>datetime.now(VN):
-        raise ValueError('DAILY_DOWNLOAD_REQUIRES_CLOSED_SESSION')
+        raise ValueError('MORNING_DOWNLOAD_REQUIRES_CLOSED_SESSION' if session=='morning' else 'DAILY_DOWNLOAD_REQUIRES_CLOSED_SESSION')
     settings={'date':day,'from':int(start.timestamp()),'to':int(end.timestamp()),
               'boardId':'G1','order':'ASC','page_size':page_size,'units_verified':False,
               'scope':'ALL_LISTED_EQUITIES_HOSE_HNX_UPCOM','api_version':'2026-07-23'}
+    if session!='day':
+        settings['session']=session
     previous=db.execute("SELECT value FROM metadata WHERE key='settings'").fetchone()
     if previous and json.loads(previous[0])!=settings:
         raise ValueError('RESUME_SETTINGS_MISMATCH')
@@ -236,19 +240,23 @@ def summary(db,state,error=None):
     return result
 
 
-def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None):
+def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None,session='day'):
     if not isinstance(page_size,int) or not 1<=page_size<=1000:
         raise ValueError('PAGE_SIZE_MUST_BE_1_TO_1000')
     date.fromisoformat(day)
+    if session not in ('day','morning'):
+        raise ValueError('INVALID_COLLECTION_SESSION')
     folder=root/'data/history/dnse'/day
+    if session!='day':
+        folder=folder/session
     folder.mkdir(parents=True,exist_ok=True)
-    report=root/'report'/f'dnse_history_{day}.json'
+    report=root/'report'/f"dnse_history_{day}{'_'+session if session!='day' else ''}.json"
     with exclusive_job(root/'data/control/dnse_history.lock'),keep_awake():
         db=connect(folder/'history.db')
         state='RUNNING'
         error_code=None
         try:
-            settings=initialize(db,day,page_size)
+            settings=initialize(db,day,page_size,session)
             client=client or DNSEReadOnly(min_interval=0.5)
             load_universe(db,client,folder)
             initial_requests=db.execute('SELECT count(*) FROM requests').fetchone()[0]
@@ -326,9 +334,10 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--date',default=datetime.now(VN).date().isoformat())
     parser.add_argument('--page-size',type=int,default=1000)
+    parser.add_argument('--session',choices=['day','morning'],default='day')
     parser.add_argument('--max-requests',type=int,help='Optional explicit bounded smoke run; resume without this option')
     args=parser.parse_args()
-    result=run(args.date,page_size=args.page_size,max_requests=args.max_requests)
+    result=run(args.date,page_size=args.page_size,max_requests=args.max_requests,session=args.session)
     return 0 if result['state']=='COMPLETED' else 1
 
 

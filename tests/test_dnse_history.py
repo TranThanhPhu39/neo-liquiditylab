@@ -170,3 +170,58 @@ def test_audit_verifies_page_chains_and_exports_raw_records(tmp_path):
     db.close()
     with pytest.raises(ValueError,match='CHECKSUM_FAILED'):
         audit(DAY,root=tmp_path)
+
+
+def test_morning_history_uses_fixed_cutoff_and_is_separate_from_daily_archive(tmp_path):
+    from scripts.audit_dnse_history import audit
+    daily=run(DAY,page_size=1,root=tmp_path,client=FixtureClient())
+    daily_path=tmp_path/'data/history/dnse'/DAY/'history.db'
+    daily_hash=hashlib.sha256(daily_path.read_bytes()).hexdigest()
+    morning=run(DAY,page_size=1,root=tmp_path,client=FixtureClient(),session='morning')
+    assert daily['state']==morning['state']=='COMPLETED'
+    assert morning['settings']['session']=='morning'
+    assert morning['settings']['to']==1793161800
+    assert daily['settings']['to']==1793175000
+    assert hashlib.sha256(daily_path.read_bytes()).hexdigest()==daily_hash
+    assert (tmp_path/'data/history/dnse'/DAY/'morning/history.db').exists()
+    assert (tmp_path/'report'/f'dnse_history_{DAY}_morning.json').exists()
+    assert audit(DAY,root=tmp_path,session='morning',export=True)['all_symbols_fully_paginated']
+
+
+def test_morning_archive_rejects_quotes_after_1130(tmp_path):
+    db=connect(tmp_path/'history.db')
+    settings=initialize(db,DAY,1000,session='morning')
+    with db:
+        db.execute("INSERT INTO symbols(symbol,exchange,market_id) VALUES('FPT','HOSE','STO')")
+    row=db.execute('SELECT * FROM symbols').fetchone()
+    afternoon=observation()
+    afternoon['payload']['quotes'][0]['time']='2026-10-28 13:00:00.001'
+    with pytest.raises(ValueError,match='OUTSIDE_REQUEST'):
+        store_page(db,row,afternoon,settings)
+    assert db.execute('SELECT count(*) FROM pages').fetchone()[0]==0
+    db.close()
+
+
+def test_missing_report_does_not_treat_pending_errors_or_null_sides_as_empty(tmp_path):
+    from scripts.report_dnse_missing import make_report
+    db_path=tmp_path/'data/history/dnse'/DAY/'morning/history.db'
+    db_path.parent.mkdir(parents=True)
+    db=connect(db_path)
+    settings=initialize(db,DAY,1000,session='morning')
+    with db:
+        db.executemany('INSERT INTO symbols(symbol,exchange,market_id,status,error) VALUES(?,?,?,?,?)',[
+            ('FPT','HOSE','STO','PENDING',None),('SHS','HNX','STX','ERROR','HTTP_404'),
+            ('ACV','UPCOM','UPX','PENDING',None),('HPG','HOSE','STO','PENDING',None)])
+    empty=observation(symbol='ACV',market='UPX')
+    empty['payload']={'quotes':[]}
+    store_page(db,db.execute("SELECT * FROM symbols WHERE symbol='ACV'").fetchone(),empty,settings)
+    one_sided=observation(symbol='HPG')
+    one_sided['payload']['quotes'][0]['offer']=None
+    store_page(db,db.execute("SELECT * FROM symbols WHERE symbol='HPG'").fetchone(),one_sided,settings)
+    db.close()
+    report=make_report(DAY,root=tmp_path)
+    assert report['empty_count']==1 and report['empty_by_exchange']['UPCOM']==['ACV']
+    assert report['error_count']==1 and report['errors'][0]['symbol']=='SHS'
+    assert report['symbols_pending_first_page']==1 and not report['first_pass_finished']
+    assert report['symbols_with_records']==1
+    assert (tmp_path/'report'/f'dnse_missing_{DAY}_morning.txt').exists()
