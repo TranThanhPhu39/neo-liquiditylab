@@ -12,6 +12,13 @@ def rate(value, name="rate", minimum=Decimal(0), maximum=Decimal(1)):
 
 
 def simulate_execution(snapshot, requested_quantity, side="sell", fee_rate=0, sell_tax_rate=0, benchmark="best"):
+    if snapshot.provider=="dnse":
+        if any(issue.startswith('INVALID_DNSE:') for issue in snapshot.issues):
+            raise ValueError("Snapshot DNSE chứa giá hoặc khối lượng không hợp lệ")
+        if snapshot.unit_verification_status not in ("EMPIRICALLY_VERIFIED","OFFICIALLY_VERIFIED"):
+            raise ValueError("Đơn vị DNSE của mã này mới áp theo schema, chưa được xác minh trực tiếp")
+        if snapshot.market_session not in ("DNSE_CONTINUOUS_AM","DNSE_CONTINUOUS_PM"):
+            raise ValueError("Snapshot DNSE nằm ngoài cửa sổ khớp lệnh liên tục đã phân loại")
     if isinstance(requested_quantity, bool) or not isinstance(requested_quantity, int) or requested_quantity <= 0:
         raise ValueError("Số lượng phải là số nguyên dương")
     if side not in ("sell", "buy") or benchmark not in ("best", "mid"):

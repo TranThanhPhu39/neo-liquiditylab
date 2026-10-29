@@ -24,6 +24,8 @@ Lệnh `report_dnse_missing` chỉ đọc kho đang có và tạo ba tệp `repo
 
 Danh mục lấy mới từ DNSE mỗi kho/ngày. Mã không còn trong danh mục hiện tại được tách khỏi nhóm trả rỗng; không tự kết luận hủy niêm yết. So sánh với ngày trước có thể là sáng so với cả ngày nên thay đổi trạng thái không tự chứng minh lỗi nguồn.
 
+Khi người dùng đối chiếu bảng giá, nhật ký riêng ở `data/control/dnse_manual_checks_YYYY-MM-DD_SESSION.json` ghi nguồn và loại bằng chứng. Nếu người dùng xác nhận khớp lệnh và dư mua/bán đều hiển thị 0, báo cáo tách mã sang nhóm đã đối chiếu và loại khỏi danh sách còn cần kiểm tra. Tổng số phản hồi lịch sử rỗng và raw vẫn giữ nguyên. Bằng chứng bảng hiển thị không được biến thành snapshot lịch sử hoặc xác nhận mọi thời điểm trong phiên đều có độ sâu bằng 0.
+
 Trang 1.000 quote đã kiểm tra nhận được; yêu cầu 2.000, 5.000 và 10.000 bị HTTP 400 nên giữ tối đa 1.000. Khoảng cách request quotes ít nhất 0,5 giây, tối đa lý thuyết 7.200/giờ, dưới hạn mức công bố 10.000/giờ; endpoint instruments giãn ít nhất bốn giây. Chỉ một tiến trình có thể giữ khóa bộ tải. Không chạy các phép probe cùng lúc khi đang tải đầy đủ.
 
 Mỗi lượt lấy một trang/mã theo vòng để có dữ liệu toàn danh mục trước khi đi sâu vào mã nhiều cập nhật. Quote hai phía rỗng hoặc `null` được giữ nguyên; không giả định mọi mã đều có đủ ba mức. Đơn vị giá/khối lượng DNSE **chưa xác minh**, chỉ lưu raw, chưa đưa vào A1/B5.

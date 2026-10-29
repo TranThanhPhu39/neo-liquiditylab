@@ -55,6 +55,8 @@ def normalize(row: dict, *, provider: str, upstream_source: str, capture_method=
         collected_at_utc=collected.astimezone(timezone.utc), source_timestamp=timestamp,
         market_session=str(row.get("market_session", "UNKNOWN")), bids=bids, asks=asks,
         reference_price=number("reference_price"), last_price=number("last_price"),
-        issues=tuple(dict.fromkeys(issues)), event_id=row.get("event_id"), raw=dict(row))
+        issues=tuple(dict.fromkeys(issues)), event_id=row.get("event_id"), raw=dict(row),
+        unit_verification_status=row.get("unit_verification_status","VERIFIED"),
+        unit_contract_hash=row.get("unit_contract_hash"))
     from src.data_pipeline.validation import validate
     return validate(snapshot)

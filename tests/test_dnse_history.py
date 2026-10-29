@@ -225,3 +225,16 @@ def test_missing_report_does_not_treat_pending_errors_or_null_sides_as_empty(tmp
     assert report['symbols_pending_first_page']==1 and not report['first_pass_finished']
     assert report['symbols_with_records']==1
     assert (tmp_path/'report'/f'dnse_missing_{DAY}_morning.txt').exists()
+    control=tmp_path/'data/control'
+    control.mkdir(parents=True,exist_ok=True)
+    (control/f'dnse_manual_checks_{DAY}_morning.json').write_text(json.dumps({
+        'date':DAY,'session':'morning','checks':[{'symbol':'ACV','matched_volume':0,
+        'displayed_bid_volume':0,'displayed_ask_volume':0,'sources':['User fixture'],
+        'evidence_type':'USER_REPORTED_ZERO_ACTIVITY_AND_DISPLAYED_DEPTH'}]}))
+    checked=make_report(DAY,root=tmp_path)
+    assert checked['empty_count']==1 and checked['manual_zero_display_count']==1
+    assert checked['empty_responses_pending_manual_review']==0
+    assert checked['pending_manual_review_by_exchange']['UPCOM']==[]
+    db=connect(db_path)
+    assert db.execute("SELECT status FROM symbols WHERE symbol='ACV'").fetchone()[0]=='NO_DATA_RETURNED'
+    db.close()

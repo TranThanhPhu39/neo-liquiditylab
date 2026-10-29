@@ -1,4 +1,4 @@
-"""Read-only DNSE quotes and equity reference data; no account or order routes."""
+"""Read-only DNSE quotes, market trades and equity reference; no account/order routes."""
 import base64
 from datetime import datetime,timezone
 import hashlib
@@ -95,7 +95,7 @@ class DNSEReadOnly:
 
     def get(self,path,params=None):
         instruments=path=="/instruments"
-        if not instruments and not re.fullmatch(r"/price/[A-Z0-9]{1,12}/quotes(?:/latest)?",path):
+        if not instruments and not re.fullmatch(r"/price/[A-Z0-9]{1,12}/(?:quotes|trades)(?:/latest)?",path):
             raise ValueError("DNSE_ROUTE_NOT_ALLOWED")
         allowed={"symbol","marketId","securityGroupId","indexName","limit","page"} if instruments else {
             "boardId","from","to","limit","order","nextPageToken"}

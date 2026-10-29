@@ -39,6 +39,8 @@ class OrderBookSnapshot:
     schema_version: str = "1.0"
     event_id: str | None = None
     raw: dict[str, Any] = field(default_factory=dict, compare=False, repr=False)
+    unit_verification_status: str = "VERIFIED"
+    unit_contract_hash: str | None = None
 
     def __post_init__(self):
         if self.collected_at_utc.tzinfo is None or (self.source_timestamp is not None and self.source_timestamp.tzinfo is None):
@@ -55,7 +57,8 @@ class OrderBookSnapshot:
     def to_record(self) -> dict:
         record = {key: getattr(self, key) for key in (
             "symbol", "exchange", "provider", "upstream_source", "capture_method",
-            "provider_version", "market_session", "data_quality_status", "schema_version", "event_id")}
+            "provider_version", "market_session", "data_quality_status", "schema_version", "event_id",
+            "unit_verification_status", "unit_contract_hash")}
         record.update(collected_at_utc=self.collected_at_utc.astimezone(timezone.utc).isoformat(),
                       received_at_local=self.received_at_local.isoformat(),
                       source_timestamp=self.source_timestamp.isoformat() if self.source_timestamp else None,

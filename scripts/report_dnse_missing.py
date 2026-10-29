@@ -58,6 +58,23 @@ def make_report(day,*,session='morning',root=ROOT):
         and old_rows.get(row['symbol'],{}).get('status')=='NO_DATA_RETURNED']
     by_exchange={exchange:[row['symbol'] for row in missing if row['exchange']==exchange]
                  for exchange in ('HOSE','HNX','UPCOM')}
+    manual_path=root/'data/control'/f"dnse_manual_checks_{day}_{session}.json"
+    manual_zero=[]
+    if manual_path.exists():
+        evidence=json.loads(manual_path.read_text(encoding='utf-8'))
+        if evidence.get('date')!=day or evidence.get('session')!=session:
+            raise ValueError('MANUAL_VERIFICATION_SCOPE_MISMATCH')
+        empty_symbols={row['symbol'] for row in missing}
+        seen=set()
+        for check in evidence.get('checks',[]):
+            symbol=check.get('symbol')
+            if symbol in empty_symbols and symbol not in seen and check.get('evidence_type')=='USER_REPORTED_ZERO_ACTIVITY_AND_DISPLAYED_DEPTH' and all(
+                    check.get(field)==0 for field in ('matched_volume','displayed_bid_volume','displayed_ask_volume')):
+                manual_zero.append(check)
+                seen.add(symbol)
+    manually_checked={row['symbol'] for row in manual_zero}
+    remaining_by_exchange={exchange:[symbol for symbol in symbols if symbol not in manually_checked]
+                           for exchange,symbols in by_exchange.items()}
     counts=Counter(row['status'] for row in rows)
     result={'provider':'dnse','date':day,'session':session,'generated_at_utc':utcnow(),
         'query_start_local':datetime.fromtimestamp(settings['from'],VN).isoformat(),
@@ -71,6 +88,10 @@ def make_report(day,*,session='morning',root=ROOT):
         'previous_comparison_day':previous_day,'not_in_current_dnse_universe':removed,
         'morning_empty_after_previous_day_records':empty_after_previous_records,
         'records_after_previous_day_empty':records_after_previous_empty,
+        'manual_zero_display_checks':manual_zero,'manual_zero_display_count':len(manual_zero),
+        'empty_responses_pending_manual_review':len(missing)-len(manual_zero),
+        'pending_manual_review_by_exchange':remaining_by_exchange,
+        'priority_pending_manual_review':[symbol for symbol in empty_after_previous_records if symbol not in manually_checked],
         'note':'Empty means API returned no quote records in this window. It does not mean zero order-book volume or prove no trading. Previous-day comparison may cover a different session.'}
     stem=root/'report'/f"dnse_missing_{day}{'_'+session if session!='day' else ''}"
     write_json(stem.with_suffix('.json'),result)
@@ -80,22 +101,32 @@ def make_report(day,*,session='morning',root=ROOT):
         f'- API trả rỗng: **{len(missing)} mã**; lỗi truy cập: **{len(errors)} mã**.',
         f'- Chưa có trang đầu: **{result["symbols_pending_first_page"]} mã**; còn trang tiếp: **{counts["PARTIAL"]} mã**.',
         f'- Đã tải hết trang toàn danh mục: **{"Có" if result["all_symbols_fully_paginated"] else "Chưa"}**.',
+        f'- Đã đối chiếu thủ công bảng hiển thị 0: **{len(manual_zero)} mã**; còn cần kiểm tra: **{len(missing)-len(manual_zero)} mã**.',
         '', '**“API trả rỗng” là phản hồi hợp lệ với `quotes=[]` và không còn token. Không gán khối lượng bằng 0 hoặc tự kết luận mã không giao dịch.**','']
+    if manual_zero:
+        lines.extend(['## Đã đối chiếu: bảng giá hiển thị 0','',
+            'Theo người dùng kiểm tra trên các nguồn dưới đây. Đây là bằng chứng bảng hiển thị, chưa phải lịch sử sổ lệnh đã được API xác nhận. Không tạo thêm snapshot hoặc sửa raw.','',
+            '| Mã | Nguồn người dùng đối chiếu | Khớp lệnh | Dư mua | Dư bán |',
+            '| --- | --- | ---: | ---: | ---: |'])
+        lines.extend(f'| {check["symbol"]} | {", ".join(check.get("sources",[]))} | 0 | 0 | 0 |' for check in manual_zero)
+        lines.append('')
     for exchange,symbols in by_exchange.items():
         lines.extend([f'## {exchange}: {len(symbols)} mã','',', '.join(symbols) if symbols else 'Chưa ghi nhận mã trả rỗng.',''])
     lines+=['## Mã không còn trong danh mục DNSE hiện tại','',
             ', '.join(row['symbol'] for row in removed) if removed else 'Không ghi nhận thay đổi so với bộ trước.',
             '',f'Đối chiếu với danh mục/bộ dữ liệu ngày {previous_day}. Không tự kết luận các mã này đã hủy niêm yết.','',
             '## Ưu tiên kiểm tra chéo','',
-            'Sáng nay API trả rỗng nhưng bộ ngày trước có bản ghi: '+(', '.join(empty_after_previous_records) or 'Chưa ghi nhận.')+'\n',
+            'Chưa đối chiếu, sáng nay API trả rỗng nhưng bộ ngày trước có bản ghi: '+(', '.join(result['priority_pending_manual_review']) or 'Không còn mã cần đối chiếu trong nhóm này.')+'\n',
             'Ngày trước API trả rỗng nhưng sáng nay đã có bản ghi: '+(', '.join(records_after_previous_empty) or 'Chưa ghi nhận.')+'\n',
             'So sánh này có thể khác cửa sổ sáng/cả ngày; không tự coi thay đổi là lỗi nguồn.','',
             '## Lỗi truy cập riêng','']
     lines.extend([f'- {row["symbol"]} ({row["exchange"]}): {row["error"]}' for row in errors] or ['Không ghi nhận.'])
     stem.with_suffix('.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
     text=[title,f'Khoảng truy vấn: {result["query_start_local"]} -> {result["query_end_local"]}',
-          'Danh sách sau là API trả rỗng, chưa xác định nguyên nhân.','']
-    text.extend(f'{exchange} ({len(symbols)}): '+', '.join(symbols) for exchange,symbols in by_exchange.items())
+          f'API trả rỗng tổng cộng: {len(missing)} mã. Đã đối chiếu bảng hiển thị 0: {len(manual_zero)} mã.',
+          'Đã đối chiếu theo người dùng: '+', '.join(sorted(manually_checked)),
+          f'DANH SÁCH CÒN CẦN KIỂM TRA: {len(missing)-len(manual_zero)} mã.','']
+    text.extend(f'{exchange} ({len(symbols)}): '+', '.join(symbols) for exchange,symbols in remaining_by_exchange.items())
     text.extend(['','Không còn trong danh mục DNSE: '+', '.join(row['symbol'] for row in removed)])
     stem.with_suffix('.txt').write_text('\n'.join(text)+'\n',encoding='utf-8')
     return result
@@ -110,7 +141,8 @@ def main():
     print(json.dumps({key:result[key] for key in ('date','session','symbols_total','symbols_with_records',
         'symbols_pending_first_page','symbols_with_more_pages','empty_count','error_count','first_pass_finished',
         'all_symbols_fully_paginated','empty_by_exchange','not_in_current_dnse_universe',
-        'morning_empty_after_previous_day_records','records_after_previous_day_empty')},ensure_ascii=True))
+        'morning_empty_after_previous_day_records','records_after_previous_day_empty',
+        'manual_zero_display_count','empty_responses_pending_manual_review','priority_pending_manual_review')},ensure_ascii=True))
 
 
 if __name__=='__main__':

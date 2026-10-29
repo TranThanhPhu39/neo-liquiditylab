@@ -81,6 +81,15 @@ def test_dnse_quote_is_get_and_payload_remains_unverified_with_secrets_removed()
     assert result['received_at_utc'].endswith('+00:00')
 
 
+def test_market_trade_history_is_get_only_and_remains_unverified():
+    opener=FixtureOpener(b'{"trades":[]}')
+    result=client(opener).get('/price/ACB/trades',{'boardId':'G1','from':1,'to':2,'limit':10})
+    assert opener.calls[0][0].get_method()=='GET'
+    assert result['units_verified'] is False and result['payload']=={'trades':[]}
+    with pytest.raises(ValueError,match='ROUTE_NOT_ALLOWED'):
+        client(opener).get('/orders/trades')
+
+
 def test_dnse_http_failure_does_not_expose_body_or_headers():
     error = HTTPError('https://openapi.dnse.com.vn', 401, 'example-secret',
                       {'x-api-key': 'example-key'}, BytesIO(b'example-secret'))
