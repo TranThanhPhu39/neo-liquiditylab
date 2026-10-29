@@ -73,9 +73,14 @@ def result_metrics(result):
 
 st.sidebar.markdown("## ◈ NEO LiquidityLab")
 st.sidebar.caption("PRE-TRADE • A1 + B5")
-source = st.sidebar.selectbox("Nguồn dữ liệu",["demo","vnstock","neo"],index=["demo","vnstock","neo"].index(settings.data_source))
+sources = ["demo","vnstock","dnse","neo"]
+source = st.sidebar.selectbox("Nguồn dữ liệu",sources,index=sources.index(settings.data_source) if settings.data_source in sources else 0)
 mode = st.sidebar.radio("Chế độ",["Snapshot","Replay lịch sử"])
 page = st.sidebar.radio("Màn hình",["Thanh khoản","Mô phỏng thực hiện lệnh","Stress danh mục"])
+if source == "dnse":
+    from src.app.dnse_history import render
+    render(settings, mode, page)
+    st.stop()
 provider = create_provider(source)
 label = provider.get_provider_info()["label"]
 st.sidebar.info(label)

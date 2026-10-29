@@ -12,8 +12,12 @@ def historical_frame(snapshots, quantity=3000):
                "quality": s.data_quality_status, "source_time_known": s.source_timestamp is not None,
                "bid_depth": None, "ask_depth": None, "spread": None, "relative_spread": None, "obi": None}
         try:
-            metrics, result = liquidity_metrics(s), simulate_execution(s, quantity)
+            metrics = liquidity_metrics(s)
             row.update({k: float(v) if v is not None else None for k, v in metrics.items() if k != "partial"})
+        except ValueError:
+            pass
+        try:
+            result = simulate_execution(s, quantity)
             row.update(coverage=float(result.coverage_ratio), cost=float(result.book_walking_cost) if result.book_walking_cost is not None else None)
         except ValueError:
             row.update(coverage=None, cost=None)
@@ -26,6 +30,7 @@ def historical_summary(frame):
         return {"snapshots": 0, "note": "NO DATA"}
     values = frame["coverage"].dropna()
     return {"snapshots": len(frame), "collection_days": frame["received_at"].map(lambda x: x.date()).nunique(),
+            "source_days": frame["time"].map(lambda x: x.date()).nunique(),
             "providers": sorted(frame["provider"].unique().tolist()), "start": str(frame["time"].min()),
             "end": str(frame["time"].max()), "invalid_ratio": float(frame["coverage"].isna().mean()),
             "source_timestamp_missing_ratio": float((~frame["source_time_known"]).mean()),

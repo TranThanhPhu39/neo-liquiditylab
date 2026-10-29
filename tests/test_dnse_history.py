@@ -1,240 +1,123 @@
-import gzip
+"""Exercise historical reconstruction and UI without API keys or user archives."""
+from datetime import datetime
 import hashlib
 import json
+from pathlib import Path
+import sqlite3
+import zlib
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
-from scripts.collect_dnse_history import connect,initialize,run,store_page
-
-DAY='2026-10-28'
-UNIVERSE=[{'symbol':'FPT','marketId':'STO','securityGroupId':'ST'},
-          {'symbol':'SHS','marketId':'STX','securityGroupId':'ST'},
-          {'symbol':'ACV','marketId':'UPX','securityGroupId':'ST'}]
-
-
-def observation(symbol='FPT',market='STO',second=1,next_token=None):
-    return {'received_at_utc':'2026-10-28T15:00:00+00:00','rate_limit_headers':{},'payload':{
-        'quotes':[{'symbol':symbol,'marketId':market,'boardId':'G1','bid':[],'offer':[],
-                   'time':f'2026-10-28 09:15:{second:02d}.001'}], 'nextPageToken':next_token}}
+from test_dnse_normalization import prepare_fixture, quote
+from scripts.normalize_dnse_history import run as normalize, connect_output
+from src.data_pipeline.dnse_history import DNSEHistory
+from src.data_pipeline.dnse_normalization import snapshot_from_record
+from src.data_pipeline.replay import latest_at
+from src.data_providers.dnse_readonly import DNSEReadOnly
+from src.finance.historical_analytics import historical_frame
+from src.finance.liquidity_metrics import liquidity_metrics
 
 
-class FixtureClient:
-    def __init__(self):
-        self.calls=[]
-    def get(self,path,params):
-        self.calls.append((path,dict(params)))
-        if path=='/instruments':
-            return {'payload':{'data':UNIVERSE,'total':3},'rate_limit_headers':{}}
-        symbol=path.split('/')[2]
-        market=next(row['marketId'] for row in UNIVERSE if row['symbol']==symbol)
-        page_two='nextPageToken' in params
-        return observation(symbol,market,second=2 if page_two else 1,next_token=None if page_two else 'fixture-next')
+@pytest.fixture
+def history(tmp_path, quote, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Offline history must not call an API')
+    monkeypatch.setattr(DNSEReadOnly,'get',forbidden)
+    prepare_fixture(tmp_path,quote)
+    normalize(root=tmp_path)
+    return DNSEHistory(tmp_path/'data/processed/dnse/normalized.db')
 
 
-def test_round_robin_download_resume_continues_token_and_does_not_redownload_pages(tmp_path):
-    first=FixtureClient()
-    paused=run(DAY,page_size=1,root=tmp_path,max_requests=2,client=first)
-    assert paused['state']=='PAUSED_REQUEST_LIMIT' and paused['pages_saved']==2
-    second=FixtureClient()
-    complete=run(DAY,page_size=1,root=tmp_path,client=second)
-    assert complete['state']=='COMPLETED' and complete['symbols_fully_paginated']==3
-    assert complete['raw_quote_count']==6 and complete['pages_saved']==6
-    assert complete['exchange_counts']=={'HNX':1,'HOSE':1,'UPCOM':1}
-    assert len(second.calls)==4 and all(call[0]!='/instruments' for call in second.calls)
-    assert sum('nextPageToken' in params for _,params in second.calls)==3
-    assert complete['sqlite_integrity']=='ok' and complete['finance_enabled'] is False
-    third=FixtureClient()
-    repeat=run(DAY,page_size=1,root=tmp_path,client=third)
-    assert not third.calls and repeat['raw_quote_count']==6
+def test_reconstruction_preserves_receipt_and_never_uses_future_or_previous_day(history):
+    at=datetime.fromisoformat('2026-10-28T13:36:43.792+07:00')
+    before=hashlib.sha256(history.path.read_bytes()).hexdigest()
+    assert history.dates()==['2026-10-28']
+    record=history.reconstruct_at(['ACB'],'2026-10-28',at)['ACB']
+    book=snapshot_from_record(record)
+    assert book.bids[0].volume==113300
+    assert book.collected_at_utc > at
+    assert latest_at([book],at)=={}  # Arrival-time replay is still strict.
+    assert history.reconstruct_at(['ACB'],'2026-10-28',at.replace(second=42))=={}
+    assert history.reconstruct_at(['ACB'],'2026-10-29',at.replace(day=29))=={}
+    with pytest.raises(ValueError):
+        history.reconstruct_at(['ACB'],'2026-10-28',at.replace(tzinfo=None))
+    assert hashlib.sha256(history.path.read_bytes()).hexdigest()==before
+    with history.connect() as db:
+        with pytest.raises(sqlite3.OperationalError):
+            db.execute('DELETE FROM snapshots')
 
 
-def test_raw_pages_are_compressed_checksummed_and_atomic(tmp_path):
-    db=connect(tmp_path/'history.db')
-    settings=initialize(db,DAY,1000)
+def test_empty_response_remains_empty_and_unverified_metrics_stay_visible(history):
+    assert history.catalog('2026-10-28')['EMG']['raw_quote_count']==0
+    assert history.window('EMG','2026-10-28')['snapshots']==0
+    at=datetime.fromisoformat('2026-10-28T14:00:00+07:00')
+    assert history.reconstruct_at(['EMG'],'2026-10-28',at)=={}
+    record=history.reconstruct_at(['FPT'],'2026-10-28',at)['FPT']
+    frame=historical_frame([snapshot_from_record(record)])
+    assert frame.iloc[0]['bid_depth']==301100
+    assert frame.iloc[0]['coverage'] is None
+    record.update(bid_price_1=None,bid_price_2=None,bid_price_3=None)
+    metrics=liquidity_metrics(snapshot_from_record(record))
+    assert metrics['bid_depth'] is None and metrics['obi'] is None
+
+
+def test_chart_sampling_is_bounded_and_respects_cutoff(history):
+    # Insert many events into this synthetic DB; no raw user archive is involved.
+    db=connect_output(history.path)
+    template=dict(db.execute("SELECT * FROM snapshots WHERE symbol='ACB'").fetchone())
+    record=json.loads(zlib.decompress(template['payload_zlib']))
+    columns=','.join(key for key in template if key!='id')
+    keys=[key for key in template if key!='id']
     with db:
-        db.execute("INSERT INTO symbols(symbol,exchange,market_id) VALUES('FPT','HOSE','STO')")
-    row=db.execute('SELECT * FROM symbols').fetchone()
-    store_page(db,row,observation(next_token='next'),settings)
-    page=db.execute('SELECT * FROM pages').fetchone()
-    raw=gzip.decompress(page['payload_gzip'])
-    assert hashlib.sha256(raw).hexdigest()==page['sha256']
-    assert json.loads(raw)['quotes'][0]['symbol']=='FPT'
-    updated=db.execute('SELECT * FROM symbols').fetchone()
-    assert updated['next_token']=='next' and updated['page_count']==1 and updated['status']=='PARTIAL'
-    with pytest.raises(ValueError,match='TOKEN_REPEATED'):
-        store_page(db,updated,observation(second=2,next_token='next'),settings)
-    assert db.execute('SELECT count(*) FROM pages').fetchone()[0]==1
-    bad=observation(symbol='HPG',second=3)
-    with pytest.raises(ValueError,match='SCOPE_MISMATCH'):
-        store_page(db,updated,bad,settings)
-    bad=observation(second=3)
-    bad['payload']['quotes'][0]['time']='2026-10-29 09:00:00.000'
-    with pytest.raises(ValueError,match='OUTSIDE_REQUEST'):
-        store_page(db,updated,bad,settings)
+        for minute in range(120):
+            at=datetime.fromisoformat(f'2026-10-28T0{2+minute//60}:{minute%60:02d}:00+00:00')
+            payload={**record,'source_timestamp':at.isoformat()}
+            row={**template,'event_key':f'sample-{minute}','source_time':at.isoformat(),
+                 'payload_zlib':zlib.compress(json.dumps(payload).encode())}
+            db.execute(f"INSERT INTO snapshots({columns}) VALUES({','.join('?' for _ in keys)})",[row[key] for key in keys])
     db.close()
+    cutoff=datetime.fromisoformat('2026-10-28T10:00:00+07:00')
+    samples=history.sampled_records('ACB','2026-10-28',cutoff,limit=24)
+    assert 1<len(samples)<=24
+    assert all(datetime.fromisoformat(r['source_timestamp'])<=cutoff for r in samples)
+    assert datetime.fromisoformat(samples[-1]['source_timestamp'])==cutoff
 
 
-def test_empty_results_are_reported_separately_from_observed_quotes(tmp_path):
-    class Empty(FixtureClient):
-        def get(self,path,params):
-            result=super().get(path,params)
-            if path!='/instruments':
-                result['payload']={'quotes':[]}
-            return result
-    report=run(DAY,root=tmp_path,client=Empty())
-    assert report['state']=='COMPLETED' and report['raw_quote_count']==0
-    assert report['symbol_status']=={'NO_DATA_RETURNED':3}
-    assert report['no_data_symbols']==['ACV','FPT','SHS']
+def dashboard(history, monkeypatch):
+    monkeypatch.setenv('DATA_SOURCE','dnse')
+    monkeypatch.setenv('DNSE_DATABASE_PATH',str(history.path))
+    return AppTest.from_file(str(Path(__file__).resolve().parents[1]/'src/app/main.py'),default_timeout=30).run()
 
 
-def test_null_book_side_is_preserved_as_source_data(tmp_path):
-    class OneSided(FixtureClient):
-        def get(self,path,params):
-            result=super().get(path,params)
-            if path!='/instruments':
-                result['payload']['quotes'][0]['offer']=None
-            return result
-    result=run(DAY,page_size=1,root=tmp_path,client=OneSided())
-    assert result['state']=='COMPLETED' and result['raw_quote_count']==6
-    db=connect(tmp_path/'data/history/dnse'/DAY/'history.db')
-    assert json.loads(gzip.decompress(db.execute('SELECT payload_gzip FROM pages LIMIT 1').fetchone()[0]))['quotes'][0]['offer'] is None
-    db.close()
+def test_dnse_three_screens_and_unverified_guard(history,monkeypatch):
+    at=dashboard(history,monkeypatch)
+    assert not at.exception and not at.error
+    assert at.metric[0].value=='301,100'
+    at.sidebar.radio[0].set_value('Replay lịch sử').run()
+    assert not at.exception
+    at.sidebar.radio[1].set_value('Mô phỏng thực hiện lệnh').run()
+    at.checkbox[0].check().run()
+    assert not at.exception and at.metric[0].value=='100.0%'
+    assert at.metric[2].value=='2,570,000'
+    at.sidebar.selectbox(key='dnse_symbol').set_value('FPT').run()
+    assert not at.exception and not at.metric
+    assert any('đang khóa' in i.value for i in at.info)
+    at.sidebar.radio[1].set_value('Stress danh mục').run()
+    at.checkbox[0].check().run()
+    assert not at.exception and at.metric[0].value=='100.0%'
+    at.text_area[0].set_value('symbol,quantity\nACB,150000\nFPT,100').run()
+    assert not at.exception and at.json
+    assert any('chưa được xác minh' in json.loads(item.value).get('FPT',{}).get('reason','') for item in at.json)
 
 
-def test_network_failure_preserves_progress_and_resume(tmp_path,monkeypatch):
-    monkeypatch.setattr('scripts.collect_dnse_history.time.sleep',lambda seconds:None)
-    from src.data_providers.base import ProviderError
-    class Failing(FixtureClient):
-        def get(self,path,params):
-            if path.startswith('/price/FPT'):
-                raise ProviderError('DNSE_TIMEOUT')
-            return super().get(path,params)
-    report=run(DAY,page_size=1,root=tmp_path,client=Failing())
-    assert report['state']=='FAILED_RESUMABLE' and report['error_code']=='DNSE_TIMEOUT'
-    assert report['pages_saved']==1
-    assert run(DAY,page_size=1,root=tmp_path,client=FixtureClient())['state']=='COMPLETED'
-
-
-def test_transient_timeout_retries_same_page_without_losing_records(tmp_path,monkeypatch):
-    from src.data_providers.base import ProviderError
-    monkeypatch.setattr('scripts.collect_dnse_history.time.sleep',lambda seconds:None)
-    class Transient(FixtureClient):
-        failed=False
-        def get(self,path,params):
-            if path.startswith('/price/') and not self.failed:
-                self.failed=True
-                raise ProviderError('DNSE_TIMEOUT')
-            return super().get(path,params)
-    report=run(DAY,page_size=1,root=tmp_path,client=Transient())
-    assert report['state']=='COMPLETED' and report['raw_quote_count']==6
-    assert report['requests_attempted']==8
-
-
-def test_symbol_http_failure_is_not_reported_as_full_completion(tmp_path):
-    from src.data_providers.dnse_readonly import DNSEHTTPError
-    class NotFound(FixtureClient):
-        def get(self,path,params):
-            if path.startswith('/price/FPT'):
-                raise DNSEHTTPError(404)
-            return super().get(path,params)
-    report=run(DAY,page_size=1,root=tmp_path,client=NotFound())
-    assert report['state']=='COMPLETED_WITH_ERRORS'
-    assert report['symbols_fully_paginated']==2
-    assert report['incomplete_symbols'][0]['symbol']=='FPT'
-    assert report['incomplete_symbols'][0]['error']=='HTTP_404'
-
-
-def test_resume_rejects_changed_settings_and_stop_file_prevents_quote_calls(tmp_path):
-    run(DAY,page_size=1,root=tmp_path,max_requests=1,client=FixtureClient())
-    changed=run(DAY,page_size=1000,root=tmp_path,client=FixtureClient())
-    assert changed['state']=='FAILED_RESUMABLE' and changed['error_code']=='RESUME_SETTINGS_MISMATCH'
-    control=tmp_path/'data/control/STOP_DNSE_HISTORY'
-    control.write_text('stop')
-    fixture=FixtureClient()
-    stopped=run(DAY,page_size=1,root=tmp_path,client=fixture)
-    assert stopped['state']=='STOPPED_BY_USER' and not fixture.calls
-
-
-def test_audit_verifies_page_chains_and_exports_raw_records(tmp_path):
-    from scripts.audit_dnse_history import audit
-    run(DAY,page_size=1,root=tmp_path,client=FixtureClient())
-    report=audit(DAY,root=tmp_path,export=True)
-    assert report['all_symbols_fully_paginated'] and report['page_checksums_verified']==6
-    assert report['raw_quote_count_verified']==6 and report['symbols_with_records']==3
-    with gzip.open(report['export'],'rt',encoding='utf-8') as stream:
-        records=[json.loads(line) for line in stream]
-    assert len(records)==6 and all(record['units_verified'] is False for record in records)
-    db=connect(tmp_path/'data/history/dnse'/DAY/'history.db')
-    with db:
-        db.execute("UPDATE pages SET sha256='tampered' WHERE id=1")
-    db.close()
-    with pytest.raises(ValueError,match='CHECKSUM_FAILED'):
-        audit(DAY,root=tmp_path)
-
-
-def test_morning_history_uses_fixed_cutoff_and_is_separate_from_daily_archive(tmp_path):
-    from scripts.audit_dnse_history import audit
-    daily=run(DAY,page_size=1,root=tmp_path,client=FixtureClient())
-    daily_path=tmp_path/'data/history/dnse'/DAY/'history.db'
-    daily_hash=hashlib.sha256(daily_path.read_bytes()).hexdigest()
-    morning=run(DAY,page_size=1,root=tmp_path,client=FixtureClient(),session='morning')
-    assert daily['state']==morning['state']=='COMPLETED'
-    assert morning['settings']['session']=='morning'
-    assert morning['settings']['to']==1793161800
-    assert daily['settings']['to']==1793175000
-    assert hashlib.sha256(daily_path.read_bytes()).hexdigest()==daily_hash
-    assert (tmp_path/'data/history/dnse'/DAY/'morning/history.db').exists()
-    assert (tmp_path/'report'/f'dnse_history_{DAY}_morning.json').exists()
-    assert audit(DAY,root=tmp_path,session='morning',export=True)['all_symbols_fully_paginated']
-
-
-def test_morning_archive_rejects_quotes_after_1130(tmp_path):
-    db=connect(tmp_path/'history.db')
-    settings=initialize(db,DAY,1000,session='morning')
-    with db:
-        db.execute("INSERT INTO symbols(symbol,exchange,market_id) VALUES('FPT','HOSE','STO')")
-    row=db.execute('SELECT * FROM symbols').fetchone()
-    afternoon=observation()
-    afternoon['payload']['quotes'][0]['time']='2026-10-28 13:00:00.001'
-    with pytest.raises(ValueError,match='OUTSIDE_REQUEST'):
-        store_page(db,row,afternoon,settings)
-    assert db.execute('SELECT count(*) FROM pages').fetchone()[0]==0
-    db.close()
-
-
-def test_missing_report_does_not_treat_pending_errors_or_null_sides_as_empty(tmp_path):
-    from scripts.report_dnse_missing import make_report
-    db_path=tmp_path/'data/history/dnse'/DAY/'morning/history.db'
-    db_path.parent.mkdir(parents=True)
-    db=connect(db_path)
-    settings=initialize(db,DAY,1000,session='morning')
-    with db:
-        db.executemany('INSERT INTO symbols(symbol,exchange,market_id,status,error) VALUES(?,?,?,?,?)',[
-            ('FPT','HOSE','STO','PENDING',None),('SHS','HNX','STX','ERROR','HTTP_404'),
-            ('ACV','UPCOM','UPX','PENDING',None),('HPG','HOSE','STO','PENDING',None)])
-    empty=observation(symbol='ACV',market='UPX')
-    empty['payload']={'quotes':[]}
-    store_page(db,db.execute("SELECT * FROM symbols WHERE symbol='ACV'").fetchone(),empty,settings)
-    one_sided=observation(symbol='HPG')
-    one_sided['payload']['quotes'][0]['offer']=None
-    store_page(db,db.execute("SELECT * FROM symbols WHERE symbol='HPG'").fetchone(),one_sided,settings)
-    db.close()
-    report=make_report(DAY,root=tmp_path)
-    assert report['empty_count']==1 and report['empty_by_exchange']['UPCOM']==['ACV']
-    assert report['error_count']==1 and report['errors'][0]['symbol']=='SHS'
-    assert report['symbols_pending_first_page']==1 and not report['first_pass_finished']
-    assert report['symbols_with_records']==1
-    assert (tmp_path/'report'/f'dnse_missing_{DAY}_morning.txt').exists()
-    control=tmp_path/'data/control'
-    control.mkdir(parents=True,exist_ok=True)
-    (control/f'dnse_manual_checks_{DAY}_morning.json').write_text(json.dumps({
-        'date':DAY,'session':'morning','checks':[{'symbol':'ACV','matched_volume':0,
-        'displayed_bid_volume':0,'displayed_ask_volume':0,'sources':['User fixture'],
-        'evidence_type':'USER_REPORTED_ZERO_ACTIVITY_AND_DISPLAYED_DEPTH'}]}))
-    checked=make_report(DAY,root=tmp_path)
-    assert checked['empty_count']==1 and checked['manual_zero_display_count']==1
-    assert checked['empty_responses_pending_manual_review']==0
-    assert checked['pending_manual_review_by_exchange']['UPCOM']==[]
-    db=connect(db_path)
-    assert db.execute("SELECT status FROM symbols WHERE symbol='ACV'").fetchone()[0]=='NO_DATA_RETURNED'
-    db.close()
+def test_dnse_empty_symbol_and_replay_before_first_event(history,monkeypatch):
+    at=dashboard(history,monkeypatch)
+    at.sidebar.selectbox(key='dnse_symbol').set_value('EMG').run()
+    assert not at.exception and not at.metric
+    assert any('chưa thể suy ra' in i.value for i in at.info)
+    at.sidebar.selectbox(key='dnse_symbol').set_value('ACB').run()
+    at.sidebar.radio[0].set_value('Replay lịch sử').run()
+    at.sidebar.time_input[0].set_value(datetime.strptime('09:00','%H:%M').time()).run()
+    assert not at.exception and not at.metric
+    assert any('không dùng snapshot tương lai' in i.value for i in at.info)

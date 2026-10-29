@@ -40,3 +40,9 @@ Ghi kết quả và ledger từng trang trong một transaction. Chạy lại b�
 `audit_dnse_normalized` đối chiếu lại từng vị trí raw với bản chuẩn hóa: mức giá/khối lượng, đơn vị, thời gian, mã/sàn/bảng, độ sâu, nhận diện sự kiện và lineage. Kiểm tra tổng dòng, checksum, SQLite, khóa ngoại và số dòng xuất. Mẫu ACB đủ điều kiện được chạy qua A1/B5; một mẫu chưa xác minh đơn vị phải bị bộ tính chặn.
 
 Báo cáo: `report/dnse_normalization.json`, `report/dnse_normalization_audit.json`, `report/dnse_normalization_finance_checks.json`. Chuẩn hóa không đồng nghĩa chứng nhận dữ liệu đầu nguồn đầy đủ hoặc đã hoàn thành yêu cầu NEO API.
+
+## Dashboard và quy trình cập nhật
+
+Kho chuẩn hóa đã được tích hợp vào ba màn hình khi chọn nguồn `dnse`; xem [hướng dẫn sử dụng](dnse_dashboard.md). Replay DNSE dùng chế độ tái dựng hồi tố được ghi rõ trên màn hình, giữ riêng thời điểm nhận và không thay đổi replay theo thời điểm nhận của các nguồn khác. Các truy vấn giới hạn theo mã/ngày/thời điểm; biểu đồ dùng tối đa 600 điểm đại diện.
+
+`python -m scripts.update_dnse_day --date YYYY-MM-DD` thực hiện toàn bộ chuỗi thu, audit, báo cáo thiếu, chuẩn hóa và nghiệm thu; thêm `--session morning` cho phiên sáng. Chạy `--plan` để xem các bước và giờ được bắt đầu mà không gọi API hoặc ghi tệp. Khi có lỗi, chuỗi dừng, không đưa dữ liệu chưa tải đủ sang bước chuẩn hóa; chạy lại cùng lệnh để tiếp tục.

@@ -18,6 +18,7 @@ def get_vnstock_api_key(environ=None):
 class Settings:
     data_source: str = field(default_factory=lambda: os.getenv("DATA_SOURCE", "demo"))
     database_path: str = field(default_factory=lambda: os.getenv("DATABASE_PATH", str(ROOT / "data/liquidity.db")))
+    dnse_database_path: str = field(default_factory=lambda: os.getenv("DNSE_DATABASE_PATH", str(ROOT / "data/processed/dnse/normalized.db")))
     interval: int = field(default_factory=lambda: int(os.getenv("COLLECTION_INTERVAL_SECONDS", "180")))
     stale_seconds: int = field(default_factory=lambda: int(os.getenv("STALE_AFTER_SECONDS", "600")))
     max_skew_seconds: int = field(default_factory=lambda: int(os.getenv("MAX_SNAPSHOT_SKEW_SECONDS", "60")))

@@ -9,7 +9,10 @@ def liquidity_metrics(snapshot):
         raise ValueError("Snapshot không hợp lệ: " + ", ".join(snapshot.issues))
     bid_depth = sum(x.volume for x in snapshot.bids if x.usable)
     ask_depth = sum(x.volume for x in snapshot.asks if x.usable)
-    total = bid_depth + ask_depth
+    if snapshot.provider == 'dnse':
+        bid_depth = bid_depth if any(x.usable for x in snapshot.bids) else None
+        ask_depth = ask_depth if any(x.usable for x in snapshot.asks) else None
+    total = bid_depth + ask_depth if bid_depth is not None and ask_depth is not None else None
     bid1, ask1 = snapshot.bids[0], snapshot.asks[0]
     spread = ask1.price - bid1.price if bid1.usable and ask1.usable else None
     mid = (ask1.price + bid1.price) / 2 if spread is not None else None
