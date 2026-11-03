@@ -1,0 +1,45 @@
+name: DNSE public network across runners
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquiditylab-dnse-public-network
+  cancel-in-progress: false
+
+jobs:
+  network:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Check DNS TCP and TLS without DNSE credentials
+        run: python -m scripts.probe_dnse_network
+      - name: Summarize and require verified TLS
+        if: always()
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          path = Path('report/dnse_network.json')
+          if not path.exists():
+              raise SystemExit('PUBLIC_NETWORK_REPORT_MISSING')
+          report = json.loads(path.read_text(encoding='utf-8'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('```json\n' + json.dumps(report, indent=2) + '\n```\n')
+          raise SystemExit(0 if report['status'] == 'TCP_TLS_VERIFIED' else 1)
