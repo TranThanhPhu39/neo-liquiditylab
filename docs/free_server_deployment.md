@@ -1,5 +1,7 @@
 # Chạy bộ thu trên máy chủ miễn phí
 
+**Phạm vi tài liệu cũ — 03/11/2026:** hướng dẫn này mô tả cơ chế Vnstock/triển khai đã chuẩn bị trước đây, không xác nhận lịch DNSE đang hoạt động. Nguồn chính hiện là DNSE theo [quyết định nguồn](data_source_decision.md); dùng [quy trình DNSE](dnse_daily_history.md) cho tải sau phiên. Task Windows Disabled, GitHub worker false tại lần kiểm tra 03/11; không bật nguồn cũ chỉ vì đã chuyển sang DNSE.
+
 Cập nhật: người dùng đã chọn ưu tiên **GitHub Actions với repo public riêng**, theo mô hình dự án crypto hiện có. Xem [quy trình GitHub](github_actions.md). Các hướng dẫn Oracle/systemd bên dưới giữ vai trò phương án thay thế; chưa yêu cầu người dùng tạo VPS.
 
 Trạng thái: **đã chuẩn bị mã và systemd templates; chưa có tài khoản/VM, chưa triển khai hoặc kiểm thử runtime Linux**. Lịch Windows hiện tại vẫn giữ nguyên. Không tạo tài nguyên trả phí, không upload `.env` hoặc đăng nhập cloud thay người dùng.
@@ -38,3 +40,4 @@ sudo systemctl disable --now neo-collector.timer
 ```
 
 Lịch Windows không bị vô hiệu hóa bởi việc chỉ tạo các tệp này. Chỉ chuyển sang server sau khi người dùng có VM và cách truy cập hợp lệ. Không có cam kết miễn phí 24/7 tuyệt đối từ các dịch vụ nêu trên; báo cáo và backup cần được tải về định kỳ.
+

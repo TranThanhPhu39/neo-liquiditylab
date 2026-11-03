@@ -1,5 +1,7 @@
 # Chuyển raw sang schema chuẩn và chốt lượt thu
 
+**Phạm vi tài liệu cũ — 03/11/2026:** hướng dẫn này mô tả cơ chế Vnstock/triển khai đã chuẩn bị trước đây, không xác nhận lịch DNSE đang hoạt động. Nguồn chính hiện là DNSE theo [quyết định nguồn](data_source_decision.md); dùng [quy trình DNSE](dnse_daily_history.md) cho tải sau phiên. Task Windows Disabled, GitHub worker false tại lần kiểm tra 03/11; không bật nguồn cũ chỉ vì đã chuyển sang DNSE.
+
 ## Điều kiện hiện tại
 
 Cập nhật sau 14:40 ngày 28/10: đã có hồ sơ thực nghiệm `config/unit_contract.vnstock-kbs-5.2.1.json`, hệ số 1/1; 66 snapshot đã chuẩn hóa thành công. [Bản thẩm định](../report/kbs_unit_review_2026-10-28.md) ghi rõ thời điểm ảnh xấp xỉ, 8 cặp khớp, nguồn chú thích KBS và các giới hạn. Dùng hồ sơ thật này khi chạy lại migration; hồ sơ example bên dưới vẫn UNVERIFIED theo đúng vai trò mẫu.
@@ -53,3 +55,4 @@ Tác vụ này đã được khởi động cho lượt thu hiện tại; không
 Khi collector báo COMPLETED, báo cáo chốt là `COMPLETED_RAW_ONLY`, kèm số batch/quan sát, gap, CSV, backup và kiểm tra giá. Điều này xác nhận chốt phần cửa sổ đã thu, **không xác nhận đơn vị volume, một phiên trọn vẹn hay đủ 5–10 phiên**. Tác vụ cần máy/tiến trình tiếp tục chạy; không tự khôi phục sau reboot.
 
 Các file `session_close_2026-10-28_audit.json` và `_prices.json` đã được tạo lúc chốt. `session_close_2026-10-28.json` ghi COMPLETED_RAW_ONLY lúc 14:30 ngày 28/10, phản ánh trạng thái trước migration; không ghi đè bằng kết quả chuẩn hóa sau đó.
+

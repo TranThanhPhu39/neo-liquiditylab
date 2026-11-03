@@ -1,5 +1,7 @@
 # Nội dung cần xác nhận với nguồn Vnstock
 
+**Cập nhật 03/11/2026:** tài liệu này giữ câu hỏi dành cho Vnstock ở giai đoạn cũ. Nguồn chính hiện là DNSE; các câu hỏi cần xử lý hiện nay gồm phạm vi đơn vị giá/lượng trên G1, thời hạn lịch sử, quyền/quota và khả năng truy cập môi trường tự chạy. Xem [DNSE](dnse_integration.md), [quyết định nguồn](data_source_decision.md).
+
 Nút thắt còn lại là bằng chứng về đơn vị, không phải khóa API hoặc lỗi kết nối. Không cần gửi khóa API, mã tài khoản hay dữ liệu cá nhân khi hỏi nguồn.
 
 Nội dung kỹ thuật cần xác nhận:
@@ -19,3 +21,4 @@ Tài liệu hiện đã kiểm tra qua SDK chính thức:
 Khi có bằng chứng, lưu bản cục bộ vào thư mục tài liệu bằng chứng, ghi checksum và thẩm định trong hồ sơ đơn vị thật. Không đổi hồ sơ mẫu UNVERIFIED thành VERIFIED khi chưa có nội dung xác nhận.
 
 Đây là bản nháp câu hỏi; chưa gửi tin nhắn hoặc email cho bên nào.
+

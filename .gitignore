@@ -16,6 +16,8 @@ data/backups/
 data/control/
 data/github/
 data/history/
+data/realtime/
+report/realtime/
 report/github/
 report/automation/logs/
 report/*.png

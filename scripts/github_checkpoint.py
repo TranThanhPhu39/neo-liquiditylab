@@ -8,15 +8,37 @@ from pathlib import Path
 import re
 import tarfile
 import tempfile
+import sqlite3
+import uuid
+from contextlib import closing
 from urllib.parse import quote
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from scripts.github_api import GitHubAPI,repository_path
-from src.data_pipeline.storage import Storage
 
 CHUNK_SIZE=16*1024*1024
 ALLOWED={"snapshot.db","status.json","audit.json","universe.json"}
+
+
+def backup_sqlite(source, target):
+    """Copy any existing SQLite schema without opening it through a domain Storage class."""
+    source, target = Path(source).resolve(), Path(target).resolve()
+    if target.exists():
+        raise FileExistsError('CHECKPOINT_WOULD_OVERWRITE_DATABASE')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name+'.pending-'+uuid.uuid4().hex)
+    try:
+        with closing(sqlite3.connect(source.as_uri()+'?mode=ro', uri=True, timeout=30)) as incoming:
+            with closing(sqlite3.connect(temporary)) as outgoing:
+                incoming.backup(outgoing)
+                if outgoing.execute('PRAGMA quick_check').fetchone()[0] != 'ok' or outgoing.execute('PRAGMA foreign_key_check').fetchone():
+                    raise ValueError('CHECKPOINT_DATABASE_INTEGRITY_FAILED')
+        if target.exists():
+            raise FileExistsError('CHECKPOINT_WOULD_OVERWRITE_DATABASE')
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def state_key(encoded):
@@ -89,14 +111,19 @@ def unpack_state(folder,target,key,context):
 
 
 class ReleaseStore:
-    def __init__(self,repository,key,api=None):
+    def __init__(self,repository,key,api=None,namespace='market-state'):
+        if not re.fullmatch('[a-z][a-z0-9-]{1,40}', namespace):
+            raise ValueError('INVALID_CHECKPOINT_NAMESPACE')
         self.repository=repository
         self.base=repository_path(repository)
         self.key=key
         self.api=api or GitHubAPI()
+        self.namespace=namespace
 
     def latest(self,day):
-        refs=self.api.request("GET",self.base+"/git/matching-refs/tags/market-state-"+day+"-")
+        if not re.fullmatch('[a-z0-9][a-z0-9-]{1,60}', day):
+            raise ValueError('INVALID_CHECKPOINT_PARTITION')
+        refs=self.api.request("GET",self.base+"/git/matching-refs/tags/"+self.namespace+"-"+day+"-")
         tags=sorted(ref["ref"].removeprefix("refs/tags/") for ref in refs)
         for tag in reversed(tags):
             release=self.api.request("GET",self.base+"/releases/tags/"+quote(tag,safe=""))
@@ -122,10 +149,7 @@ class ReleaseStore:
                 (folder/name).write_bytes(data)
             extracted=folder/"extracted"
             names=unpack_state(folder,extracted,self.key,context)
-            with Storage(extracted/"snapshot.db") as db:
-                if db.integrity_check()!="ok":
-                    raise ValueError("RESTORE_INTEGRITY_FAILED")
-                db.backup_to(database)
+            backup_sqlite(extracted/"snapshot.db",database)
             report_folder=Path(report_folder)
             report_folder.mkdir(parents=True,exist_ok=True)
             for name in names-{"snapshot.db"}:
@@ -137,13 +161,14 @@ class ReleaseStore:
 
     def publish(self,day,database,report_folder,run_id,attempt):
         stamp=datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-        tag=f"market-state-{day}-{stamp}-{run_id}-{attempt}"
+        if not re.fullmatch('[a-z0-9][a-z0-9-]{1,60}', day):
+            raise ValueError('INVALID_CHECKPOINT_PARTITION')
+        tag=f"{self.namespace}-{day}-{stamp}-{run_id}-{attempt}"
         context=self.repository+":"+tag
         with tempfile.TemporaryDirectory() as temp:
             folder=Path(temp)
             snapshot=folder/"snapshot.db"
-            with Storage(database) as db:
-                db.backup_to(snapshot)
+            backup_sqlite(database,snapshot)
             files={"snapshot.db":snapshot}
             for name in ("status.json","audit.json","universe.json"):
                 path=Path(report_folder)/name

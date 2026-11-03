@@ -1,5 +1,7 @@
 # Xác minh nguồn và phiên bản · 27/10/2026
 
+**Trạng thái hiện tại 03/11/2026:** DNSE là nguồn chính, đã thu bốn ngày với 3.746.982 snapshot chuẩn hóa; ACB có bằng chứng đơn vị thực nghiệm, các mã khác giữ nhãn assumed. Xem [quyết định nguồn](data_source_decision.md), [chuẩn hóa DNSE](dnse_normalization.md), [chốt ngày](../report/dnse_day_completion_2026-11-02.md). Nội dung Vnstock/NEO và các nhận định chưa xác minh dưới đây là nhật ký của giai đoạn trước, không mô tả trạng thái DNSE hiện tại.
+
 ## Cập nhật 28/10/2026
 
 Bổ sung sau 14:40: đã thẩm định thực nghiệm đơn vị quote Vnstock 5.2.1/KBS cho ACB, HPG, FPT. SDK trả VND/CP và CP, hệ số chuẩn hóa 1/1. Xem [thẩm định đầy đủ](../report/kbs_unit_review_2026-10-28.md), hồ sơ `config/unit_contract.vnstock-kbs-5.2.1.json` và bằng chứng JSON có checksum. Ảnh người dùng chụp khoảng 14:30, SDK nhận 14:34:47.898765; có 8 cặp giá/volume khớp trên ba mã, cả bid và ask, sau áp dụng hệ số hiển thị từ chú thích KBS chính thức được lập chỉ mục. Các mức khác nhau được giữ nguyên; không xác nhận timestamp nguồn hoặc đồng bộ hai lần quan sát.
@@ -47,3 +49,4 @@ Các trang [overview](https://neoinvest.vpbanks.com.vn/neo-openapi/docs/overview
 ```
 
 Không tự nâng SDK khi chạy app; nâng phiên bản cần đối chiếu signature, schema, quyền/đơn vị và cập nhật tests trước.
+

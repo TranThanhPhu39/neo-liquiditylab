@@ -1,5 +1,7 @@
 # Vận hành thu dữ liệu thật
 
+**Phạm vi tài liệu cũ — 03/11/2026:** hướng dẫn này mô tả cơ chế Vnstock/triển khai đã chuẩn bị trước đây, không xác nhận lịch DNSE đang hoạt động. Nguồn chính hiện là DNSE theo [quyết định nguồn](data_source_decision.md); dùng [quy trình DNSE](dnse_daily_history.md) cho tải sau phiên. Task Windows Disabled, GitHub worker false tại lần kiểm tra 03/11; không bật nguồn cũ chỉ vì đã chuyển sang DNSE.
+
 ## Trạng thái xác minh ngày 28/10/2026
 
 Cập nhật sau 14:40: đã có [bằng chứng thực nghiệm đơn vị](../report/kbs_unit_review_2026-10-28.md) và hồ sơ version 5.2.1, hệ số SDK sang VND/CP và CP là 1/1. Lượt thu đã dừng đúng 14:30 với 22 batch/66 quan sát; 66 snapshot đã được chuẩn hóa, raw gốc không sửa. Chọn vnstock → Replay lịch sử để chạy A1/B5 trên dữ liệu đã lưu. Những đoạn nói chưa xác minh bên dưới ghi trạng thái trước khi nhận ảnh đối chiếu, được giữ để truy vết. Chưa tự bật collector mới hoặc sửa `.env`; timestamp nguồn và NEO vẫn chưa xác minh.
@@ -44,3 +46,4 @@ Các câu hỏi kỹ thuật cần nguồn xác nhận đã soạn tại [provid
 3. Ghi bằng chứng và thời điểm xác minh vào source_verification.md. Khi đó mới cấu hình cổng normalized, chuyển raw sang schema qua một migration có provenance và chống trùng; không sửa dữ liệu raw gốc.
 4. Chạy A1/B5, portfolio và replay normalized, kiểm tra phí/thuế, partial depth và dữ liệu cũ. Nếu timestamp nguồn chưa có, giữ cảnh báo đồng bộ theo arrival là proxy.
 5. Thu 5–10 phiên thật trở lên theo quota, audit/sao lưu mỗi ngày. Chưa tích hợp NEO nên chưa đạt tiêu chí cuối kỳ về nguồn NEO cốt lõi.
+

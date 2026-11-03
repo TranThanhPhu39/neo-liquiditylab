@@ -94,6 +94,10 @@ Collector chạy trong cửa sổ bảo thủ 09:15–11:30 và 13:00–14:30 gi
 
 Khởi đầu 3 mã; thêm 10–15 mã trong `config/symbols.yaml` khi quyền/hạn mức cho phép. Theo dõi báo cáo chất lượng mỗi ngày. Nghỉ tối thiểu 180 giây trong provider và database dùng chung, kể cả bấm lại dashboard; nhịp này **không bảo đảm** đủ quota ngày/tháng. Không chạy nhiều database/collector cho cùng tài khoản để tăng hạn mức. Mục tiêu 5–10 phiên thật trở lên, tốt hơn một tháng thực thu; báo cáo không tự tạo phiên thiếu.
 
+## Bộ thu realtime DNSE
+
+Đã có bộ thu WebSocket G1 theo toàn bộ danh mục, chia kết nối, lưu SQLite riêng, reconnect và ghi nhận khoảng chưa quan sát. Xem [hướng dẫn chạy realtime](docs/dnse_realtime.md). Local smoke 03/11 đăng ký đủ 1.518 mã trên 8 kết nối sau giờ đóng cửa; chưa kiểm chứng tải cả phiên. Dữ liệu WebSocket giữ nguyên đơn vị và chưa dùng cho tính toán tài chính. Workflow GitHub đã có khóa bật riêng; chưa upload checkpoint thật hoặc bật lịch.
+
 ## Kiểm thử
 
 ```powershell

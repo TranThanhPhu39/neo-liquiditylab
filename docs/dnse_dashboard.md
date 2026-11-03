@@ -46,4 +46,6 @@ Xem trước giờ được chạy và danh sách bước, không gọi API/ghi 
 
 ## Ý nghĩa Replay
 
-Đây là tái dựng hồi tố theo thời gian nguồn từ dữ liệu đã tải sau phiên. Thời điểm thực nhận luôn hiển thị riêng, không đổi thành thời điểm nguồn. Không dùng kết quả này để tuyên bố hệ thống đã quan sát và ra quyết định ngay trong phiên. Replay thông thường của các nguồn cũ vẫn chặn thông điệp chưa nhận. NEO API chưa được tích hợp; DNSE không thay thế tiêu chí NEO bắt buộc của đồ án.
+Đây là tái dựng hồi tố theo thời gian nguồn từ dữ liệu tải sau phiên. Thời điểm thực nhận giữ riêng; không dùng để tuyên bố hệ thống đã quan sát/ra quyết định ngay trong phiên. Replay nguồn cũ vẫn chặn thông điệp chưa nhận. DNSE là nguồn chính theo [quyết định nguồn](data_source_decision.md); không tiếp tục tích hợp NEO VPBankS. Người thực hiện đã xác nhận ngày 03/11 rằng việc dùng DNSE được thống nhất.
+
+

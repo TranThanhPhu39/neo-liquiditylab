@@ -1,6 +1,8 @@
 # Tải lại dữ liệu ngày giao dịch bằng DNSE
 
-Người dùng đã yêu cầu tải nguyên ngày 28/10/2026 cho tất cả cổ phiếu. Nguồn danh mục được lấy trực tiếp từ GET `/instruments?securityGroupId=ST`, phân trang đủ `total`, kiểm tra nhóm ST và ba thị trường STO/STX/UPX. Ngày 28/10 nguồn trả **1.520 mã: HOSE 407, HNX 299, UPCOM 814**, khớp với danh mục VCI đã lưu. Không gồm ETF, chứng quyền, hợp đồng tương lai hoặc trái phiếu.
+Để chạy đủ chuỗi thu/audit/chuẩn hóa bằng một lệnh, dùng python -m scripts.update_dnse_day --date YYYY-MM-DD sau 15:10, hoặc thêm --session morning sau 11:30. Ví dụ 28/10 dưới đây minh họa CLI; không cần tải lại kho đã hoàn tất.
+
+Nguồn chính hiện là DNSE. Danh mục lấy từ GET /instruments?securityGroupId=ST, phân trang và kiểm tra ST/STO/STX/UPX; chỉ cổ phiếu G1, không gồm ETF/chứng quyền/phái sinh/trái phiếu. Danh mục lấy mới theo kho/ngày: 28/10 có 1.520 mã; 02/11 có 1.518 mã (408 HOSE, 299 HNX, 811 UPCOM). Đã thu bốn ngày 28, 29, 30/10 và 02/11 với 3.746.982 snapshot chuẩn hóa; xem [chốt ngày gần nhất](../report/dnse_day_completion_2026-11-02.md).
 
 ## Chạy hoặc tiếp tục
 
@@ -28,7 +30,7 @@ Khi người dùng đối chiếu bảng giá, nhật ký riêng ở `data/contr
 
 Trang 1.000 quote đã kiểm tra nhận được; yêu cầu 2.000, 5.000 và 10.000 bị HTTP 400 nên giữ tối đa 1.000. Khoảng cách request quotes ít nhất 0,5 giây, tối đa lý thuyết 7.200/giờ, dưới hạn mức công bố 10.000/giờ; endpoint instruments giãn ít nhất bốn giây. Chỉ một tiến trình có thể giữ khóa bộ tải. Không chạy các phép probe cùng lúc khi đang tải đầy đủ.
 
-Mỗi lượt lấy một trang/mã theo vòng để có dữ liệu toàn danh mục trước khi đi sâu vào mã nhiều cập nhật. Quote hai phía rỗng hoặc `null` được giữ nguyên; không giả định mọi mã đều có đủ ba mức. Đơn vị giá/khối lượng DNSE **chưa xác minh**, chỉ lưu raw, chưa đưa vào A1/B5.
+Mỗi lượt lấy một trang/mã theo vòng trước khi đi sâu vào mã nhiều cập nhật. Quote hai phía rỗng/null giữ nguyên; không giả định mọi mã đủ ba mức. Raw được lưu riêng trước chuẩn hóa; ACB đã xác minh đơn vị thực nghiệm và mở A1/B5 với snapshot đủ điều kiện, mã khác giữ ASSUMED_SHARED_SCHEMA. Xem [chuẩn hóa](dnse_normalization.md).
 
 ## Lưu trữ và kiểm tra
 
@@ -49,3 +51,6 @@ Sau khi tải hết:
 ```
 
 Audit đọc từng trang, giải nén và kiểm tra checksum, nối token, số trang/bản ghi, mã/bảng/thị trường và khoảng thời gian. Export streaming `quotes.raw.jsonl.gz` không đưa toàn bộ dataset lên RAM. Số raw records có thể bao gồm bản ghi giống nhau do nguồn trả ở ranh giới trang; không tuyên bố đây là số trạng thái độc nhất. Hết token chứng minh đã đọc hết những trang API cung cấp trong phạm vi yêu cầu, không độc lập chứng nhận upstream không thiếu dữ liệu.
+
+
+

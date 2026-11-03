@@ -1,0 +1,67 @@
+name: DNSE realtime G1 collector
+
+on:
+  schedule:
+    - cron: '52 1 * * 1-5'
+    - cron: '52 5 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Bounded smoke or scheduled-session collection
+        type: choice
+        default: smoke
+        options: [smoke, collect]
+      session:
+        description: Vietnam session
+        type: choice
+        default: auto
+        options: [auto, morning, afternoon]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquiditylab-dnse-realtime-writer
+  cancel-in-progress: false
+
+jobs:
+  collector:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && vars.DNSE_REALTIME_STORAGE_APPROVED == 'true' && (inputs.mode == 'smoke' || vars.DNSE_REALTIME_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 195
+    permissions:
+      contents: write
+    env:
+      PYTHONUTF8: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install collector dependencies
+        run: python -m pip install python-dotenv==1.2.4 websockets==15.0.1 cryptography==46.0.7
+      - name: Restore collect audit and save encrypted checkpoints
+        env:
+          DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
+          DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
+          LIQUIDITYLAB_STATE_KEY: ${{ secrets.LIQUIDITYLAB_STATE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DNSE_REALTIME_ENABLED: ${{ vars.DNSE_REALTIME_ENABLED }}
+          DNSE_REALTIME_STORAGE_APPROVED: ${{ vars.DNSE_REALTIME_STORAGE_APPROVED }}
+          DNSE_SCHEDULE_CRON: ${{ github.event.schedule }}
+          MODE: ${{ inputs.mode || 'collect' }}
+          SESSION: ${{ inputs.session || 'auto' }}
+        run: python -m scripts.github_dnse_realtime --mode "$MODE" --session "$SESSION" --seconds 60
+      - name: Write safe operational summary
+        if: always()
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          path = Path('report/github/dnse_realtime_result.json')
+          if path.exists():
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+                  summary.write('```json\n' + json.dumps(json.loads(path.read_text(encoding='utf-8')), indent=2) + '\n```\n')

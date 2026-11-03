@@ -13,7 +13,7 @@ Mọi giá tính VND/CP, lượng tính CP nguyên, giá trị tiền VND. Decim
 - Best benchmark = executed × Bid1 (bán) hoặc Ask1 (mua). Nếu best thiếu ⇒ benchmark/cost undefined dù có thể mô phỏng mức 2/3.
 - Book-walking cost bán = benchmark − gross; mua = gross − benchmark. Cost bps = cost/benchmark × 10.000. Chỉ trên **executed quantity**.
 - Có thể chọn mid-price: benchmark = executed × mid. Khi đó chi phí bao gồm phần half-spread, khác best-level benchmark; không so lẫn hai benchmark.
-- Fee = gross × fee_rate. Sell tax = gross × sell_tax_rate cho bán; mua không tính thuế bán. Net bán = gross − fee − tax; net mua = gross + fee. Mặc định các tỷ lệ 0; là giả định người dùng, không là phí thật của VPBankS.
+- Fee = gross × fee_rate. Sell tax = gross × sell_tax_rate cho bán; mua không tính thuế bán. Net bán = gross − fee − tax; net mua = gross + fee. Mặc định các tỷ lệ 0, là giả định người dùng, không đại diện biểu phí thật của công ty chứng khoán.
 
 Book-walking cost là chênh lệch toán học do quét mức giá hiện tại, **không là ước lượng đầy đủ market impact**. Uncovered không phải chắc chắn không bán được trên toàn thị trường: chỉ chưa được ba mức quan sát bao phủ.
 
@@ -48,3 +48,4 @@ Historical dùng đúng snapshot gốc theo nguồn/mã, không ghép giá ngày
 ## Nguồn nghiên cứu đã đối chiếu
 
 [Cont, Kukanov & Stoikov, The Price Impact of Order Book Events](https://arxiv.org/abs/1011.6402), Journal of Financial Econometrics 12(1), 47–88 (2014), DOI 10.1093/jjfinec/nbt003. Bài nghiên cứu về order-flow imbalance và depth gợi động lực đo thanh khoản. MVP dùng phép quét tĩnh và stock OBI, **không triển khai mô hình price impact hoặc khẳng định kết quả thực nghiệm của bài này áp dụng cho Việt Nam**. Các công trình khác trong đề là gợi ý đọc tiếp, chưa dùng làm cơ sở triển khai hoặc trích dẫn chưa đối chiếu.
+

@@ -1,5 +1,7 @@
 # Thu tự động toàn thị trường trong thời gian chờ NEO
 
+**Phạm vi tài liệu cũ — 03/11/2026:** hướng dẫn này mô tả cơ chế Vnstock/triển khai đã chuẩn bị trước đây, không xác nhận lịch DNSE đang hoạt động. Nguồn chính hiện là DNSE theo [quyết định nguồn](data_source_decision.md); dùng [quy trình DNSE](dnse_daily_history.md) cho tải sau phiên. Task Windows Disabled, GitHub worker false tại lần kiểm tra 03/11; không bật nguồn cũ chỉ vì đã chuyển sang DNSE.
+
 Đã đăng ký Windows Task Scheduler cho tài khoản Windows hiện tại. Tên task: **NEO LiquidityLab - Vnstock Whole Market**. Task chạy bằng quyền Limited, không lưu mật khẩu, không đổi ExecutionPolicy, không mở cửa sổ terminal. Chương trình và `.env` tiếp tục ở thư mục dự án; không di chuyển thư mục nếu chưa đăng ký lại task.
 
 ## Phạm vi và nhịp chạy
@@ -53,3 +55,4 @@ Task chưa có ngày kết thúc, tiếp tục theo lịch đến khi có cờ d
 - Bộ tests offline bao gồm chia nhóm không mất/trùng mã, quota thấp, giờ nghỉ/ngày nghỉ, trạng thái stale, chuẩn hóa đúng phạm vi, ngày thu giả lập, không tự retry sau lỗi, backup nén/khôi phục và khóa chống hai collector.
 
 Tài liệu API: [Reference chính thức](https://vnstocks.com/docs/vnstock/tham-chieu-reference), [Market](https://vnstocks.com/docs/vnstock/thi-truong-market), [quota](https://vnstocks.com/docs/vnstock/tham-khao/cap-quyen-va-gioi-han). Không dùng scraping hoặc endpoint giao dịch thật.
+
