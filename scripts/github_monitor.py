@@ -17,6 +17,11 @@ DNSE_FIELDS={"provider","status","units_verified","finance_enabled","probe_at_ut
     "samples","history_window","error_category","http_status","error_code"}
 DNSE_NETWORK_FIELDS={"provider","status","purpose","checked_at_utc","host","attempts",
     "resolved_addresses","error_code"}
+DNSE_WS_FIELDS={"provider","purpose","probe_id","started_at_utc","status","stage",
+    "transport_upgraded","authenticated","subscription_acknowledged","symbols_requested",
+    "channel","observe_seconds_limit","units_verified","finance_enabled","frames_received",
+    "bytes_received","stop_reason","samples","quotes_retained","elapsed_seconds",
+    "finished_at_utc","error_code"}
 
 
 def dnse_summary(candidate):
@@ -48,6 +53,8 @@ def summarize_log(log):
             elif isinstance(candidate,dict) and candidate.get("provider")=="dnse" and set(candidate)<=DNSE_FIELDS:
                 records.append(dnse_summary(candidate))
             elif isinstance(candidate,dict) and candidate.get("purpose")=="PUBLIC_NETWORK_DIAGNOSTIC" and set(candidate)<=DNSE_NETWORK_FIELDS:
+                records.append(candidate)
+            elif isinstance(candidate,dict) and candidate.get("purpose")=="READ_ONLY_WEBSOCKET_DIAGNOSTIC" and set(candidate)<=DNSE_WS_FIELDS:
                 records.append(candidate)
     totals=[line for line in log.splitlines() if re.search(r"\b[0-9]+ passed\b",line)]
     return {"worker_summaries":records,"pytest_totals":totals[-3:]}

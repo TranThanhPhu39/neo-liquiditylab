@@ -1,0 +1,44 @@
+name: DNSE read-only WebSocket quotes preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquiditylab-dnse-credentialed-ws-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  quotes:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install bounded diagnostic dependencies
+        run: python -m pip install python-dotenv==1.2.4 websockets==15.0.1
+      - name: Authenticate and observe only three G1 market symbols
+        env:
+          DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
+          DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
+        run: python -m scripts.probe_dnse_ws --symbols ACB PVS MSR --seconds 60 --discard-raw --report report/dnse_ws_probe.json
+      - name: Write safe diagnostic summary
+        if: always()
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          path = Path('report/dnse_ws_probe.json')
+          if path.exists():
+              report = json.loads(path.read_text(encoding='utf-8'))
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+                  summary.write('```json\n' + json.dumps(report, indent=2) + '\n```\n')
