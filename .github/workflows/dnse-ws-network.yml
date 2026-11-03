@@ -31,6 +31,9 @@ jobs:
       - name: Check official WebSocket DNS TCP and TLS without credentials
         shell: python
         run: |
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd()))
           import scripts.probe_dnse_network as probe
           probe.HOST = "ws-openapi.dnse.com.vn"
           probe.main()
