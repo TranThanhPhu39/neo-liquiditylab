@@ -1,8 +1,14 @@
 # NEO LiquidityLab
 
+Các đoạn về task toàn thị trường, server và mẫu 66 snapshot dưới đây mô tả **nguồn Vnstock cũ**. Dữ liệu/luồng DNSE hiện tại được mô tả ở đầu trang và trong hướng dẫn DNSE.
+
 Hệ thống mô phỏng chi phí thực hiện lệnh và stress thanh khoản danh mục cổ phiếu Việt Nam, phục vụ đồ án UEL 2026–2027. Nhà đầu tư có thể xem quy mô lệnh so với ba mức chào mua/bán và số tiền ước tính **chỉ trên phần được bao phủ**. Dành cho người có vị thế tương đối lớn so với độ sâu quan sát.
 
-MVP gồm A1 (quét sổ lệnh), B5 (stress giả định), danh mục nhập tay, SQLite, collector và replay. **Demo là dữ liệu synthetic; NEO chưa tích hợp. Sản phẩm hiện chưa đủ tiêu chí NEO API cốt lõi để nộp cuối kỳ.** Không có chức năng đặt/sửa/hủy lệnh thật.
+MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE OpenAPI là nguồn chính theo quyết định ngày 03/11/2026; không tiếp tục tích hợp NEO VPBankS.** Vnstock là nguồn cũ, Demo là synthetic. Không có chức năng đặt/sửa/hủy lệnh thật.
+
+[Quyết định nguồn](docs/data_source_decision.md) ghi nhận người thực hiện đã xác nhận việc dùng DNSE được thống nhất ngày 03/11/2026. Tên dự án/repo và adapter NEO chưa cấu hình còn được giữ; lượt này chưa đổi nhãn giao diện hoặc cấu hình chạy mặc định.
+
+**Chốt dữ liệu đến 02/11:** bốn ngày giao dịch 28, 29, 30/10 và 02/11/2026, **3.746.982 snapshot duy nhất**. Audit 4.367.925 vị trí raw từ năm kho đạt, 0 cách ly, integrity ok, 0 lỗi FK. Lần hồi quy gần nhất ghi nhận **197 tests đạt**; AppTest dữ liệu 02/11 đạt ba màn hình. Xem [chốt ngày](report/dnse_day_completion_2026-11-02.md), [tests](report/test_results.md), [đối chiếu đề](docs/assignment_compliance.md), [giới hạn](docs/limitations.md).
 
 **Tải lại lịch sử ngày bằng DNSE trên máy:** [hướng dẫn](docs/dnse_daily_history.md). Lệnh `python -m scripts.collect_dnse_history --date YYYY-MM-DD` tải mọi trang bid/ask G1 của toàn bộ cổ phiếu HOSE/HNX/UPCOM sau phiên, có tiếp tục từ checkpoint khi gián đoạn. Lưu raw riêng trong `data/history/dnse/YYYY-MM-DD`, không trộn với database Vnstock. Đơn vị đã đối chiếu trực tiếp cho ACB; các mã khác mang nhãn áp dụng schema chung chưa xác minh trực tiếp. Lệnh audit/export được mô tả trong hướng dẫn; số liệu hoàn tất phải đọc từ báo cáo ngày, không suy ra từ việc chương trình đã khởi động.
 
@@ -16,7 +22,7 @@ Có thể thêm `--session morning` để chỉ tải lịch sử đến 11:30 v
 
 **Các mã còn lại:** [phân tích mô tả toàn bộ danh mục](docs/dnse_market_analysis.md). `python -m scripts.report_dnse_market --dates 2026-10-28 2026-10-29` tạo trang tìm kiếm và báo cáo riêng từng mã, kể cả nguồn trả rỗng. Dùng lịch giờ từng sàn, giữ riêng độ phủ/mẫu chung/thiếu danh mục, hiển thị spread, OBI và độ sâu theo đơn vị nguồn. Không mở A1/B5 hay gán CP đã xác minh cho các mã còn thiếu bằng chứng. Có cache theo fingerprint dữ liệu và tiếp tục theo từng mã.
 
-**GitHub Actions đã triển khai nhưng lịch thu đang tắt** tại repo `TranThanhPhu39/neo-liquiditylab`: [quy trình vận hành](docs/github_actions.md). Kiểm thử Ubuntu và khôi phục checkpoint synthetic mã hóa trên runner mới đã đạt. Sau khi giải phóng thiết bị Vnstock, một runner đăng nhập thành công nhưng runner mới tiếp theo lại bị `VNSTOCK_AUTH_DEVICE_LIMIT`; nguồn hiện tại chưa chạy tự động nhiều ngày được. `LIQUIDITYLAB_WORKER_ENABLED=false`, task Windows cũng đang tạm dừng. Source public không chứa `.env`, database thu thật hoặc SDK authentication state. [DNSE thay thế](docs/dnse_integration.md) đã đọc được latest ba mức và 12 quote lịch sử phiên sáng của FPT/HPG/ACB trên máy. Hai khóa DNSE đã lưu trong Actions Secrets theo chấp thuận; cả hai runner thử chưa kết nối được REST, runner thứ hai xác nhận timeout TCP cổng 443 trước TLS/xác thực. Chưa kết luận chính sách chặn IP. Đơn vị DNSE hiện đã xác minh thực nghiệm cho ACB; các mã khác vẫn mang nhãn áp dụng schema chung chưa xác minh trực tiếp.
+**WebSocket đã nhận dữ liệu trên GitHub, lịch thu vẫn tắt:** hai runner mới đã Upgrade/auth/subscribe G1 và nhận mẫu MSR; ACB/PVS chưa có mẫu trong cửa sổ thử. Xem [hướng dẫn WebSocket](docs/dnse_websocket.md), [báo cáo thử](report/dnse_ws_validation_2026-11-03.md). Chưa có collector dài phiên/toàn thị trường hoặc lưu bền vững trên GitHub; REST lịch sử vẫn lỗi TCP. LIQUIDITYLAB_WORKER_ENABLED=false. Dữ liệu WS chưa xác minh đơn vị và không nhập A1/B5.
 
 **Bộ thu toàn thị trường đã kiểm tra, task Windows đang Disabled:** [hướng dẫn vận hành](docs/whole_market_automation.md). Cấu hình lịch Windows là 09:10 thứ Hai–thứ Sáu, có bắt kịp khi đăng nhập; thu các cửa sổ 09:15–11:30 và 13:00–14:30. Danh mục làm mới mỗi ngày; lượt thử đã lấy đủ 1.520 cổ phiếu HOSE/HNX/UPCOM theo nhóm. Toàn thị trường lưu raw; A1/B5 tự động chuẩn hóa hiện giới hạn FPT/HPG/ACB đã thẩm định. Cờ STOP_VNSTOCK/NEO_READY hoặc `enabled=false` dừng thu, lịch không có ngày kết thúc cố định.
 
@@ -102,7 +108,9 @@ Tests chạy offline, không gọi SDK mạng. Bao gồm ví dụ bắt buộc (
 flowchart LR
     Demo[Demo fixtures] --> Normalize[Chuẩn hóa và validation]
     Vnstock[Vnstock adapter / subprocess] --> Normalize
-    Neo[NEO adapter chưa cấu hình] -.-> Normalize
+    DNSE[DNSE REST nguồn chính] --> RawDNSE[Raw theo ngày + chuẩn hóa + audit]
+    RawDNSE --> DB
+    Neo[Adapter NEO cũ chưa cấu hình] -.-> Normalize
     Normalize --> DB[(SQLite raw / normalized / audit)]
     Normalize --> Engine[A1 / B5 / Portfolio]
     DB --> Replay[Replay / lịch sử / chất lượng]
@@ -112,4 +120,13 @@ flowchart LR
 
 `src/finance` chỉ nhận schema nội bộ, không import Vnstock. `config/` quản lý môi trường, mã và kịch bản tham khảo. Giá trị tiền dùng Decimal; chỉ chuyển float để vẽ. Có thể xuất Parquet khi cài pyarrow (đã có cùng Streamlit trong môi trường kiểm thử).
 
-Tài liệu: [kiến trúc](docs/architecture.md), [dictionary](docs/data_dictionary.md), [phương pháp](docs/financial_methodology.md), [chất lượng](docs/data_quality.md), [giới hạn](docs/limitations.md), [NEO](docs/neo_integration_plan.md), [đối chiếu đề](docs/assignment_compliance.md), [dàn ý báo cáo](report/report_outline.md).
+Tài liệu: [quyết định dùng DNSE](docs/data_source_decision.md), [kiến trúc](docs/architecture.md), [dictionary](docs/data_dictionary.md), [phương pháp](docs/financial_methodology.md), [chất lượng](docs/data_quality.md), [giới hạn](docs/limitations.md), [đối chiếu đề](docs/assignment_compliance.md), [dàn ý báo cáo](report/report_outline.md). [Kế hoạch NEO cũ](docs/neo_integration_plan.md) chỉ giữ lịch sử.
+
+
+
+
+
+
+
+
+

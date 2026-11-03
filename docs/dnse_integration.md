@@ -1,4 +1,26 @@
-# Đánh giá DNSE làm nguồn thay thế trong lúc chờ NEO
+# Tích hợp DNSE — nguồn dữ liệu chính
+
+**Nghiệm thu mới 03/11:** WebSocket Upgrade, xác thực, subscribe G1 và nhận quote MSR đạt trên hai runner GitHub mới. Mỗi lượt giữ thống kê 10 mẫu; ACB/PVS chưa có thông điệp trong cửa sổ thử. Probe chưa bật lịch hoặc nhập dữ liệu vào A1/B5. Xem [hướng dẫn WS](dnse_websocket.md), [bằng chứng](../report/dnse_ws_validation_2026-11-03.md). Các nhận định chỉ thử mạng/chưa auth ở mốc trước dưới đây được giữ như lịch sử.
+
+**Phát hiện mới từ nghiên cứu 03/11:** phép đối chứng trong cùng runner Ubuntu/Windows/macOS cho thấy REST .24 timeout TCP nhưng WebSocket chính thức .88 kết nối TCP/TLS 1.3 thành công. Chưa thử Upgrade/auth/subscribe quotes, nên chưa bật thu tự động. Xem [nghiên cứu và bằng chứng mới](../report/dnse_network_research_2026-11-03.md). Các kết quả REST cũ dưới đây giữ đúng phạm vi lịch sử.
+
+**Kiểm tra lại 03/11/2026:** hai preflight Ubuntu mới và ba job mạng Ubuntu/Windows/macOS đều timeout TCP 443 trước TLS/xác thực; đối chứng FPT trên máy thành công. Chưa bật lịch thu GitHub. Xem [báo cáo mới](../report/dnse_github_feasibility_2026-11-03.md) và [nội dung hỏi DNSE đã cập nhật, chưa gửi](dnse_support_request.md).
+
+**Nguồn chính từ 03/11/2026:** [quyết định nguồn](data_source_decision.md). Không tiếp tục tích hợp NEO VPBankS. REST trên máy đã đi qua probe và chạy thật toàn danh mục cho bốn ngày 28, 29, 30/10 và 02/11, không chỉ ba mã thử ban đầu.
+
+| Chỉ tiêu chốt đến 02/11 | Kết quả |
+| --- | ---: |
+| Snapshot chuẩn hóa duy nhất | 3.746.982 |
+| Vị trí raw đã đối chiếu (gồm kho sáng 29/10 riêng) | 4.367.925 |
+| Bản ghi bị cách ly / lỗi khóa ngoại | 0 / 0 |
+| Danh mục ngày 02/11 | 1.518 mã |
+| Ngày 02/11: có dữ liệu / API trả rỗng | 1.294 / 224 |
+
+Giá ×1.000, lượng ×10 theo hồ sơ hiện tại; ACB đã đối chiếu thực nghiệm, các mã khác giữ ASSUMED_SHARED_SCHEMA và chưa mở A1/B5 mặc định. Dashboard DNSE, pipeline chuẩn hóa và bộ tải đã triển khai. Xem [chốt ngày](../report/dnse_day_completion_2026-11-02.md), [chuẩn hóa](dnse_normalization.md), [Dashboard](dnse_dashboard.md).
+
+Client hiện dùng GET /instruments và /price/{symbol}/quotes[/latest], phiên bản đã pin trong code là 2026-07-23; API key/secret giữ trong môi trường, ký HMAC và kiểm tra TLS. Không có route tài khoản/giao dịch thật. Các giới hạn quyền, chi phí, lịch sử lưu được và môi trường tự chạy cần đánh giá theo điều kiện tài khoản khi vận hành; không suy từ một phép thử nhỏ.
+
+**Các phần từ đây ghi lịch sử đánh giá ngày 28/10.** Những câu “mới thử ba mã”, “chưa chuẩn hóa”, “đơn vị UNVERIFIED” mô tả lần probe đó; trạng thái hiện tại nằm ở trên. Mạng GitHub chưa có thử lại thành công, nên vấn đề timeout vẫn còn trong kế hoạch tự chạy; chưa có lịch hoạt động.
 
 Ngày xem xét: 28/10/2026. Người dùng đã lưu đủ bộ khóa mới cục bộ. Latest quotes và một khoảng lịch sử nhỏ đã trả dữ liệu thật cho FPT/HPG/ACB; chưa kết luận quyền toàn thị trường hoặc khả năng chạy trên GitHub từ kết quả cục bộ.
 
@@ -33,7 +55,7 @@ Bước cần giải quyết tiếp: nhờ DNSE xác nhận khả năng truy c�
 
 - [Latest quotes](https://developers.dnse.com.vn/docs/dnse/get-latest-quotes/): GET `/price/:symbol/quotes/latest`.
 - [Historical quotes](https://developers.dnse.com.vn/docs/dnse/get-quotes/): GET `/price/:symbol/quotes`, truy vấn bid/ask theo thời gian và bảng giao dịch.
-- [Danh mục mã](https://developers.dnse.com.vn/docs/dnse/get-instruments/): GET `/market/instruments`.
+- [Danh mục mã](https://developers.dnse.com.vn/docs/dnse/get-instruments/): GET `/instruments`.
 - SDK [dnse-tech/openapi-sdk](https://github.com/dnse-tech/openapi-sdk/tree/main/python) có quote REST và WebSocket; model Quote dùng `bid`/`offer` là danh sách mức giá/khối lượng. Cần đọc payload thật để xác nhận đủ ít nhất ba mức, đơn vị và ý nghĩa timestamp.
 - SDK REST chính thức dùng API key + API secret ký HMAC-SHA256, Date và nonce; base URL `https://openapi.dnse.com.vn`, API version được xem trong source là `2026-07-23`. Không suy đoán auth từ hướng dẫn cũ trước KRX.
 
@@ -74,4 +96,10 @@ Sau khi REST trên GitHub hoạt động, cần nghiệm thu dữ liệu trên h
 
 ## Liên hệ với đồ án
 
-DNSE có thể là nguồn thay thế hợp lệ trong giai đoạn phát triển. Tiêu chí cuối kỳ vẫn yêu cầu NEO API là thành phần cốt lõi; không đổi nhãn DNSE thành NEO hoặc kết luận đã hoàn tất yêu cầu NEO.
+Cập nhật 03/11: DNSE đã được chọn làm nguồn chính; NEO VPBankS không triển khai tiếp. Người thực hiện đã xác nhận ngày 03/11 rằng việc dùng DNSE được thống nhất; nghiệm thu theo phạm vi điều chỉnh. Xem [quyết định nguồn](data_source_decision.md).
+
+
+
+
+
+

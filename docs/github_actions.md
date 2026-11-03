@@ -1,5 +1,13 @@
 # GitHub Actions cho NEO LiquidityLab
 
+**Nghiệm thu mới 03/11:** WebSocket Upgrade, xác thực, subscribe G1 và nhận quote MSR đạt trên hai runner GitHub mới. Mỗi lượt giữ thống kê 10 mẫu; ACB/PVS chưa có thông điệp trong cửa sổ thử. Probe chưa bật lịch hoặc nhập dữ liệu vào A1/B5. Xem [hướng dẫn WS](dnse_websocket.md), [bằng chứng](../report/dnse_ws_validation_2026-11-03.md). Các nhận định chỉ thử mạng/chưa auth ở mốc trước dưới đây được giữ như lịch sử.
+
+**Phát hiện mới từ nghiên cứu 03/11:** phép đối chứng trong cùng runner Ubuntu/Windows/macOS cho thấy REST .24 timeout TCP nhưng WebSocket chính thức .88 kết nối TCP/TLS 1.3 thành công. Chưa thử Upgrade/auth/subscribe quotes, nên chưa bật thu tự động. Xem [nghiên cứu và bằng chứng mới](../report/dnse_network_research_2026-11-03.md). Các kết quả REST cũ dưới đây giữ đúng phạm vi lịch sử.
+
+**Kiểm tra lại 03/11/2026:** hai preflight Ubuntu mới và ba job mạng Ubuntu/Windows/macOS đều timeout TCP 443 trước TLS/xác thực; đối chứng FPT trên máy thành công. Chưa bật lịch thu GitHub. Xem [báo cáo mới](../report/dnse_github_feasibility_2026-11-03.md) và [nội dung hỏi DNSE đã cập nhật, chưa gửi](dnse_support_request.md).
+
+**Phạm vi tài liệu cũ — 03/11/2026:** hướng dẫn này mô tả cơ chế Vnstock/triển khai đã chuẩn bị trước đây, không xác nhận lịch DNSE đang hoạt động. Nguồn chính hiện là DNSE theo [quyết định nguồn](data_source_decision.md); dùng [quy trình DNSE](dnse_daily_history.md) cho tải sau phiên. Task Windows Disabled, GitHub worker false tại lần kiểm tra 03/11; không bật nguồn cũ chỉ vì đã chuyển sang DNSE.
+
 Đích được người dùng chọn: **repo public `TranThanhPhu39/neo-liquiditylab`**. Kiến trúc tham khảo từ [worker crypto](https://github.com/TranThanhPhu39/dashboard_crypto/blob/main/.github/workflows/worker.yml): worker có lịch, preflight tách riêng và checkpoint mã hóa. Không sửa repo crypto. GitHub Pages không chạy collector; ứng dụng Streamlit vẫn là giao diện local, chưa xuất bản một dashboard Pages cho LiquidityLab.
 
 ## Tình trạng nghiệm thu ngày 28/10/2026
@@ -46,3 +54,7 @@ GitHub Release được tạo draft, upload đủ ciphertext rồi mới công b
 Tạm dừng lịch GitHub: đặt repository variable `LIQUIDITYLAB_WORKER_ENABLED=false`. Việc này chặn lượt tiếp theo; không giết job đang chạy. Khi chuyển NEO, dừng sau checkpoint và xác nhận job kết thúc trước khi khởi động nguồn mới. Không bật lại Windows từ state cũ để ghi đè dataset GitHub.
 
 Admin entrypoint `python -m scripts.github_setup` có các lệnh prepare/publish/status/preflight/enable/disable. Lệnh `secrets --include-vnstock` chỉ dùng sau khi được phép; credential GitHub lấy từ Git Credential Manager hoặc env trong bộ nhớ, không đưa vào lệnh, báo cáo hay file Git.
+
+
+
+

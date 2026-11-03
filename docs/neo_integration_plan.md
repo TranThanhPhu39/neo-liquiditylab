@@ -1,5 +1,7 @@
 # Kế hoạch tích hợp NEO API
 
+**Lưu trữ lịch sử — cập nhật 03/11/2026:** người thực hiện đã chọn DNSE làm nguồn chính và dừng kế hoạch tích hợp NEO VPBankS. Các bước bên dưới là phương án cũ, không thuộc danh sách công việc kỹ thuật hiện tại. Xem [quyết định nguồn](data_source_decision.md).
+
 Trạng thái: **NOT CONFIGURED — chưa kiểm chứng kết nối thật**. `NeoProvider.get_snapshots` luôn báo NotConfigured, ngay cả khi biến token tồn tại: token không thay thế việc xác minh giao thức. `.env.example` dự phòng NEO_BASE_URL/NEO_WEBSOCKET_URL/NEO_TOKEN; không URL network hay payload tự đoán.
 
 Ngày 27/10/2026 truy cập các trang chính thức: [Overview](https://neoinvest.vpbanks.com.vn/neo-openapi/docs/overview), [Stock detail](https://neoinvest.vpbanks.com.vn/neo-openapi/docs/market/stock-detail), [Market stream](https://neoinvest.vpbanks.com.vn/neo-openapi/docs/streaming/market-stream). Nội dung đọc được chỉ là shell điều hướng và Loading; chưa có schema đầy đủ. Không lấy URL frontend làm endpoint API.
@@ -18,3 +20,4 @@ Ngày 27/10/2026 truy cập các trang chính thức: [Overview](https://neoinve
 ## Bằng chứng nghiệm thu còn thiếu
 
 Một stream lưu trữ đủ dữ liệu **hoặc** hai nhóm endpoint trực tiếp phục vụ bài toán, >=3 trường tài chính có nguồn thật, raw/normalized có provenance, 5–10 phiên nếu khả thi, báo cáo quota và mất kết nối. Test timeout/auth expired/revoked, rate error, reconnect/duplicate/delta/late messages, timestamp/unit, partial book/ATO/ATC, snapshot so bảng giá thực và engine case chuẩn. Không giả định có order book lịch sử trước ngày bắt đầu thu.
+
