@@ -8,7 +8,163 @@ MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE Op
 
 [Quyết định nguồn](docs/data_source_decision.md) ghi nhận người thực hiện đã xác nhận việc dùng DNSE được thống nhất ngày 03/11/2026. Tên dự án/repo và adapter NEO chưa cấu hình còn được giữ; lượt này chưa đổi nhãn giao diện hoặc cấu hình chạy mặc định.
 
-**Chốt dữ liệu đến 02/11:** bốn ngày giao dịch 28, 29, 30/10 và 02/11/2026, **3.746.982 snapshot duy nhất**. Audit 4.367.925 vị trí raw từ năm kho đạt, 0 cách ly, integrity ok, 0 lỗi FK. Lần hồi quy gần nhất ghi nhận **197 tests đạt**; AppTest dữ liệu 02/11 đạt ba màn hình. Xem [chốt ngày](report/dnse_day_completion_2026-11-02.md), [tests](report/test_results.md), [đối chiếu đề](docs/assignment_compliance.md), [giới hạn](docs/limitations.md).
+**Chốt dữ liệu đến 03/11/2026:** năm ngày giao dịch 28, 29, 30/10 và 02, 03/11, **4.570.076 snapshot duy nhất**. Audit 5.195.736 lượt raw từ sáu kho đạt, 0 cách ly, integrity ok, 0 lỗi FK. Riêng 03/11: 1.517 mã trong danh mục, 827.811 bản ghi raw, 823.094 snapshot duy nhất. Hồi quy gần nhất **214 tests đạt**; AppTest dữ liệu 02/11 đạt ba màn hình. Báo cáo ngày nằm cục bộ ở `report/dnse_day_completion_2026-11-03.md/.json`. Xem thêm [đối chiếu đề](docs/assignment_compliance.md), [giới hạn](docs/limitations.md).
+
+## Quy trình vận hành hằng ngày
+
+Các lệnh dưới đây chạy trong **PowerShell tại thư mục chứa README**, trên workspace đã có `.venv`, `.env` và hồ sơ đối chiếu đơn vị DNSE cục bộ. Clone repo public không tự tải dữ liệu, hồ sơ bằng chứng riêng hoặc khóa giải mã về máy. Trong `.env` cần có `DNSE_API_KEY` và `DNSE_API_SECRET`; không in giá trị hoặc đưa vào câu lệnh.
+
+### 1. Phân biệt việc GitHub tự làm và việc cần chạy trên máy
+
+| Công việc | Hiện chạy ở đâu? | Có cần mở máy cá nhân? |
+| --- | --- | --- |
+| Nhận raw WebSocket G1 trong phiên | GitHub Actions, đã bật lịch | Không |
+| Lưu checkpoint raw WebSocket mã hóa | GitHub Releases, mỗi 15 phút và khi dừng bình thường | Không |
+| Tự tải checkpoint WebSocket về máy | Chưa có CLI đồng bộ hằng ngày | Chưa tự động |
+| Chuẩn hóa WebSocket để dùng dashboard/A1/B5 | Chưa có luồng nhập; đơn vị WS còn chưa xác minh | Chưa dùng được bằng lệnh REST |
+| Tải lịch sử REST và chuẩn hóa cho dashboard | Lệnh `scripts.update_dnse_day` trên máy | Có, trong khi lệnh chạy |
+| Làm mới danh mục dùng cho GitHub | Lệnh `scripts.prepare_dnse_realtime --publish` trên máy | Có, trong lúc cập nhật |
+
+**Lệnh chuẩn hóa hiện tại chỉ đọc lịch sử REST trong `data/history/dnse`, không đọc checkpoint WebSocket trên Releases.** GitHub đã thu raw không có nghĩa dashboard trên máy tự có ngày mới. Nếu chỉ cần tích lũy raw WS, không phải mở máy mỗi ngày. Nếu muốn cập nhật kho phân tích hiện có, dùng bước 3 sau phiên; bước này tải REST riêng, không nhập dữ liệu từ GitHub.
+
+### 2. Hằng ngày: kiểm tra hai lượt thu tự động trên GitHub
+
+Mở [Actions → DNSE realtime G1 collector](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/workflows/dnse-realtime.yml).
+
+| Lượt thu | Giờ cron dự kiến, giờ Việt Nam | Cửa sổ quan sát của collector |
+| --- | --- | --- |
+| Sáng | 08:52, thứ Hai–thứ Sáu | 08:57–11:31 |
+| Chiều | 12:52, thứ Hai–thứ Sáu | 12:57–15:06 |
+
+Lịch đã bật ngày 03/11, lượt định kỳ đầu dự kiến 04/11. GitHub có thể khởi chạy trễ; chưa tích hợp lịch nghỉ lễ. WebSocket cần kết nối trong phiên, không tải lại diễn biến đã qua bằng cách chạy cuối phiên. Hai lượt thử ngoài giờ đã xác minh kết nối/lưu/khôi phục trên hai runner mới; tải thực cả phiên và lần cron đầu vẫn cần kiểm chứng.
+
+Sau khi job kết thúc, xem summary và log bước **Restore collect audit and save encrypted checkpoints**:
+
+- Trạng thái kết thúc bình thường của lượt thu là `WINDOW_ENDED_OBSERVED_ONLY`.
+- Kiểm tra `shards_subscribed` bằng `expected_connections`, `fatal_error` là `null`, `unpersisted_receipts_this_run` bằng 0, `audit.state` là `VERIFIED`, checkpoint đã lưu.
+- Xem thêm `receipt_count`, `symbols_observed`, `known_gaps`. Job xanh hoặc subscribe đủ chưa chứng minh dữ liệu đủ cả phiên; mã không có thông điệp chưa được coi là khối lượng 0. `SKIPPED_OUTSIDE_COLLECTION_WINDOW` nghĩa là đã bỏ qua lượt thu.
+
+Có thể tải báo cáo log đã lọc về máy bằng lệnh dưới đây. Run ID là số cuối URL dạng `/actions/runs/41629043291`:
+
+```powershell
+$runId = Read-Host 'Nhap Run ID can kiem tra'
+.\.venv\Scripts\python.exe -m scripts.github_monitor $runId
+```
+
+Lệnh cần quyền đọc repo qua GitHub token đã cấu hình hoặc Git Credential Manager đã đăng nhập trên máy. Báo cáo nằm ở `report/github/run_<RUN_ID>.json`; đây là báo cáo vận hành, không phải lệnh tải raw WebSocket.
+
+### 3. Sau phiên: cập nhật dữ liệu chuẩn hóa cho dashboard trên máy
+
+**Cách thường dùng: sau 15:10 giờ Việt Nam của ngày giao dịch, chạy một lệnh:**
+
+```powershell
+# Tải lịch sử và cập nhật cho hôm nay, theo múi giờ Việt Nam.
+.\.venv\Scripts\python.exe -m scripts.update_dnse_day
+```
+
+Muốn tải bù ngày cụ thể, thay ngày trong ví dụ:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.update_dnse_day --date 2026-11-03
+```
+
+Chuỗi này tự làm: lấy danh mục REST → tải hết trang → audit raw → báo cáo mã trả rỗng/thiếu/lỗi → chuẩn hóa → đối chiếu raw–snapshot → xuất JSONL, checksum và manifest → kiểm tra tài chính. **Không cần chạy thêm lệnh chuẩn hóa sau khi chuỗi đã `COMPLETED`.** Giữ máy bật và có mạng trong lúc tải; chuẩn hóa/audit/xuất kho nhiều ngày có thể mất thêm thời gian sau khi tải đã xong.
+
+Nếu cần phân tích riêng phiên sáng, chạy sau 11:30; buổi chiều vẫn dùng lệnh cả ngày ở trên:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.update_dnse_day --session morning
+```
+
+Kho sáng nằm riêng trong `data/history/dnse/YYYY-MM-DD/morning`; bản cả ngày giữ cả hai phiên. Bản trùng giữa các kho được giữ lineage, không cộng thành snapshot duy nhất mới.
+
+Nếu chỉ muốn bỏ bước xuất JSONL lớn, giữ nguyên thu/chuẩn hóa/audit và cập nhật dashboard SQLite:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.update_dnse_day --no-export
+```
+
+Khi dùng `--no-export`, tệp JSONL cũ nếu còn không phải bản xuất của kho mới; xem `exports_refreshed` trong manifest.
+
+**Nếu raw REST đã có và chỉ muốn chạy riêng chuẩn hóa/kiểm tra**, dùng:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.normalize_dnse_history
+.\.venv\Scripts\python.exe -m scripts.audit_dnse_normalized --export
+```
+
+Hai lệnh này làm việc trên các kho REST hoàn tất đã lưu; không gọi thu WebSocket, không tự tải ngày còn thiếu và không chạy đủ chuỗi cập nhật manifest/kiểm tra tài chính của `update_dnse_day`. Trong vận hành hằng ngày nên dùng lệnh một bước ở đầu mục này.
+
+Kiểm tra kết quả của ngày đã chọn, ví dụ 03/11:
+
+```powershell
+Get-Content .\report\dnse_update_2026-11-03_day.json -Encoding UTF8
+Get-Content .\data\processed\dnse\manifest.json -Encoding UTF8
+```
+
+Chỉ chốt khi report cập nhật có `state=COMPLETED`, audit chuẩn hóa có `state=VERIFIED`, manifest có `state=NORMALIZED_AND_AUDITED`, kiểm tra tài chính `PASSED`. Báo cáo raw phải hết phân trang; API trả rỗng được ghi riêng, không tự đổi thành sổ lệnh 0. Bộ lệnh không tự viết bản tóm tắt `dnse_day_completion_*.md`; báo cáo tự sinh là `dnse_update_*`, `dnse_history_*`, `dnse_missing_*` và các audit/manifest.
+
+Mở dashboard sau khi cập nhật:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run src/app/main.py --server.address 127.0.0.1
+```
+
+Chọn nguồn **dnse**, ngày cần xem và mã. REST ACB giữ phạm vi xác minh thực nghiệm; các mã khác còn nhãn `ASSUMED_SHARED_SCHEMA`. Chưa áp hệ số REST sang WebSocket hoặc tự mở A1/B5 cho dữ liệu chưa xác minh.
+
+### 4. Mỗi tuần: làm mới danh mục cho lịch GitHub trước khi quá 7 ngày
+
+Giới hạn **7 ngày lịch** là quy tắc của code cho **danh sách mã cần theo dõi**; không phải hạn API key, hạn lưu dữ liệu hoặc số phiên thu. Nên cập nhật mỗi tuần, chẳng hạn thứ Sáu sau phiên và khi job thu đã kết thúc. Được cập nhật sớm, không cần đợi hết hạn.
+
+Seed ngày 03/11 hiện được chấp nhận đến hết **10/11**. Nếu chưa cập nhật thì từ **11/11** collector báo danh mục quá hạn và không thu tiếp; dữ liệu cũ vẫn giữ nguyên.
+
+Trên máy gốc đã có khóa giải mã checkpoint và quyền GitHub, chạy:
+
+```powershell
+$env:DNSE_REALTIME_STORAGE_APPROVED = 'true'
+.\.venv\Scripts\python.exe -m scripts.prepare_dnse_realtime --publish
+if ($LASTEXITCODE -ne 0) { throw 'Cap nhat danh muc that bai; xem error_code truoc khi tiep tuc.' }
+Get-Content .\report\dnse_ws_catalog_preparation.json -Encoding UTF8
+```
+
+Kết quả cần có `state=CATALOG_PREPARED_AND_ENCRYPTED`, ngày `as_of_date` mới và `encrypted_release` khác `null`. Lệnh lấy lại danh mục từ DNSE trên máy, cập nhật `data/control/dnse_ws_catalog.json`, rồi đưa seed **mã hóa** lên Releases. Các job GitHub kế tiếp đọc seed mới. Không phải tải lại dữ liệu ngày cũ hay bật lại lịch sau mỗi lần cập nhật.
+
+Chỉ chạy `scripts.prepare_dnse_realtime` **không có `--publish`** thì mới cập nhật trên máy, GitHub vẫn dùng seed cũ. Số mã có thể thay đổi; ví dụ seed thử trước có 1.518 mã, danh mục tải lịch sử tối 03/11 có 1.517. Ngày hết hạn của GitHub tính từ seed đã publish thành công, không từ ngày chạy tải lịch sử REST.
+
+Giữ đúng khóa `LIQUIDITYLAB_STATE_KEY` đã dùng. Máy gốc có bản sao mã hóa Windows tại `data/control/github_state_key.dpapi`; thuộc tài khoản Windows đó. Nếu gặp `STATE_KEY_BACKUP_MISSING_DO_NOT_REGENERATE`, cần khôi phục đúng khóa hiện có, không tự tạo khóa khác hoặc chạy lệnh ghi đè secret để xử lý.
+
+### 5. Khi lượt thu/tải lỗi hoặc cần tạm dừng
+
+| Tình huống | Cách xử lý |
+| --- | --- |
+| REST đang tải thì mất mạng hoặc bị ngắt | Đọc `error_code`, xử lý nguyên nhân rồi chạy lại đúng `update_dnse_day --date ...` và cùng `--session`; bộ tải tiếp tục từ checkpoint. Không xóa kho raw để bắt đầu lại. |
+| Có tệp `data/control/STOP_DNSE_HISTORY` | Nếu chủ động cho thu lại, bỏ đúng tệp STOP rồi chạy lại lệnh; lệnh tải vẫn dừng khi cờ còn tồn tại. |
+| GitHub báo `WS_CATALOG_MISSING_OR_EXPIRED` | Chạy bước 4 với `--publish`, xác nhận đã publish thành công. Lượt bị bỏ lỡ không được WebSocket tự bù. |
+| GitHub lỗi xác thực/quota/giới hạn kết nối | Đọc `fatal_error`/`error_code` của job, kiểm tra khóa/quyền/hạn mức và các ứng dụng đang dùng cùng tài khoản; không lặp chạy liên tục. |
+| GitHub bỏ lỡ một phiên | Nếu còn trong cửa sổ, có thể **Run workflow → mode=collect**, chọn đúng `session=morning/afternoon`. Chỉ nhận dữ liệu từ lúc kết nối lại. Sau 15:10 dùng bước 3 để tải bù lịch sử REST trên máy. |
+| Khôi phục báo `WS_ARCHIVE_SETTINGS_CHANGED` | Giữ nguyên DB/checkpoint; kiểm tra danh mục và partition đã dùng, không xóa dữ liệu hoặc ép ghép hai phạm vi. |
+| Muốn tắt/bật lịch DNSE | Repo **Settings → Secrets and variables → Actions → Variables**, đổi `DNSE_REALTIME_ENABLED` thành `false`/`true`; giữ `DNSE_REALTIME_STORAGE_APPROVED=true` khi còn chấp thuận lưu mã hóa. Đổi cờ chỉ ảnh hưởng job kế tiếp, không dừng job đang chạy. |
+
+Các biến trên là **Variables**, còn khóa DNSE/khóa mã hóa là **Secrets**. Không dùng `scripts.github_setup enable/disable/status` để điều khiển lịch DNSE: các lệnh đó quản lý cờ Vnstock cũ `LIQUIDITYLAB_WORKER_ENABLED`, hiện giữ `false`. Không chạy lại `scripts.verify_dnse_realtime_deployment --enable` mỗi ngày; đó là bước nghiệm thu/kích hoạt ban đầu.
+
+### 6. Dữ liệu và báo cáo nằm ở đâu?
+
+| Nội dung | Nơi lưu |
+| --- | --- |
+| Raw WS thu tự động trên GitHub | [Releases](https://github.com/TranThanhPhu39/neo-liquiditylab/releases), tag `dnse-ws-state-YYYY-MM-DD-morning-...` / `afternoon-...`, payload mã hóa |
+| Seed danh mục GitHub | Releases, tag `dnse-ws-catalog-latest-...` |
+| Raw WS nếu chạy collector trên máy | `data/realtime/dnse/YYYY-MM-DD/<partition>/quotes.db` |
+| Raw REST theo ngày trên máy | `data/history/dnse/YYYY-MM-DD/history.db`, `quotes.raw.jsonl.gz` |
+| Kho chuẩn hóa cho dashboard | `data/processed/dnse/normalized.db` |
+| JSONL chuẩn hóa toàn kho | `data/processed/dnse/quotes.normalized.jsonl.gz` |
+| Manifest/checksum hiện tại | `data/processed/dnse/manifest.json` |
+| Trạng thái cập nhật REST theo ngày | `report/dnse_update_YYYY-MM-DD_day.json` hoặc `_morning.json` |
+| Mã REST trả rỗng/thiếu/lỗi | `report/dnse_missing_YYYY-MM-DD.md/.json/.txt`, thêm `_morning` cho kho sáng |
+| Audit chuẩn hóa toàn kho | `report/dnse_normalization_audit.json` |
+
+`report/`, dữ liệu thực, `.env` và control files trên máy không tự đồng bộ về qua Git. Các bước chuẩn hóa/manifest toàn kho phản ánh lần cập nhật gần nhất; báo cáo theo ngày cần giữ riêng để truy lại. Hướng dẫn chi tiết: [realtime](docs/dnse_realtime.md), [REST lịch sử](docs/dnse_daily_history.md), [chuẩn hóa](docs/dnse_normalization.md), [dashboard](docs/dnse_dashboard.md).
+
+## Tham khảo các luồng DNSE
 
 **Tải lại lịch sử ngày bằng DNSE trên máy:** [hướng dẫn](docs/dnse_daily_history.md). Lệnh `python -m scripts.collect_dnse_history --date YYYY-MM-DD` tải mọi trang bid/ask G1 của toàn bộ cổ phiếu HOSE/HNX/UPCOM sau phiên, có tiếp tục từ checkpoint khi gián đoạn. Lưu raw riêng trong `data/history/dnse/YYYY-MM-DD`, không trộn với database Vnstock. Đơn vị đã đối chiếu trực tiếp cho ACB; các mã khác mang nhãn áp dụng schema chung chưa xác minh trực tiếp. Lệnh audit/export được mô tả trong hướng dẫn; số liệu hoàn tất phải đọc từ báo cáo ngày, không suy ra từ việc chương trình đã khởi động.
 
@@ -22,11 +178,13 @@ Có thể thêm `--session morning` để chỉ tải lịch sử đến 11:30 v
 
 **Các mã còn lại:** [phân tích mô tả toàn bộ danh mục](docs/dnse_market_analysis.md). `python -m scripts.report_dnse_market --dates 2026-10-28 2026-10-29` tạo trang tìm kiếm và báo cáo riêng từng mã, kể cả nguồn trả rỗng. Dùng lịch giờ từng sàn, giữ riêng độ phủ/mẫu chung/thiếu danh mục, hiển thị spread, OBI và độ sâu theo đơn vị nguồn. Không mở A1/B5 hay gán CP đã xác minh cho các mã còn thiếu bằng chứng. Có cache theo fingerprint dữ liệu và tiếp tục theo từng mã.
 
-**WebSocket đã nhận dữ liệu trên GitHub, lịch thu vẫn tắt:** hai runner mới đã Upgrade/auth/subscribe G1 và nhận mẫu MSR; ACB/PVS chưa có mẫu trong cửa sổ thử. Xem [hướng dẫn WebSocket](docs/dnse_websocket.md), [báo cáo thử](report/dnse_ws_validation_2026-11-03.md). Chưa có collector dài phiên/toàn thị trường hoặc lưu bền vững trên GitHub; REST lịch sử vẫn lỗi TCP. LIQUIDITYLAB_WORKER_ENABLED=false. Dữ liệu WS chưa xác minh đơn vị và không nhập A1/B5.
+**WebSocket và lịch GitHub DNSE đã bật:** collector toàn danh mục có SQLite, reconnect, audit và checkpoint mã hóa. Hai runner mới đã kiểm tra lưu/khôi phục; probe riêng trước đó nhận MSR thật. Xem [hướng dẫn realtime](docs/dnse_realtime.md), [probe WebSocket](docs/dnse_websocket.md). Chưa kiểm chứng tải cả phiên và chưa có luồng nhập WS vào dashboard. REST lịch sử trên GitHub vẫn chưa kết nối được; REST trên máy đã tải/chuẩn hóa đến 03/11.
+
+### Nhật ký triển khai Vnstock cũ
 
 **Bộ thu toàn thị trường đã kiểm tra, task Windows đang Disabled:** [hướng dẫn vận hành](docs/whole_market_automation.md). Cấu hình lịch Windows là 09:10 thứ Hai–thứ Sáu, có bắt kịp khi đăng nhập; thu các cửa sổ 09:15–11:30 và 13:00–14:30. Danh mục làm mới mỗi ngày; lượt thử đã lấy đủ 1.520 cổ phiếu HOSE/HNX/UPCOM theo nhóm. Toàn thị trường lưu raw; A1/B5 tự động chuẩn hóa hiện giới hạn FPT/HPG/ACB đã thẩm định. Cờ STOP_VNSTOCK/NEO_READY hoặc `enabled=false` dừng thu, lịch không có ngày kết thúc cố định.
 
-Đã chuẩn bị [phương án server miễn phí và bộ systemd Linux](docs/free_server_deployment.md). Chưa có VM; phương án GitHub đã có workflow nhưng chưa đủ điều kiện bật thu định kỳ vì giới hạn thiết bị Vnstock. Hiện không có lịch thu tự động nào đang hoạt động.
+Đã chuẩn bị [phương án server miễn phí và bộ systemd Linux](docs/free_server_deployment.md). Chưa có VM; workflow Vnstock giữ tắt vì giới hạn thiết bị. Lịch GitHub **DNSE** đã bật theo quy trình ở đầu trang.
 
 Cập nhật 28/10: đã thu và chuẩn hóa **66 snapshot thật / 22 batch / 3 mã**, từ 13:23 đến 14:28, collector dừng 14:30. [Thẩm định đơn vị](report/kbs_unit_review_2026-10-28.md) kết luận SDK 5.2.1/KBS đã trả VND và CP, hệ số 1/1, dựa trên chú thích bảng KBS và 8 cặp đối chiếu chính xác; thời điểm ảnh chỉ xấp xỉ, không chứng nhận đồng bộ quote. [Kiểm chứng A1/B5](report/normalized_validation_2026-10-28.json) đã chạy trên 66 snapshot chuẩn hóa. Mở ứng dụng, chọn **vnstock → Replay lịch sử** để phân tích offline; không cần bật collector. Timestamp nguồn vẫn thiếu, dữ liệu chỉ thuộc một phần cửa sổ chiều.
 
