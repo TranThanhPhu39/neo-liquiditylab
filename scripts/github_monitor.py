@@ -22,6 +22,15 @@ DNSE_WS_FIELDS={"provider","purpose","probe_id","started_at_utc","status","stage
     "channel","observe_seconds_limit","units_verified","finance_enabled","frames_received",
     "bytes_received","stop_reason","samples","quotes_retained","elapsed_seconds",
     "finished_at_utc","error_code"}
+DNSE_REALTIME_FIELDS={"provider","purpose","state","date_local","partition","mode","run_id",
+    "catalog_as_of_date","catalog_age_days","updated_at_utc","wire_frames","wire_bytes",
+    "quotes_queued","checkpoints_saved","checkpoint_failures","fatal_error","unique_events",
+    "receipt_count","duplicate_receipts","symbols_requested","symbols_observed","connection_attempts",
+    "authenticated_connections","subscription_acknowledgements","expected_connections","shards_subscribed",
+    "known_gaps","unit_status","finance_enabled","unpersisted_receipts_this_run","audit",
+    "seed_checkpoint","restored_checkpoint","catalog_symbols","error_code","started_network","stop_requested"}
+DNSE_REALTIME_AUDIT_FIELDS={"state","sqlite_integrity","foreign_key_errors","payloads_checked",
+    "unique_events","receipt_count","units_verified","financial_eligible"}
 
 
 def dnse_summary(candidate):
@@ -56,6 +65,10 @@ def summarize_log(log):
                 records.append(candidate)
             elif isinstance(candidate,dict) and candidate.get("purpose")=="READ_ONLY_WEBSOCKET_DIAGNOSTIC" and set(candidate)<=DNSE_WS_FIELDS:
                 records.append(candidate)
+            elif isinstance(candidate,dict) and candidate.get("purpose")=="REALTIME_G1_COLLECTOR" and set(candidate)<=DNSE_REALTIME_FIELDS:
+                audit=candidate.get("audit")
+                if audit is None or (isinstance(audit,dict) and set(audit)<=DNSE_REALTIME_AUDIT_FIELDS):
+                    records.append(candidate)
     totals=[line for line in log.splitlines() if re.search(r"\b[0-9]+ passed\b",line)]
     return {"worker_summaries":records,"pytest_totals":totals[-3:]}
 

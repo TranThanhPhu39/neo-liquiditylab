@@ -260,3 +260,12 @@ def test_audit_detects_payload_symbol_mismatch(tmp_path):
         db.db.execute("UPDATE events SET symbol='MSR'")
     db.close()
     with pytest.raises(ValueError,match='PAYLOAD_SCOPE_FAILED'): audit(tmp_path/'q.db')
+
+
+def test_monitor_accepts_realtime_counters_and_rejects_raw_payload():
+    from scripts.github_monitor import summarize_log
+    value={'purpose':'REALTIME_G1_COLLECTOR','state':'SMOKE_FINISHED','shards_subscribed':8,
+           'audit':{'state':'VERIFIED','receipt_count':0}}
+    assert summarize_log(json.dumps(value))['worker_summaries']==[value]
+    assert not summarize_log(json.dumps({**value,'raw_payload':frame()}))['worker_summaries']
+    assert not summarize_log(json.dumps({**value,'audit':{'api_key':'fixture'}}))['worker_summaries']

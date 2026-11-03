@@ -96,7 +96,7 @@ Khởi đầu 3 mã; thêm 10–15 mã trong `config/symbols.yaml` khi quyền/h
 
 ## Bộ thu realtime DNSE
 
-Đã có bộ thu WebSocket G1 theo toàn bộ danh mục, chia kết nối, lưu SQLite riêng, reconnect và ghi nhận khoảng chưa quan sát. Xem [hướng dẫn chạy realtime](docs/dnse_realtime.md). Local smoke 03/11 đăng ký đủ 1.518 mã trên 8 kết nối sau giờ đóng cửa; chưa kiểm chứng tải cả phiên. Dữ liệu WebSocket giữ nguyên đơn vị và chưa dùng cho tính toán tài chính. Workflow GitHub đã có khóa bật riêng; chưa upload checkpoint thật hoặc bật lịch.
+Đã có bộ thu WebSocket G1 theo toàn bộ danh mục, chia kết nối, lưu SQLite riêng, reconnect và ghi nhận khoảng chưa quan sát. Xem [hướng dẫn chạy realtime](docs/dnse_realtime.md). Hai runner GitHub mới đăng ký đủ 1.518 mã trên 8 kết nối và lưu/khôi phục checkpoint mã hóa thành công sau giờ đóng cửa; chưa kiểm chứng tải cả phiên. Dữ liệu WebSocket giữ nguyên đơn vị và chưa dùng cho tính toán tài chính. Lịch đã bật lúc 08:52 và 12:52 giờ Việt Nam ngày thường, bắt đầu dự kiến 04/11. Seed danh mục hiện dùng đến 10/11, cần làm mới trước 11/11.
 
 ## Kiểm thử
 

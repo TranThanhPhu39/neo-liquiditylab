@@ -41,13 +41,13 @@ SQLite nằm ở `data/realtime/dnse/YYYY-MM-DD/morning/quotes.db` hoặc `after
 - Mã không có thông điệp vẫn là chưa quan sát, không thành số 0. Kết thúc phiên trả `WINDOW_ENDED_OBSERVED_ONLY`, không tự kết luận đầy đủ cả ngày.
 - Queue có giới hạn; dừng khi writer lỗi, thiếu đĩa, vượt dung lượng/ngân sách hoặc checkpoint lỗi lặp lại. Mặc định tối thiểu 5 GiB trống, DB+WAL tối đa 1,5 GiB, 5 triệu receipts/lượt và 8 GiB dữ liệu đường truyền/lượt. Đây là ngưỡng bảo vệ ban đầu, chưa có benchmark cả phiên toàn thị trường.
 
-## GitHub Actions: đã chuẩn bị, chưa bật
+## GitHub Actions: đã bật ngày 03/11/2026
 
 Workflow `.github/workflows/dnse-realtime.yml` dự kiến khởi chạy 08:52 và 12:52 giờ Việt Nam ngày thường, chuẩn bị trước cửa sổ thu 5 phút. Khởi chạy trễ sẽ được ghi nhận; WebSocket không bù lịch sử đã bỏ lỡ. Cron sáng không bị chuyển thành phiên chiều khi runner đến trễ. Mỗi job tối đa 195 phút, concurrency không hủy job đang thu.
 
-Workflow bị khóa bằng hai biến repo: `DNSE_REALTIME_STORAGE_APPROVED` cho phép lưu payload mã hóa và `DNSE_REALTIME_ENABLED` cho phép thu định kỳ. Hiện chưa bật hai cờ này. Thử thủ công cũng cần cờ chấp thuận lưu trữ. Lịch Vnstock cũ vẫn giữ tắt.
+Hai biến repo `DNSE_REALTIME_STORAGE_APPROVED` và `DNSE_REALTIME_ENABLED` đã bật sau chấp thuận của người dùng và kiểm tra hai runner. Lịch Vnstock cũ vẫn tắt. Lượt định kỳ kế tiếp dự kiến 08:52 và 12:52 ngày 04/11/2026; đây là giờ cron dự kiến, không bảo đảm runner bắt đầu đúng phút.
 
-Payload đề xuất cho **GitHub Releases public `TranThanhPhu39/neo-liquiditylab`**:
+Payload đã được người dùng chấp thuận cho **GitHub Releases public `TranThanhPhu39/neo-liquiditylab`**:
 
 1. Seed danh mục: mã, sàn, thông tin danh mục từ DNSE và ngày chuẩn bị.
 2. Checkpoint: SQLite chứa trường thị trường, receipts, metadata kết nối/gaps; status, audit và danh mục. Không chứa API key/secret, phiên xác thực, lệnh hoặc tài sản tài khoản.
@@ -55,10 +55,14 @@ Payload đề xuất cho **GitHub Releases public `TranThanhPhu39/neo-liquidityl
 
 Seed và checkpoint dùng namespace riêng `dnse-ws-catalog` / `dnse-ws-state`, không trộn checkpoint Vnstock. Checkpoint mỗi 15 phút và khi dừng; runner mới khôi phục bản hợp lệ gần nhất. Runner bị kill có thể mất phần chưa checkpoint. Chưa có chính sách tự xóa checkpoint cũ.
 
-**Chưa upload payload thật:** kiểm duyệt tự động yêu cầu chấp thuận rõ loại dữ liệu và đích public này. Sau khi người dùng đồng ý mới đưa seed lên, thử hai runner để xác minh thu/lưu/khôi phục, rồi bật lịch. Không chỉ bật cờ để bỏ qua kiểm thử.
+Người dùng đã chấp thuận rõ payload/đích public ngày 03/11, giải quyết yêu cầu kiểm duyệt trước đó. Seed và checkpoint thử đã upload dưới dạng mã hóa. Hai runner mới đã xác minh kết nối và lưu/khôi phục; lần định kỳ đầu trong phiên sẽ đồng thời kiểm chứng tải thực. Không cần một lượt thử trong phiên riêng trước khi bật lịch. WebSocket đẩy thay đổi từ lúc kết nối; chạy cuối phiên không tải lại lịch sử đã qua. REST lịch sử là luồng khác, hiện chưa kết nối được từ runner GitHub.
+
+**Hạn danh mục hiện tại:** seed chuẩn bị ngày 03/11 còn được chấp nhận đến hết 10/11; từ 11/11 job sẽ từ chối danh mục quá hạn nếu chưa cập nhật. Khi làm mới, chạy trên máy với biến `DNSE_REALTIME_STORAGE_APPROVED=true` và `scripts.prepare_dnse_realtime --publish`. Chưa có cơ chế tự làm mới seed trên GitHub; lịch được bật nhưng vận hành dài hạn vẫn cần việc này.
 
 ## Bằng chứng hiện có
 
 Ngày 03/11, local smoke 15:41:23–15:42:23 đăng ký và xác thực đủ 8/8 shard cho 1.518 mã, không có quote sau giờ đóng cửa; không coi đây là dữ liệu cả phiên. SQLite integrity ok, FK 0, receipts chưa lưu 0. Bản sao DB này đã qua mã hóa/khôi phục cục bộ nguyên vẹn.
 
-Probe trước đó nhận quote MSR thật trên máy và hai runner GitHub mới, xem [tài liệu probe](dnse_websocket.md). Chưa kiểm chứng full-market trong phiên, lưu lượng dài, lịch tự chạy và khôi phục dữ liệu thật giữa hai runner. Tests offline kiểm tra ghi/khử trùng, transaction rollback, reconnect, ngắt, stop, audit payload và checkpoint; không thay bằng chứng vận hành trong phiên.
+Hai lượt smoke toàn danh mục [41628800269](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/41628800269) và [41629043291](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/41629043291) đạt trên runner 1000000345 và 1000000346. Mỗi lượt xác thực/subscribe 8 shard, lưu hai checkpoint, audit ok. Runner sau khôi phục checkpoint của runner đầu; tải và giải mã checkpoint cuối trên máy xác minh có đủ hai lượt và 8 shard mỗi lượt. Cả hai chạy ngoài giờ, 0 quote, nên đây là bằng chứng khôi phục schema/metadata, chưa phải chứng minh bảo toàn quote thực dưới tải. Báo cáo cục bộ: `report/dnse_realtime_github_activation_2026-11-03.json`.
+
+Probe trước đó nhận quote MSR thật trên máy và hai runner GitHub mới, xem [tài liệu probe](dnse_websocket.md). Chưa kiểm chứng full-market trong phiên, lưu lượng dài và lần cron tự kích hoạt. Tests offline kiểm tra ghi/khử trùng, transaction rollback, reconnect, ngắt, stop, audit payload và checkpoint; không thay bằng chứng vận hành trong phiên.
