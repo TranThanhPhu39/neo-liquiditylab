@@ -32,7 +32,8 @@ DNSE_REALTIME_FIELDS={"provider","purpose","state","date_local","partition","mod
 DNSE_REALTIME_AUDIT_FIELDS={"state","sqlite_integrity","foreign_key_errors","payloads_checked",
     "unique_events","receipt_count","units_verified","financial_eligible"}
 DNSE_NORMALIZATION_FIELDS={"state","normalization_version","normalized_events","quarantined_events",
-    "receipt_count","units_verified","financial_eligible","checkpoint","raw_checkpoint","restored_checkpoint","error_code"}
+    "receipt_count","units_verified","financial_eligible","checkpoint","raw_checkpoint","restored_checkpoint","error_code",
+    "canonical_events","canonical_financial_eligible"}
 
 
 def dnse_summary(candidate):

@@ -18,6 +18,7 @@ from src.data_pipeline.dnse_realtime import collect, Limits, validate_catalog
 from src.data_pipeline.dnse_realtime_store import audit
 from src.models.orderbook import LOCAL_TZ
 from scripts.normalize_dnse_realtime import normalize
+from src.data_pipeline.dnse_ws_units import load_ws_rules
 
 REPOSITORY = 'TranThanhPhu39/neo-liquiditylab'
 
@@ -104,7 +105,7 @@ def run(mode='smoke', session='auto', seconds=60):
             # Derived-data errors must not interrupt or discard successful raw persistence.
             try:
                 with exclusive_job(ROOT/'data/control/dnse_ws_normalization.lock'):
-                    converted = normalize(frozen/'frozen.db',normalized_database)
+                    converted = normalize(frozen/'frozen.db',normalized_database,rules=load_ws_rules())
                     derived = frozen/'normalized'
                     derived.mkdir()
                     write_json(derived/'audit.json',converted['audit'])
@@ -116,6 +117,8 @@ def run(mode='smoke', session='auto', seconds=60):
                     normalized_events=converted['audit']['normalized_events'],
                     quarantined_events=converted['audit']['quarantined_events'],
                     receipt_count=converted['audit']['receipt_count'],units_verified=False,
+                    canonical_events=converted['audit']['canonical_events'],
+                    canonical_financial_eligible=converted['audit']['canonical_financial_eligible'],
                     financial_eligible=False,checkpoint=normalized_tag,raw_checkpoint=tag,
                     restored_checkpoint=normalized_restored)
             except Exception as error:

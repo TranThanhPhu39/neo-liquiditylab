@@ -65,8 +65,9 @@ function clearFinancial(){$('executionMetrics').replaceChildren();$('baseline').
 function render(r){
   $('empty').hidden=true;$('workspace').hidden=false;$('export').disabled=!r.record;
   const b=r.record;
-  $('dataTag').textContent=state.demo?'DỮ LIỆU MẪU':cloud.enabled?'DNSE · LỊCH SỬ LẤY MẪU':'DNSE · LỊCH SỬ';
-  $('provenance').textContent=(state.demo?'DỮ LIỆU GIẢ LẬP · ':'TÁI DỰNG LỊCH SỬ · ')+(b?`Nguồn: ${localTime(b.source_timestamp)} · Nhận khi tải: ${localTime(b.collected_at_utc)}`:'Chưa có snapshot của mã trước mốc chọn; không dùng dữ liệu tương lai.')+(cloud.enabled?' · Mẫu lịch sử, không phải dữ liệu realtime.':'');
+  const wsBook=b?.capture_method==='websocket_realtime';
+  $('dataTag').textContent=state.demo?'DỮ LIỆU MẪU':wsBook?'DNSE · WS ĐÃ LƯU':cloud.enabled?'DNSE · LỊCH SỬ LẤY MẪU':'DNSE · LỊCH SỬ';
+  $('provenance').textContent=(state.demo?'DỮ LIỆU GIẢ LẬP · ':wsBook?'QUAN SÁT WS ĐÃ LƯU · ':'TÁI DỰNG LỊCH SỬ · ')+(b?`Nguồn: ${localTime(b.source_timestamp)} · ${wsBook?'Nhận WS':'Nhận khi tải'}: ${localTime(b.collected_at_utc)}`:'Chưa có snapshot của mã trước mốc chọn; không dùng dữ liệu tương lai.')+(cloud.enabled?' · Mẫu lịch sử, không phải dữ liệu realtime.':'');
   if(!b){$('liquidityMetrics').replaceChildren();clearCharts(['book','depthChart','quality','historyChart'],'NO DATA · Không có snapshot trước thời điểm đã chọn.');$('raw').textContent='Không có snapshot.';clearFinancial();alertIn('executionMessage','NO DATA · Chưa thể mô phỏng mã này.');}
   else {
     const m=r.metrics||{};
@@ -76,7 +77,7 @@ function render(r){
     const cumulative=side=>{let sum=0;return[1,2,3].map(i=>{if(b[`${side}_price_${i}`]===null||b[`${side}_vol_${i}`]===null)return null;sum+=b[`${side}_vol_${i}`];return sum;});};
     chart('depthChart',['Mức 1','Mức 2','Mức 3'],[{name:'Bid',values:cumulative('bid'),color:'#252525'},{name:'Ask',values:cumulative('ask'),color:'#aaa'}]);
     const quality=[['Đơn vị',state.demo?'GIẢ LẬP':b.unit_verification_status],['Chất lượng',b.data_quality_status],['Phiên nguồn',b.market_session],['A1 / B5',b.financial_eligible?'Đủ điều kiện đơn vị / phiên':'Chưa đủ điều kiện'],['Giá / Khối lượng','VND / CP'],['Điểm đến mốc chọn',format(r.rows)]];
-    $('quality').innerHTML=quality.map(([k,v])=>`<div class="quality-row"><span>${escapeHTML(k)}</span><strong>${escapeHTML(v)}</strong></div>`).join('')+`<p class="small muted" style="margin-top:14px">${escapeHTML(r.quality_error||(cloud.enabled?'Đơn vị theo hồ sơ chuẩn hóa, kiểm chứng riêng từng mã. Dữ liệu lịch sử tải sau phiên.':'Nhãn xác minh theo tệp đã nhập. Dữ liệu tải sau phiên; không chứng minh đã nhận tại thời điểm thị trường đó.'))}</p>`;
+    $('quality').innerHTML=quality.map(([k,v])=>`<div class="quality-row"><span>${escapeHTML(k)}</span><strong>${escapeHTML(v)}</strong></div>`).join('')+`<p class="small muted" style="margin-top:14px">${escapeHTML(r.quality_error||(wsBook?'WS đã lưu: kiểm chứng ba mức trong từng thông điệp đầy đủ. Không ghép mức thiếu và không bảo đảm đã quan sát toàn phiên.':cloud.enabled?'Đơn vị theo hồ sơ chuẩn hóa, kiểm chứng riêng từng mã. Dữ liệu lịch sử tải sau phiên.':'Nhãn xác minh theo tệp đã nhập. Dữ liệu tải sau phiên; không chứng minh đã nhận tại thời điểm thị trường đó.'))}</p>`;
     const h=r.history||[];
     h.length>1?chart('historyChart',h.map(x=>localTime(x.source_local_time)),[{name:'Bid',values:h.map(x=>x.bid_observed_depth_shares),color:'#252525'},{name:'Ask',values:h.map(x=>x.ask_observed_depth_shares),color:'#aaa'}]):clearCharts(['historyChart'],'Chưa đủ điểm lịch sử trước thời gian đã chọn để vẽ biểu đồ.');
     $('raw').textContent=JSON.stringify(b,null,2);
@@ -134,6 +135,7 @@ async function ingest(text,name,demo=false){
     optionList('day',info.days,info.days.at(-1));state.symbols=info.symbols[$('day').value];
     state.daySymbols=info.symbols;optionList('symbol',state.symbols,state.symbols.includes('ACB')?'ACB':state.symbols[0]);
     const cutoff=parsed.cutoff?.match(/T(\d\d:\d\d)/)?.[1];$('clock').value=cutoff||'14:20';$('sourceName').textContent=demo?'Mẫu giả lập · 2 mã':'DNSE · Lịch sử chuẩn hóa';$('sourceDetail').textContent=`${name} · ${format(info.count)} snapshot · Xử lý trong tab này`;$('consentA1').checked=false;$('consentB5').checked=false;$('reverseResult').textContent='Tìm mức giảm độ sâu nhỏ nhất trên lưới 0,01%, trong khoảng 0–90%.';await update();
+    if(parsed.records?.some(r=>r.capture_method==='websocket_realtime'))$('sourceName').textContent='DNSE · WS đã lưu';
   }catch(error){cloud.enabled=previousCloud;notice('Không mở được tệp: '+error.message);if(previousCloud&&!state.loaded)startCloud();}
 }
 async function loadCloudDay(day,preferredSymbol='ACB'){

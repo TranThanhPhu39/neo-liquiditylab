@@ -63,8 +63,9 @@ def run_local(args):
         result=asyncio.run(execute())
         if (folder/'quotes.db').exists():
             from scripts.normalize_dnse_realtime import normalize
+            from src.data_pipeline.dnse_ws_units import load_ws_rules
             with exclusive_job(ROOT/'data/control/dnse_ws_normalization.lock'):
-                normalized=normalize(folder/'quotes.db',ROOT/'data/processed/dnse_ws'/now.date().isoformat()/partition/'normalized.db')
+                normalized=normalize(folder/'quotes.db',ROOT/'data/processed/dnse_ws'/now.date().isoformat()/partition/'normalized.db',rules=load_ws_rules())
             result['normalization']={**normalized['audit'],'state':normalized['state']}
             write_json(reports/'normalization.json',normalized)
         return result

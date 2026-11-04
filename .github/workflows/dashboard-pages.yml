@@ -9,6 +9,8 @@ on:
       - 'src/models/**'
       - 'src/finance/**'
       - 'src/data_pipeline/dnse_normalization.py'
+      - 'src/data_pipeline/dnse_ws_*.py'
+      - 'config/unit_contract.dnse-ws-v1.json'
       - 'src/data_pipeline/validation.py'
       - 'scripts/build_web_dashboard.py'
       - '.github/workflows/dashboard-pages.yml'

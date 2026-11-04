@@ -13,6 +13,8 @@ MODULES = (
     'src/models/portfolio.py', 'src/models/scenario.py',
     'src/data_pipeline/__init__.py', 'src/data_pipeline/validation.py',
     'src/data_pipeline/dnse_normalization.py', 'src/finance/__init__.py',
+    'src/data_pipeline/dnse_ws_units.py', 'src/data_pipeline/dnse_ws_review.py',
+    'src/data_pipeline/dnse_ws_normalization.py', 'config/unit_contract.dnse-ws-v1.json',
     'src/finance/execution_simulator.py', 'src/finance/liquidity_metrics.py',
     'src/finance/portfolio_liquidation.py', 'src/finance/stress_testing.py',
 )

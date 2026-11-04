@@ -166,8 +166,12 @@ def normalize_quote(quote,received_at,rules):
 
 
 def snapshot_from_record(record):
-    if record.get('provider')!='dnse' or record.get('normalization_version')!=NORMALIZATION_VERSION:
+    ws=record.get('normalization_version')=='dnse-ws-canonical-v1'
+    if record.get('provider')!='dnse' or record.get('normalization_version') not in (NORMALIZATION_VERSION,'dnse-ws-canonical-v1'):
         raise ValueError('DNSE_CANONICAL_RECORD_REQUIRED')
+    if ws:
+        from src.data_pipeline.dnse_ws_units import verify_canonical_scope
+        verify_canonical_scope(record)
     def side(name):
         return tuple(QuoteLevel(i,Decimal(record[f'{name}_price_{i}']) if record.get(f'{name}_price_{i}') is not None else None,
                          record.get(f'{name}_vol_{i}')) for i in range(1,4))

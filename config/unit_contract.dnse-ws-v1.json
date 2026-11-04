@@ -1,0 +1,25 @@
+{
+  "format": "dnse-ws-units-v1",
+  "provider": "dnse",
+  "scope": {
+    "symbol": "ACB",
+    "market_id": "STO",
+    "board_id": "G1"
+  },
+  "price_multiplier_to_vnd": "1000",
+  "volume_multiplier_to_shares": "10",
+  "verification_status": "EMPIRICALLY_VERIFIED_VIA_VERIFIED_REST",
+  "policy": "COMPLETE_TOP3_EACH_MESSAGE_NO_CARRY_FORWARD",
+  "full_ten_level_semantics_verified": false,
+  "evidence": {
+    "source_day": "2026-11-04",
+    "events": 88,
+    "distinct_matched_clocks": 83,
+    "rest_unit_rule_hash": "5b2b5d53198bebf5d4e08949b2d025645ab802c8006d64fdc1900093ae121474",
+    "ws_sha256": "1a7d3169223cc9a9dd3b242854aeb93fd74b56f1f56286decda4ff3d33ffd10f",
+    "rest_sha256": [
+      "70c703dc1425c2f8221c5e6fe50341c5f1024d88a788eef838b0853291ee2efc"
+    ],
+    "comparison_sha256": "9c3c9c038746764117a24c3ef89e84a7c55f23e8c45035f9e2e215f089279e46"
+  }
+}

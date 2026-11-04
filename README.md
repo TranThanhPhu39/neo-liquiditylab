@@ -6,7 +6,7 @@ Hệ thống mô phỏng chi phí thực hiện lệnh và stress thanh khoản 
 
 MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE OpenAPI là nguồn chính theo quyết định ngày 03/11/2026; không tiếp tục tích hợp NEO VPBankS.** Vnstock là nguồn cũ, Demo là synthetic. Không có chức năng đặt/sửa/hủy lệnh thật.
 
-**Luồng WS mới (04/11):** sau mỗi checkpoint GitHub, dữ liệu được chuẩn hóa cấu trúc, audit và lưu checkpoint mã hóa riêng `dnse-ws-normalized`. Thu local cũng chuẩn hóa sau khi kết thúc. Giữ số nguồn, timestamp nanosecond, tất cả mức giá, receipts/gaps và quarantine. **Đơn vị WS và full-vs-delta chưa xác minh nên chưa quy đổi VND/CP hoặc mở A1/B5.** Xem [quy trình và lệnh khôi phục](docs/dnse_ws_normalization.md).
+**Luồng WS mới (04/11):** sau mỗi checkpoint GitHub, dữ liệu được chuẩn hóa, audit và lưu checkpoint mã hóa riêng `dnse-ws-normalized`. Giữ số nguồn, timestamp nanosecond, tất cả mức giá, receipts/gaps và quarantine. **ACB/G1/HOSE đã đối chiếu WS–REST 88/88 thông điệp tại 83 thời điểm nguồn: giá ×1.000, khối lượng ×10.** Với ACB, thông điệp đủ ba mức mỗi bên có thêm `canonical_snapshot` VND/CP dùng cho A1/B5; không ghép mức thiếu. Các mã khác vẫn chưa xác minh độc lập; chưa khẳng định semantics toàn bộ 10 mức. Xem [quy trình, bằng chứng và lệnh khôi phục/xuất tệp riêng](docs/dnse_ws_normalization.md).
 
 [Quyết định nguồn](docs/data_source_decision.md) ghi nhận người thực hiện đã xác nhận việc dùng DNSE được thống nhất ngày 03/11/2026. Dashboard dùng giao diện đen–xám theo Penpot, mặc định nguồn DNSE; tên repo và adapter NEO cũ còn được giữ.
 
@@ -298,7 +298,7 @@ Khởi đầu 3 mã; thêm 10–15 mã trong `config/symbols.yaml` khi quyền/h
 
 ## Bộ thu realtime DNSE
 
-Đã có bộ thu WebSocket G1 theo toàn bộ danh mục, chia kết nối, lưu SQLite riêng, reconnect và ghi nhận khoảng chưa quan sát. Xem [hướng dẫn chạy realtime](docs/dnse_realtime.md). Hai runner GitHub mới đăng ký đủ 1.518 mã trên 8 kết nối và lưu/khôi phục checkpoint mã hóa thành công sau giờ đóng cửa; chưa kiểm chứng tải cả phiên. Dữ liệu WebSocket giữ nguyên đơn vị và chưa dùng cho tính toán tài chính. Lịch đã bật lúc 08:52 và 12:52 giờ Việt Nam ngày thường, bắt đầu dự kiến 04/11. Seed danh mục hiện dùng đến 10/11, cần làm mới trước 11/11.
+Đã có bộ thu WebSocket G1 theo toàn bộ danh mục, chia kết nối, lưu SQLite riêng, reconnect và ghi nhận khoảng chưa quan sát. Xem [hướng dẫn chạy realtime](docs/dnse_realtime.md). Đã kiểm tra hai runner mới trong các cửa sổ ngắn ngày 04/11, đăng ký đủ 1.518 mã trên 8 kết nối và lưu/khôi phục checkpoint mã hóa; chưa kiểm chứng tải cả phiên. ACB có thêm bản quy đổi ba mức đã đối chiếu, còn các mã khác giữ chặn tính toán. Lịch đã bật lúc 08:52 và 12:52 giờ Việt Nam ngày thường. Seed danh mục hiện dùng đến 10/11, cần làm mới trước 11/11.
 
 ## Kiểm thử
 

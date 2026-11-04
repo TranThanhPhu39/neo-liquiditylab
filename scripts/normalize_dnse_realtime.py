@@ -13,6 +13,7 @@ from config.settings import ROOT
 from scripts.scheduled_collection import exclusive_job, write_json
 from src.data_pipeline.dnse_realtime_store import FORMAT, canonical, audit as audit_raw
 from src.data_pipeline.dnse_ws_normalization import VERSION, normalize_event
+from src.data_pipeline.dnse_ws_units import canonical_top3, load_ws_rules
 
 
 def output_db(path):
@@ -58,12 +59,12 @@ def output_db(path):
     return db
 
 
-def audit_normalized(path):
+def audit_normalized(path, *, rules=None):
     with closing(sqlite3.connect(Path(path).resolve().as_uri()+'?mode=ro',uri=True)) as db:
         db.row_factory=sqlite3.Row
         if db.execute('PRAGMA quick_check').fetchone()[0]!='ok' or db.execute('PRAGMA foreign_key_check').fetchone():
             raise ValueError('WS_NORMALIZED_INTEGRITY_FAILED')
-        count=0
+        count=0;canonical_count=0;eligible_count=0
         for row in db.execute("SELECT * FROM events WHERE state='NORMALIZED'"):
             data=zlib.decompress(row['payload_zlib'])
             if hashlib.sha256(data).hexdigest()!=row['output_sha256']:
@@ -74,15 +75,23 @@ def audit_normalized(path):
                     or value['financial_eligible'] or value['price_unit'] is not None or value['volume_unit'] is not None
                     or any(value[f'{s}_{f}_{i}'] is not None for s in ('bid','ask') for f in ('price','vol') for i in (1,2,3))):
                 raise ValueError('WS_UNVERIFIED_FINANCE_GUARD_FAILED')
+            if 'canonical_snapshot' in value:
+                rules=rules or load_ws_rules()
+                expected=canonical_top3(value,row['event_key'],rules)
+                if expected is None or expected!=value['canonical_snapshot']:
+                    raise ValueError('WS_CANONICAL_DERIVATION_FAILED')
+                canonical_count+=1
+                eligible_count+=int(expected['financial_eligible'])
             count+=1
         return dict(state='VERIFIED',normalized_events=count,
             quarantined_events=db.execute("SELECT count(*) FROM events WHERE state='QUARANTINED'").fetchone()[0],
             receipt_count=db.execute('SELECT count(*) FROM receipts').fetchone()[0],
             source_archives=db.execute('SELECT count(*) FROM sources').fetchone()[0],
+            canonical_events=canonical_count,canonical_financial_eligible=eligible_count,
             financial_eligible=False,units_verified=False,message_semantics_verified=False)
 
 
-def normalize(source, target, *, max_bytes=2*1024**3, min_free_bytes=1024**3):
+def normalize(source, target, *, max_bytes=2*1024**3, min_free_bytes=1024**3, rules=None):
     source,target=Path(source).resolve(),Path(target).resolve()
     if source==target or (target.exists() and source.samefile(target)):
         raise ValueError('WS_NORMALIZATION_MUST_NOT_OVERWRITE_RAW')
@@ -100,7 +109,10 @@ def normalize(source, target, *, max_bytes=2*1024**3, min_free_bytes=1024**3):
         symbol_rows={r['symbol']:dict(r) for r in incoming.execute('SELECT * FROM symbols')}
         if {r['symbol']:(r['market_id'],r['exchange']) for r in catalog['rows']}!={s:(r['market_id'],r['exchange']) for s,r in symbol_rows.items()}:
             raise ValueError('WS_CATALOG_SYMBOLS_MISMATCH')
-        seen=0
+        seen=0;reprocessed=0
+        rule_hash=rules.rule_hash if rules else ''
+        previous_rule=output.execute('SELECT value FROM metadata WHERE key=?',('ws_rules:'+source_id,)).fetchone()
+        rules_changed=(previous_rule[0] if previous_rule else '')!=rule_hash
         def budget():
             size=output.execute('PRAGMA page_count').fetchone()[0]*output.execute('PRAGMA page_size').fetchone()[0]
             if size>max_bytes:
@@ -120,12 +132,17 @@ def normalize(source, target, *, max_bytes=2*1024**3, min_free_bytes=1024**3):
                 if previous:
                     if previous[0]!=row['payload_sha256']:
                         raise ValueError('WS_INPUT_EVENT_CHANGED')
-                    if previous['first_received_at']<=row['first_received_at']:
+                    if not rules_changed and previous['first_received_at']<=row['first_received_at']:
                         continue
                 error=None;data=None;digest=None;record=None
+                received_at=min(previous['first_received_at'],row['first_received_at']) if previous else row['first_received_at']
                 try:
-                    record=normalize_event(json.loads(zlib.decompress(row['payload_zlib'])),row['first_received_at'],
+                    record=normalize_event(json.loads(zlib.decompress(row['payload_zlib'])),received_at,
                         row['symbol'],symbol_rows[row['symbol']]['market_id'],settings['day'])
+                    if rules:
+                        converted=canonical_top3(record,row['event_key'],rules)
+                        if converted is not None:
+                            record['canonical_snapshot']=converted
                     data=canonical(record).encode();digest=hashlib.sha256(data).hexdigest()
                 except (ValueError,TypeError,OverflowError) as exc:
                     import re
@@ -135,10 +152,11 @@ def normalize(source, target, *, max_bytes=2*1024**3, min_free_bytes=1024**3):
                     first_received_at=excluded.first_received_at,state=excluded.state,error_code=excluded.error_code,
                     payload_zlib=excluded.payload_zlib,output_sha256=excluded.output_sha256''',
                     (source_id,row['event_key'],row['payload_sha256'],row['symbol'],record['source_timestamp'] if record else row['source_time_utc'],
-                     record['source_local_date'] if record else row['source_day'],row['first_received_at'],
+                     record['source_local_date'] if record else row['source_day'],received_at,
                      'QUARANTINED' if error else 'NORMALIZED',error,zlib.compress(data) if data else None,digest))
-                seen+=1
-                if seen%1000==0:
+                seen+=int(previous is None)
+                reprocessed+=int(previous is not None)
+                if (seen+reprocessed)%1000==0:
                     budget()
             for row in incoming.execute('SELECT * FROM connections'):
                 output.execute('INSERT INTO connections VALUES(?,?,?) ON CONFLICT(source_id,id) DO UPDATE SET payload=excluded.payload',
@@ -157,12 +175,15 @@ def normalize(source, target, *, max_bytes=2*1024**3, min_free_bytes=1024**3):
             expected_receipts=incoming.execute('SELECT count(*) FROM receipts').fetchone()[0]
             if total!=expected or receipts!=expected_receipts:
                 raise ValueError('WS_NORMALIZATION_LINEAGE_COUNT_MISMATCH')
+            output.execute('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                           ('ws_rules:'+source_id,rule_hash))
             budget()
         output.execute('PRAGMA wal_checkpoint(TRUNCATE)')
         incoming.rollback()
-    result=audit_normalized(target)
-    return dict(state='STRUCTURE_NORMALIZED_UNVERIFIED' if result['normalized_events'] or result['quarantined_events'] else 'NO_QUOTES_TO_NORMALIZE',normalization_version=VERSION,
-        new_events=seen,source_id=source_id,raw_audit=checked,audit=result,
+    result=audit_normalized(target,rules=rules)
+    state='SCOPED_CANONICAL_NORMALIZED' if result['canonical_events'] else 'STRUCTURE_NORMALIZED_UNVERIFIED' if result['normalized_events'] or result['quarantined_events'] else 'NO_QUOTES_TO_NORMALIZE'
+    return dict(state=state,normalization_version=VERSION,
+        new_events=seen,reprocessed_events=reprocessed,source_id=source_id,raw_audit=checked,audit=result,
         publication_to_pages=False,financial_eligible=False)
 
 
@@ -172,7 +193,7 @@ def main():
     parser.add_argument('--output',type=Path,default=ROOT/'data/processed/dnse_ws/normalized.db')
     args=parser.parse_args()
     with exclusive_job(ROOT/'data/control/dnse_ws_normalization.lock'):
-        result=normalize(args.input,args.output)
+        result=normalize(args.input,args.output,rules=load_ws_rules())
     write_json(ROOT/'report/dnse_ws_normalization_latest.json',result)
     print(json.dumps(result))
 
