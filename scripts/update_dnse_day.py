@@ -40,7 +40,7 @@ def complete_archive(path, day, session):
                     and not db.execute("SELECT 1 FROM symbols WHERE status NOT IN ('COMPLETE','NO_DATA_RETURNED') LIMIT 1").fetchone())
 
 
-def run(day, *, session='day', root=ROOT, export=True, now=None):
+def run(day, *, session='day', root=ROOT, export=True, now=None, publish_web=False):
     root=Path(root).resolve()
     result=plan(day,session,now)
     if not result['ready']:
@@ -112,6 +112,18 @@ def run(day, *, session='day', root=ROOT, export=True, now=None):
                 'unit_scope_counts':normalized['unit_scope_counts'],
                 'files':files,'audit_report':'report/dnse_normalization_audit.json',
                 'finance_checks':finance,'exports_refreshed':export})
+            if publish_web:
+                result['current_step']='publish_web'
+                save()
+                from scripts.export_web_data import export_data
+                from src.data_pipeline.dnse_history import DNSEHistory
+                from scripts.github_pages import prepare, publish
+                from scripts.github_api import GitHubAPI
+                result['web_data']=export_data(DNSEHistory(root/'data/processed/dnse/normalized.db'),root/'web/data',normalized['rule_hash'])
+                api=GitHubAPI()
+                base,head,tree,changed=prepare(api)
+                result['web_publication']=publish(api,base,head,tree,changed)
+                result['completed_steps'].append('publish_web')
             result.update(state='COMPLETED',current_step=None,dashboard_database='data/processed/dnse/normalized.db')
             save()
         except (Exception,KeyboardInterrupt) as error:
@@ -128,9 +140,10 @@ def main():
     parser.add_argument('--session',choices=['day','morning'],default='day')
     parser.add_argument('--plan',action='store_true',help='Print steps and close-time gate; no API or file writes')
     parser.add_argument('--no-export',action='store_true',help='Keep all audits; omit large JSONL export files')
+    parser.add_argument('--publish-web',action='store_true',help='After successful audits, publish compact DNSE data to the public dashboard')
     args=parser.parse_args()
     try:
-        result=plan(args.date,args.session) if args.plan else run(args.date,session=args.session,export=not args.no_export)
+        result=plan(args.date,args.session) if args.plan else run(args.date,session=args.session,export=not args.no_export,publish_web=args.publish_web)
     except (ValueError, OSError, RuntimeError, sqlite3.Error, KeyboardInterrupt) as error:
         message=str(error)
         code=message if re.fullmatch('[A-Z0-9_]{1,90}',message) else type(error).__name__

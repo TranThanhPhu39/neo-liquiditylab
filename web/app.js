@@ -17,6 +17,8 @@ const pct = value => value === null || value === undefined ? '—' : `${format(N
 const localTime = value => value ? new Intl.DateTimeFormat('vi-VN', {timeZone:'Asia/Ho_Chi_Minh',dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
 const labels = {liquidity:['Thanh khoản','Quan sát độ sâu sổ lệnh, chênh lệch giá và phạm vi dữ liệu.'],execution:['Mô phỏng thực hiện lệnh','A1 · Ước tính quét ba mức giá trên phần khối lượng quan sát được.'],stress:['Stress thanh khoản danh mục','B5 · So sánh mức bao phủ khi độ sâu mua suy giảm theo kịch bản giả định.']};
 const state = {page:'liquidity',loaded:false,demo:false,data:null,days:[],symbols:[],version:0,workerReady:false};
+const cloud = new LiquidityCloud();
+let cloudEpoch=0;
 const worker = new Worker('./engine-worker.js');
 const pending = new Map(); let nextId = 0;
 function call(method, text) {return new Promise((resolve,reject) => {const id=++nextId;pending.set(id,{resolve,reject});worker.postMessage({id,method,text});});}
@@ -42,18 +44,29 @@ async function update(reverse=false){
   if(!state.loaded)return;const version=++state.version;
   if(!reverse)$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';
   try {
-    const result=await call('view',JSON.stringify(request(reverse)));
+    const query=request(reverse);
+    if(cloud.enabled){
+      const positions=query.page==='stress'?await call('portfolio_symbols',query.portfolio):[];
+      const prepared=await cloud.prepare(query.day,[query.symbol,...positions]);
+      if(version!==state.version||!cloud.enabled)return;
+      if(cloud.hydrated!==prepared.key){
+        await call('ingest',JSON.stringify(prepared.payload));
+        cloud.hydrated=prepared.key;
+      }
+      if(version!==state.version||!cloud.enabled)return;
+    }
+    const result=await call('view',JSON.stringify(query));
     if(version!==state.version)return;
     state.data=result;notice('');render(result);
     if(reverse)$('reverseResult').textContent=result.stress_error||result.execution_error||(result.reverse===null?'Coverage không rơi dưới ngưỡng trong khoảng giảm độ sâu 0–90%.':result.reverse===undefined?'Không đủ dữ liệu hợp lệ cho reverse stress.':`Ngưỡng suy giảm độ sâu: ${pct(result.reverse)} (lưới 0,01%).`);
-  }catch(error){if(version!==state.version)return;notice(error.message);clearFinancial();}
+  }catch(error){if(version!==state.version)return;notice(error.message);clearFinancial();if(cloud.enabled){state.data=null;$('liquidityMetrics').replaceChildren();$('export').disabled=true;clearCharts(['book','depthChart','quality','historyChart','watchlist'],'Chưa tải được dữ liệu hợp lệ cho lựa chọn này.');$('raw').textContent='Chưa có snapshot hợp lệ.';$('provenance').textContent='Chưa dùng dữ liệu để tính toán. Hãy thử tải lại ngày hoặc mã đã chọn.';}}
 }
 function clearFinancial(){$('executionMetrics').replaceChildren();$('baseline').replaceChildren();$('stressed').replaceChildren();clearCharts(['fills','costChart','coverageChart','portfolioChart','portfolioRows','exclusions'],'Chưa có kết quả hợp lệ.');}
 function render(r){
   $('empty').hidden=true;$('workspace').hidden=false;$('export').disabled=!r.record;
   const b=r.record;
-  $('dataTag').textContent=state.demo?'DỮ LIỆU MẪU':'DNSE · LỊCH SỬ';
-  $('provenance').textContent=(state.demo?'DỮ LIỆU GIẢ LẬP · ':'TÁI DỰNG LỊCH SỬ · ')+(b?`Nguồn: ${localTime(b.source_timestamp)} · Nhận khi tải: ${localTime(b.collected_at_utc)}`:'Chưa có snapshot của mã trước mốc chọn; không dùng dữ liệu tương lai.');
+  $('dataTag').textContent=state.demo?'DỮ LIỆU MẪU':cloud.enabled?'DNSE · LỊCH SỬ LẤY MẪU':'DNSE · LỊCH SỬ';
+  $('provenance').textContent=(state.demo?'DỮ LIỆU GIẢ LẬP · ':'TÁI DỰNG LỊCH SỬ · ')+(b?`Nguồn: ${localTime(b.source_timestamp)} · Nhận khi tải: ${localTime(b.collected_at_utc)}`:'Chưa có snapshot của mã trước mốc chọn; không dùng dữ liệu tương lai.')+(cloud.enabled?' · Mẫu lịch sử, không phải dữ liệu realtime.':'');
   if(!b){$('liquidityMetrics').replaceChildren();clearCharts(['book','depthChart','quality','historyChart'],'NO DATA · Không có snapshot trước thời điểm đã chọn.');$('raw').textContent='Không có snapshot.';clearFinancial();alertIn('executionMessage','NO DATA · Chưa thể mô phỏng mã này.');}
   else {
     const m=r.metrics||{};
@@ -63,9 +76,9 @@ function render(r){
     const cumulative=side=>{let sum=0;return[1,2,3].map(i=>{if(b[`${side}_price_${i}`]===null||b[`${side}_vol_${i}`]===null)return null;sum+=b[`${side}_vol_${i}`];return sum;});};
     chart('depthChart',['Mức 1','Mức 2','Mức 3'],[{name:'Bid',values:cumulative('bid'),color:'#252525'},{name:'Ask',values:cumulative('ask'),color:'#aaa'}]);
     const quality=[['Đơn vị',state.demo?'GIẢ LẬP':b.unit_verification_status],['Chất lượng',b.data_quality_status],['Phiên nguồn',b.market_session],['A1 / B5',b.financial_eligible?'Đủ điều kiện đơn vị / phiên':'Chưa đủ điều kiện'],['Giá / Khối lượng','VND / CP'],['Điểm đến mốc chọn',format(r.rows)]];
-    $('quality').innerHTML=quality.map(([k,v])=>`<div class="quality-row"><span>${escapeHTML(k)}</span><strong>${escapeHTML(v)}</strong></div>`).join('')+`<p class="small muted" style="margin-top:14px">${escapeHTML(r.quality_error||'Nhãn xác minh theo tệp đã nhập. Dữ liệu tải sau phiên; không chứng minh đã nhận tại thời điểm thị trường đó.')}</p>`;
+    $('quality').innerHTML=quality.map(([k,v])=>`<div class="quality-row"><span>${escapeHTML(k)}</span><strong>${escapeHTML(v)}</strong></div>`).join('')+`<p class="small muted" style="margin-top:14px">${escapeHTML(r.quality_error||(cloud.enabled?'Đơn vị theo hồ sơ chuẩn hóa, kiểm chứng riêng từng mã. Dữ liệu lịch sử tải sau phiên.':'Nhãn xác minh theo tệp đã nhập. Dữ liệu tải sau phiên; không chứng minh đã nhận tại thời điểm thị trường đó.'))}</p>`;
     const h=r.history||[];
-    h.length>1?chart('historyChart',h.map(x=>localTime(x.source_local_time)),[{name:'Bid',values:h.map(x=>x.bid_observed_depth_shares),color:'#252525'},{name:'Ask',values:h.map(x=>x.ask_observed_depth_shares),color:'#aaa'}]):clearCharts(['historyChart'],'Tệp chỉ có một snapshot tại mốc này. Xuất kèm --samples để xem lịch sử.');
+    h.length>1?chart('historyChart',h.map(x=>localTime(x.source_local_time)),[{name:'Bid',values:h.map(x=>x.bid_observed_depth_shares),color:'#252525'},{name:'Ask',values:h.map(x=>x.ask_observed_depth_shares),color:'#aaa'}]):clearCharts(['historyChart'],'Chưa đủ điểm lịch sử trước thời gian đã chọn để vẽ biểu đồ.');
     $('raw').textContent=JSON.stringify(b,null,2);
     if(state.page==='execution')renderExecution(r);
   }
@@ -114,18 +127,43 @@ function chart(id,labels,series,fixedMax,bars=false){
   $(id).innerHTML=svg+'</g></svg>';
 }
 async function ingest(text,name,demo=false){
+  const previousCloud=cloud.enabled;
+  cloud.enabled=false;cloudEpoch++;state.version++;
   notice('Đang kiểm tra và mở dữ liệu…');
   try{const parsed=JSON.parse(text);const info=await call('ingest',text);state.loaded=true;state.demo=demo;state.days=info.days;
     optionList('day',info.days,info.days.at(-1));state.symbols=info.symbols[$('day').value];
     state.daySymbols=info.symbols;optionList('symbol',state.symbols,state.symbols.includes('ACB')?'ACB':state.symbols[0]);
     const cutoff=parsed.cutoff?.match(/T(\d\d:\d\d)/)?.[1];$('clock').value=cutoff||'14:20';$('sourceName').textContent=demo?'Mẫu giả lập · 2 mã':'DNSE · Lịch sử chuẩn hóa';$('sourceDetail').textContent=`${name} · ${format(info.count)} snapshot · Xử lý trong tab này`;$('consentA1').checked=false;$('consentB5').checked=false;$('reverseResult').textContent='Tìm mức giảm độ sâu nhỏ nhất trên lưới 0,01%, trong khoảng 0–90%.';await update();
-  }catch(error){notice('Không mở được tệp: '+error.message);}
+  }catch(error){cloud.enabled=previousCloud;notice('Không mở được tệp: '+error.message);if(previousCloud&&!state.loaded)startCloud();}
+}
+async function loadCloudDay(day,preferredSymbol='ACB'){
+  const epoch=++cloudEpoch;
+  cloud.enabled=true;cloud.hydrated=null;state.loaded=false;state.version++;
+  $('workspace').hidden=true;$('empty').hidden=false;$('emptyTitle').textContent='Đang tải dữ liệu '+day+'…';
+  notice('Đang tải dữ liệu DNSE đã chuẩn hóa…');
+  try{
+    const payload=await cloud.market(day);
+    if(epoch!==cloudEpoch||!cloud.enabled)return;
+    const symbols=Object.keys(payload.catalog).sort();
+    state.days=cloud.index.days.map(d=>d.date);state.symbols=symbols;state.demo=false;
+    optionList('day',state.days,day);optionList('symbol',symbols,preferredSymbol);
+    $('clock').value=cloud.day(day).preferred_time;
+    $('consentA1').checked=false;$('consentB5').checked=false;
+    $('sourceName').textContent='DNSE · Dữ liệu web';
+    $('sourceDetail').textContent=`${day} · ${format(symbols.length)} mã · Lịch sử lấy mẫu · Cập nhật công bố: ${localTime(cloud.index.generated_at)}`;
+    state.loaded=true;$('workspace').hidden=false;$('empty').hidden=true;clearFinancial();$('liquidityMetrics').replaceChildren();await update();
+  }catch(error){if(epoch===cloudEpoch){$('emptyTitle').textContent='Chưa tải được dữ liệu web';notice(error.message);}}
+}
+async function startCloud(){
+  const epoch=++cloudEpoch;cloud.enabled=true;state.version++;notice('Đang kiểm tra ngày dữ liệu mới nhất…');
+  try{const index=await cloud.initialize();if(epoch!==cloudEpoch||!cloud.enabled)return;await loadCloudDay(index.latest_day);}
+  catch(error){if(epoch===cloudEpoch){$('emptyTitle').textContent='Chưa tải được dữ liệu web';notice(error.message);}}
 }
 function demo(){const records=[];for(const symbol of ['ACB','FPT'])for(let n=0;n<8;n++){const t=`2026-10-28T13:${String(10+n*10).padStart(2,'0')}:00+07:00`;const time=new Date(Date.parse('2026-10-28T13:10:00+07:00')+n*600000).toISOString();let r={symbol,exchange:'HOSE',provider:'dnse',normalization_version:'dnse-canonical-v1',upstream_source:'dnse_openapi',capture_method:'synthetic_demo',provider_version:'2026-07-23',source_timestamp:time,source_local_time:new Date(Date.parse(time)+25200000).toISOString().slice(0,-1)+'+07:00',collected_at_utc:'2026-10-28T10:00:00+00:00',market_session:'DNSE_CONTINUOUS_PM',unit_verification_status:symbol==='ACB'?'EMPIRICALLY_VERIFIED':'ASSUMED_SHARED_SCHEMA',unit_contract_hash:'synthetic-demo-only',price_unit:'VND',volume_unit:'shares',issues:[],data_quality_status:'VALID',local_date:'2026-10-28',event_id:`demo-${symbol}-${n}`};let bid=0,ask=0;for(let i=1;i<=3;i++){r['bid_price_'+i]=String(21250-i*50);r['ask_price_'+i]=String(21200+i*50);r['bid_vol_'+i]=[113300,22000,165800][i-1]+n*200;r['ask_vol_'+i]=[56200,173100,120500][i-1]+n*300;bid+=r['bid_vol_'+i];ask+=r['ask_vol_'+i];}r.bid_observed_depth_shares=bid;r.ask_observed_depth_shares=ask;records.push(r);}return ingest(JSON.stringify({records,cutoff:'2026-10-28T14:20:59+07:00'}),'Dữ liệu mẫu để thử chức năng',true);}
 document.querySelectorAll('[data-import]').forEach(b=>b.addEventListener('click',()=>$('file').click()));
 $('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>25*1024*1024){notice('Tệp lớn hơn 25 MB. Hãy xuất ít mã/điểm mẫu hơn.');return;}await ingest(await f.text(),f.name);e.target.value='';});
 $('demo').addEventListener('click',demo);$('emptyDemo').addEventListener('click',demo);
-$('day').addEventListener('change',()=>{optionList('symbol',state.daySymbols[$('day').value],$('symbol').value);update();});
+$('day').addEventListener('change',()=>{if(cloud.enabled){loadCloudDay($('day').value,$('symbol').value);return;}optionList('symbol',state.daySymbols[$('day').value],$('symbol').value);update();});
 for(const id of ['symbol','clock','side','quantity','benchmark','fee','tax','consentA1','portfolio','consentB5','threshold','reverseQty'])$(id).addEventListener('change',()=>{$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';update();});
 let debounce;$('shock').addEventListener('input',()=>{$('shockValue').value=$('shock').value;$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';clearTimeout(debounce);debounce=setTimeout(update,100);});
 $('search').addEventListener('input',renderWatchlist);$('watchlist').addEventListener('click',e=>{const b=e.target.closest('[data-symbol]');if(b){$('symbol').value=b.dataset.symbol;update();}});
@@ -133,4 +171,5 @@ $('reverse').addEventListener('click',()=>{if(!$('consentB5').checked){alertIn('
 $('export').addEventListener('click',()=>{if(!state.data?.record)return;const url=URL.createObjectURL(new Blob([JSON.stringify(state.data.record,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`${state.demo?'DEMO_':''}dnse_${state.data.record.symbol}_${$('day').value}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 $('help').addEventListener('click',()=>$('helpDialog').showModal());$('closeHelp').addEventListener('click',()=>$('helpDialog').close());
 $('footerHelp').addEventListener('click',()=>$('helpDialog').showModal());
-window.addEventListener('hashchange',page);page();
+$('cloudReload').addEventListener('click',startCloud);
+window.addEventListener('hashchange',page);page();startCloud();

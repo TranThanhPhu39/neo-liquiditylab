@@ -6,7 +6,7 @@ async function initialize() {
   const response = await fetch('./engine.zip');
   if (!response.ok) throw new Error('Không tải được bộ tính.');
   engine.unpackArchive(await response.arrayBuffer(), 'zip', {extractDir: '/app'});
-  engine.runPython("import sys, zoneinfo\nsys.path.insert(0, '/app')\nzoneinfo.reset_tzpath(['/app/zones'])\nfrom src.app.browser_bridge import ingest, view");
+  engine.runPython("import sys, zoneinfo\nsys.path.insert(0, '/app')\nzoneinfo.reset_tzpath(['/app/zones'])\nfrom src.app.browser_bridge import ingest, view, portfolio_symbols");
 }
 const ready = initialize();
 let queue = Promise.resolve();

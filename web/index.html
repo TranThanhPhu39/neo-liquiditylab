@@ -5,7 +5,7 @@
   <meta name="description" content="LiquidityLab: độ sâu DNSE ba mức giá, mô phỏng thực hiện lệnh và stress thanh khoản danh mục.">
   <meta name="theme-color" content="#252525"><title>LiquidityLab · DNSE</title>
   <link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
-  <script src="./app.js" defer></script>
+  <script src="./cloud-data.js" defer></script><script src="./app.js" defer></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -16,7 +16,7 @@
       <a href="#execution" data-page="execution"><span class="nav-icon">⇄</span>Mô phỏng lệnh <small>A1</small></a>
       <a href="#stress" data-page="stress"><span class="nav-icon">◫</span>Stress danh mục <small>B5</small></a>
     </nav>
-    <section class="source-box"><div class="eyebrow">NGUỒN DỮ LIỆU</div><strong id="sourceName">Chưa nạp dữ liệu</strong><p id="sourceDetail">Mở tệp DNSE chuẩn hóa từ kho trên máy.</p><button class="button primary wide" data-import>＋ Mở dữ liệu</button><button class="button quiet wide" id="demo">Thử dữ liệu mẫu</button></section>
+    <section class="source-box"><div class="eyebrow">NGUỒN DỮ LIỆU</div><strong id="sourceName">DNSE · Dữ liệu web</strong><p id="sourceDetail">Đang tải ngày dữ liệu mới nhất đã công bố…</p><button class="button primary wide" id="cloudReload">↻ Tải lại dữ liệu</button><button class="button quiet wide" data-import>Mở tệp riêng</button><button class="button quiet wide" id="demo">Thử dữ liệu mẫu</button></section>
     <div class="sidebar-bottom"><span class="dot"></span><span id="engineState" role="status">Đang tải bộ tính…</span><p>Python · Decimal<br>Phân tích trong trình duyệt</p><button class="text-button" id="help">Hướng dẫn sử dụng ↗</button></div>
   </aside>
   <main>
@@ -32,7 +32,7 @@
     <div class="provenance" id="provenance">Tái dựng theo thời gian nguồn · Không gọi API giao dịch · Giá VND/CP, khối lượng CP</div>
     <div id="message" role="status" aria-live="polite"></div>
     <section id="empty" class="empty panel">
-      <span class="empty-mark">▥</span><div class="eyebrow">KHO DỮ LIỆU CỦA BẠN</div><h2>Bắt đầu từ một snapshot.</h2><p>Mở tệp DNSE đã chuẩn hóa để xem thanh khoản và mô phỏng trên dữ liệu thực.<br>Tệp được xử lý trong trình duyệt, không tải lên máy chủ.</p>
+      <span class="empty-mark">▥</span><div class="eyebrow">DNSE · LỊCH SỬ CHUẨN HÓA</div><h2 id="emptyTitle">Đang tải dữ liệu thị trường…</h2><p>Dashboard tự mở ngày mới nhất đã công bố.<br>Bạn cũng có thể mở tệp riêng hoặc thử dữ liệu mẫu.</p>
       <div class="actions"><button class="button primary" data-import>Mở tệp DNSE (.json)</button><button class="button" id="emptyDemo">Khám phá với dữ liệu mẫu ↗</button></div>
       <div class="empty-steps"><span><b>01</b>Xuất từ kho DNSE</span><span><b>02</b>Mở tệp trên dashboard</span><span><b>03</b>Chọn thời điểm & phân tích</span></div>
     </section>
@@ -41,9 +41,9 @@
         <div class="metrics" id="liquidityMetrics"></div>
         <div class="grid two"><section class="panel"><div class="panel-head"><h2>Sổ lệnh ba mức giá</h2><span class="tag" id="bookSymbol">—</span></div><div id="book"></div><div class="panel-foot">Giá VND/CP · Khối lượng CP · Trống là chưa xác định</div></section>
         <section class="panel"><div class="panel-head"><h2>Độ sâu tích lũy</h2><span class="muted">CP</span></div><div id="depthChart" class="chart"></div><div class="panel-foot">Cộng dồn theo thứ tự mức 1 → 3; chỉ dùng mức giá quan sát được.</div></section></div>
-        <div class="grid watch"><section class="panel"><div class="panel-head"><h2>Các mã trong tệp</h2><label class="search-label"><span class="sr-only">Tìm mã</span><input id="search" placeholder="Tìm mã…" maxlength="10"></label></div><div id="watchlist" class="table-scroll watch-table"></div></section>
+        <div class="grid watch"><section class="panel"><div class="panel-head"><h2>Danh mục theo ngày</h2><label class="search-label"><span class="sr-only">Tìm mã</span><input id="search" placeholder="Tìm mã…" maxlength="10"></label></div><div id="watchlist" class="table-scroll watch-table"></div></section>
         <section class="panel"><div class="panel-head"><h2>Chất lượng dữ liệu</h2></div><div id="quality"></div></section></div>
-        <section class="panel"><div class="panel-head"><h2>Độ sâu theo thời gian nguồn</h2><span class="muted">Mẫu trong tệp đã nạp</span></div><div id="historyChart" class="chart"></div></section>
+        <section class="panel"><div class="panel-head"><h2>Độ sâu theo thời gian nguồn</h2><span class="muted">Điểm lịch sử đã tải</span></div><div id="historyChart" class="chart"></div></section>
       </section>
       <section id="execution" class="screen" hidden>
         <div class="grid form-grid"><section class="panel form-panel"><div class="panel-head"><h2>Thiết lập lệnh</h2><span class="tag">A1</span></div>
@@ -69,5 +69,5 @@ ACB,150000</textarea></label><label class="range-label">Giảm độ sâu Bid <s
     <footer><span>LiquidityLab · DNSE <button class="text-button" id="footerHelp">· Hướng dẫn</button></span><span>Ba mức giá quan sát được · Kết quả mô phỏng không bảo đảm khớp lệnh</span></footer>
   </main>
   <input type="file" id="file" accept=".json,application/json" hidden>
-  <dialog id="helpDialog"><div class="panel-head"><h2>Mở dữ liệu DNSE trên web</h2><button class="text-button" id="closeHelp" aria-label="Đóng">✕</button></div><p>Trong thư mục dự án trên máy, chạy:</p><pre>.\.venv\Scripts\python.exe -m scripts.export_dashboard</pre><p>Lệnh xuất snapshot trước 14:20 của ngày mới nhất, cho toàn bộ mã có dữ liệu. Tệp nằm trong <code>data/exports/dashboard/</code>.</p><p>Để kèm lịch sử ACB:</p><pre>.\.venv\Scripts\python.exe -m scripts.export_dashboard --symbols ACB --samples 300</pre><p>Bấm <strong>Mở dữ liệu</strong> và chọn tệp JSON. Đổi ngày, mã, thời điểm để tái dựng snapshot cuối không muộn hơn mốc chọn.</p><p class="small muted">Tệp chỉ nằm trong bộ nhớ tab, mất khi tải lại trang. Chưa đồng bộ tự động với bộ thu GitHub. Chỉ dùng schema chuẩn hóa DNSE REST; không nạp raw WebSocket chưa xác minh đơn vị. Đối chiếu nguồn gốc tệp trước khi dùng nhãn xác minh có sẵn trong tệp.</p></dialog>
+  <dialog id="helpDialog"><div class="panel-head"><h2>Dữ liệu DNSE trên dashboard</h2><button class="text-button" id="closeHelp" aria-label="Đóng">✕</button></div><p>Trang tự mở ngày dữ liệu mới nhất đã công bố. Chọn ngày, mã và giờ Việt Nam để xem snapshot cuối không muộn hơn mốc chọn. Bấm <strong>Tải lại dữ liệu</strong> để kiểm tra ngày mới.</p><p>Dữ liệu web là <strong>lịch sử lấy mẫu</strong>: các mốc 11:29, 14:20, 15:10 và snapshot cuối mỗi khoảng 6 phút của từng mã. Biểu đồ chỉ thể hiện các điểm đã công bố, không phải toàn bộ diễn biến trong phiên. Mốc mặc định 14:20 giúp xem phiên liên tục; có thể đổi giờ để xem cuối ngày.</p><p>A1 và B5 giữ kiểm tra đơn vị, phiên và chất lượng. Mã chưa xác minh bị loại khỏi mô phỏng; mã thiếu snapshot hiện NO DATA. Danh mục nhiều mã có thể bị loại nếu timestamp nguồn lệch nhau quá 60 giây.</p><p><strong>Mở tệp riêng</strong> là lựa chọn bổ sung. Tệp nhập chỉ được xử lý trong tab, không tải lên máy chủ; tải lại trang sẽ trở về dữ liệu web.</p><p class="small muted">Nguồn hiện tại: DNSE REST đã chuẩn hóa và audit. Dữ liệu WebSocket raw từ bộ thu GitHub chưa tự được chuyển thành lịch sử phân tích. Ngày hiển thị là ngày có dữ liệu, không mặc định là hôm nay.</p></dialog>
 </body></html>

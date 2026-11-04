@@ -23,6 +23,10 @@ def encode(value):
     return json.dumps(value, default=lambda x: str(x) if isinstance(x, Decimal) else x.isoformat(), ensure_ascii=False)
 
 
+def portfolio_symbols(text):
+    return encode([position.symbol for position in parse_portfolio(text)])
+
+
 def ingest(text):
     """Validate an atomic import. Never multiply already-canonical units again."""
     global _records, _catalogs

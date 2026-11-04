@@ -37,10 +37,12 @@ jobs:
       - name: Validate the public web artifact
         run: |
           node --check web/app.js
+          node --check web/cloud-data.js
           node --check web/engine-worker.js
           test -f web/index.html
           test -f web/runtime/pyodide.asm.wasm
           test -f web/engine.zip
+          test -f web/data/index.json
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload only the web directory

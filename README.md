@@ -12,7 +12,23 @@ MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE Op
 
 Bản web chính trên GitHub Pages: https://tranthanhphu39.github.io/neo-liquiditylab/ — truy cập công khai, không cần đăng nhập ChatGPT. Bản Sites riêng tư trước đó vẫn được giữ.
 
-Bản web gồm **Thanh khoản, Mô phỏng lệnh A1 và Stress danh mục B5**, dùng cùng lõi Python/Decimal với Streamlit. Bản web xử lý tệp DNSE chuẩn hóa trong trình duyệt; chưa tự đồng bộ dữ liệu từ GitHub. Dữ liệu mẫu có nhãn giả lập riêng. Không đưa khóa API vào trình duyệt.
+Bản web gồm **Thanh khoản, Mô phỏng lệnh A1 và Stress danh mục B5**, dùng cùng lõi Python/Decimal với Streamlit. Khi mở trang, dashboard **tự tải ngày DNSE mới nhất đã công bố**, không cần chọn tệp. Dữ liệu công khai là lịch sử đã chuẩn hóa/audit, có lấy mẫu; dữ liệu mẫu giả lập vẫn có nhãn riêng. Không đưa khóa API vào trình duyệt.
+
+Lần xuất hiện tại gồm 5 ngày đến 03/11/2026, 85 phần dữ liệu nén tổng khoảng 12,8 MB. Mỗi ngày có mốc 11:29, 14:20, 15:10 toàn thị trường và lịch sử từng mã lấy snapshot cuối mỗi khoảng 6 phút. Trình duyệt chỉ tải thêm lịch sử của mã/danh mục đang chọn, kiểm tra checksum và giữ nguyên nhãn thiếu dữ liệu, chưa xác minh đơn vị. Đây không phải toàn bộ tick trong phiên hoặc dữ liệu realtime.
+
+Cập nhật dữ liệu web từ kho REST **đã chuẩn hóa và audit** trên máy:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.export_web_data --publish
+```
+
+Hoặc tải ngày mới, audit, chuẩn hóa rồi tự xuất và đẩy dữ liệu gọn lên dashboard trong cùng lệnh (sau 15:10 giờ Việt Nam):
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.update_dnse_day --publish-web
+```
+
+Các lệnh có `--publish`/`--publish-web` công khai phần dữ liệu chuẩn hóa gọn trong `web/data/`; raw, database đầy đủ và thông tin tài khoản không được đưa lên Pages. Các ngày cũ không đổi được tái sử dụng. Bản web tự chọn ngày mới nhất sau lần cập nhật thành công. **Bước thu REST và chuẩn hóa vẫn chạy trên máy; checkpoint WebSocket của Actions chưa tự trở thành dữ liệu chuẩn hóa cho dashboard.**
 
 Xuất tệp để mở trên web, từ kho đã tải và chuẩn hóa trên máy:
 
@@ -23,7 +39,7 @@ Xuất tệp để mở trên web, từ kho đã tải và chuẩn hóa trên m�
 .\.venv\Scripts\python.exe -m scripts.export_dashboard --date 2026-11-03 --symbols ACB --samples 300
 ```
 
-Tệp nằm ở `data/exports/dashboard/dnse_YYYY-MM-DD.json`. Bấm **Mở dữ liệu** trên web rồi chọn tệp. Có thể dùng `--at 15:10` để xem cuối ngày; mô phỏng vẫn khóa snapshot ngoài phiên liên tục. Tệp không upload lên máy chủ và không còn trong bộ nhớ khi tải lại tab. Mã không có snapshot không được tự gán 0. Tối đa 25 MB / 30.000 snapshot mỗi tệp; nếu nhiều mẫu, hãy giới hạn `--symbols`.
+Tệp nằm ở `data/exports/dashboard/dnse_YYYY-MM-DD.json`. **Mở tệp riêng** là tùy chọn bổ sung, không cần dùng để mở dashboard. Có thể dùng `--at 15:10` để xem cuối ngày; mô phỏng vẫn khóa snapshot ngoài phiên liên tục. Tệp riêng không upload lên máy chủ và không còn trong bộ nhớ khi tải lại tab; trang trở lại dữ liệu web tự tải. Mã không có snapshot không được tự gán 0. Tối đa 25 MB / 30.000 snapshot mỗi tệp; nếu nhiều mẫu, hãy giới hạn `--symbols`.
 
 Streamlit tiếp tục đọc trực tiếp SQLite trên máy:
 

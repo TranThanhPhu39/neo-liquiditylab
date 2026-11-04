@@ -2,6 +2,7 @@
 import argparse
 import base64
 import hashlib
+import gzip
 import json
 import os
 from pathlib import Path
@@ -11,13 +12,38 @@ from scripts.github_api import GitHubAPI, GitHubError, repository_path
 from scripts.github_setup import public_source, REPOSITORY
 
 WEB_FILES = {
-    '.nojekyll', 'README.md', 'app.js', 'engine-worker.js', 'engine.zip', 'index.html',
+    '.nojekyll', 'README.md', 'app.js', 'cloud-data.js', 'engine-worker.js', 'engine.zip', 'index.html',
     'mark.svg', 'style.css', 'THIRD_PARTY.md', 'fonts/OFL.txt', 'fonts/rubik-0.woff2',
     'fonts/rubik-1.woff2', 'fonts/rubik-2.woff2', 'runtime/PYODIDE-LICENSE',
     'runtime/pyodide-lock.json', 'runtime/pyodide.asm.js', 'runtime/pyodide.asm.wasm',
     'runtime/pyodide.js', 'runtime/python_stdlib.zip',
 }
-BINARY = {'.zip', '.woff2', '.wasm'}
+BINARY = {'.zip', '.woff2', '.wasm', '.gz'}
+
+
+def public_data_files(root):
+    from scripts.export_web_data import FORMAT, FIELDS, referenced_files
+    folder = root/'web/data'
+    if not (folder/'index.json').exists():
+        return {}
+    index = json.loads((folder/'index.json').read_text(encoding='utf-8'))
+    if index.get('format') != FORMAT:
+        raise ValueError('EXPECTED_PUBLIC_DATA_INDEX')
+    result = {'web/data/index.json': (folder/'index.json').read_bytes()}
+    for item in referenced_files(index):
+        path = folder/item['path']
+        if path.is_symlink() or any(parent.is_symlink() for parent in path.parents if parent!=root):
+            raise ValueError('PUBLIC_DATA_SYMLINK_REJECTED')
+        content = path.read_bytes()
+        if len(content)!=item['bytes'] or hashlib.sha256(content).hexdigest()!=item['sha256']:
+            raise ValueError('PUBLIC_DATA_CHECKSUM_MISMATCH')
+        payload = json.loads(gzip.decompress(content))
+        if len(payload['records'])!=item['records'] or any(set(r)-FIELDS for r in payload['records']):
+            raise ValueError('UNREVIEWED_FIELDS_IN_PUBLIC_DATA')
+        result['web/data/'+item['path']] = content
+    if sum(map(len, result.values())) > 600*1024*1024:
+        raise ValueError('PUBLIC_DATA_SIZE_REQUIRES_REVIEW')
+    return result
 
 
 def reviewed_files():
@@ -36,6 +62,11 @@ def reviewed_files():
         if len(content) > 20*1024*1024:
             raise ValueError('UNEXPECTED_LARGE_WEB_ASSET')
         files['web/'+name] = content
+    for path, content in public_data_files(ROOT).items():
+        decoded = gzip.decompress(content) if path.endswith('.gz') else content
+        if any(secret in decoded for secret in secrets):
+            raise ValueError('SECRET_DETECTED_IN_PUBLIC_MARKET_DATA')
+        files[path] = content
     return files
 
 
