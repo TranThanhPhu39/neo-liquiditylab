@@ -16,7 +16,7 @@ Bản web chính trên GitHub Pages: https://tranthanhphu39.github.io/neo-liquid
 
 Bản web gồm **Thanh khoản, Mô phỏng lệnh A1 và Stress danh mục B5**, dùng cùng lõi Python/Decimal với Streamlit. Khi mở trang, dashboard **tự tải ngày DNSE mới nhất đã công bố**, không cần chọn tệp. Dữ liệu công khai là lịch sử đã chuẩn hóa/audit, có lấy mẫu; dữ liệu mẫu giả lập vẫn có nhãn riêng. Không đưa khóa API vào trình duyệt.
 
-Lần xuất hiện tại gồm 5 ngày đến 03/11/2026, 85 phần dữ liệu nén tổng khoảng 12,8 MB. Mỗi ngày có mốc 11:29, 14:20, 15:10 toàn thị trường và lịch sử từng mã lấy snapshot cuối mỗi khoảng 6 phút. Trình duyệt chỉ tải thêm lịch sử của mã/danh mục đang chọn, kiểm tra checksum và giữ nguyên nhãn thiếu dữ liệu, chưa xác minh đơn vị. Đây không phải toàn bộ tick trong phiên hoặc dữ liệu realtime.
+Lần xuất hiện tại gồm 6 ngày đến 04/11/2026, 102 phần dữ liệu nén tổng khoảng 15,4 MB. Mỗi ngày có mốc 11:29, 14:20, 15:10 toàn thị trường và lịch sử từng mã lấy snapshot cuối mỗi khoảng 6 phút. Trình duyệt chỉ tải thêm lịch sử của mã/danh mục đang chọn, kiểm tra checksum và giữ nguyên nhãn thiếu dữ liệu, chưa xác minh đơn vị. Đây không phải toàn bộ tick trong phiên hoặc dữ liệu realtime.
 
 Cập nhật dữ liệu web từ kho REST **đã chuẩn hóa và audit** trên máy:
 
