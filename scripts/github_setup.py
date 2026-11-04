@@ -29,12 +29,12 @@ def public_source():
     paths=[]
     for folder in ("src","scripts","config","tests","deploy","docs",".github/workflows"):
         paths.extend(p for p in (ROOT/folder).rglob("*") if p.is_file() and p.suffix in (".py",".ps1",".json",".yaml",".yml",".md",".txt",".service",".timer"))
-    paths.extend(ROOT/name for name in ("README.md","pyproject.toml","requirements.txt","requirements-collector.txt","requirements-lock.txt","requirements-github.txt",".gitignore",".env.example"))
+    paths.extend(ROOT/name for name in (".streamlit/config.toml","README.md","pyproject.toml","requirements.txt","requirements-collector.txt","requirements-lock.txt","requirements-github.txt",".gitignore",".env.example"))
     paths.extend(p for p in (ROOT/"data/sample").glob("*") if p.is_file() and p.suffix in (".json",".csv"))
     paths.extend(ROOT/"report"/name for name in ("github_unit_evidence_2026-10-28.json","kbs_unit_review_2026-10-28.md"))
     result={}
     secrets=[value for value in (get_vnstock_api_key(),os.getenv("GH_TOKEN"),os.getenv("GITHUB_TOKEN"),
-                                os.getenv("DNSE_API_KEY"),os.getenv("DNSE_API_SECRET")) if value]
+                                os.getenv("DNSE_API_KEY"),os.getenv("DNSE_API_SECRET"),os.getenv("PENPOT_MCP_URL")) if value]
     for path in sorted(set(paths)):
         relative=path.relative_to(ROOT).as_posix()
         if "__pycache__" in path.parts or path.is_symlink():

@@ -91,7 +91,7 @@ def test_raw_dashboard_does_not_produce_financial_metrics(tmp_path,monkeypatch,b
     at = AppTest.from_file(str(Path(__file__).resolve().parents[1]/"src/app/main.py"),default_timeout=30).run()
     assert not at.exception and not at.metric
     assert any("RAW ONLY" in x.value for x in at.warning)
-    at.sidebar.radio[1].set_value("Stress danh mục").run()
+    at.sidebar.radio(key="app_page").set_value("Stress danh mục").run()
     assert not at.exception and not at.metric
 
 

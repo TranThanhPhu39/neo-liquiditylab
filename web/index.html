@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="LiquidityLab: độ sâu DNSE ba mức giá, mô phỏng thực hiện lệnh và stress thanh khoản danh mục.">
+  <meta name="theme-color" content="#252525"><title>LiquidityLab · DNSE</title>
+  <link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#liquidity" aria-label="LiquidityLab"><span class="mark"><i></i><i></i><i></i></span><span><strong>LiquidityLab</strong><small>NEO · DNSE</small></span></a>
+    <div class="eyebrow">PHÂN TÍCH THANH KHOẢN</div>
+    <nav aria-label="Màn hình phân tích">
+      <a href="#liquidity" data-page="liquidity"><span class="nav-icon">▥</span>Thanh khoản</a>
+      <a href="#execution" data-page="execution"><span class="nav-icon">⇄</span>Mô phỏng lệnh <small>A1</small></a>
+      <a href="#stress" data-page="stress"><span class="nav-icon">◫</span>Stress danh mục <small>B5</small></a>
+    </nav>
+    <section class="source-box"><div class="eyebrow">NGUỒN DỮ LIỆU</div><strong id="sourceName">Chưa nạp dữ liệu</strong><p id="sourceDetail">Mở tệp DNSE chuẩn hóa từ kho trên máy.</p><button class="button primary wide" data-import>＋ Mở dữ liệu</button><button class="button quiet wide" id="demo">Thử dữ liệu mẫu</button></section>
+    <div class="sidebar-bottom"><span class="dot"></span><span id="engineState" role="status">Đang tải bộ tính…</span><p>Python · Decimal<br>Phân tích trong trình duyệt</p><button class="text-button" id="help">Hướng dẫn sử dụng ↗</button></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>Phân tích <span class="slash">/</span> <span id="breadcrumb">Thanh khoản</span></span><span class="tag">DNSE · 3 MỨC GIÁ</span></header>
+    <div class="heading"><div><h1 id="title">Thanh khoản</h1><p id="description">Quan sát độ sâu sổ lệnh, chênh lệch giá và phạm vi dữ liệu.</p></div><div class="heading-actions"><button class="button mobile-import" data-import>＋ Mở dữ liệu</button><button class="button" id="export" disabled>↓ Xuất snapshot</button></div></div>
+    <div class="toolbar">
+      <label>Ngày dữ liệu<select id="day" disabled><option>Chưa có dữ liệu</option></select></label>
+      <label>Mã cổ phiếu<select id="symbol" disabled><option>—</option></select></label>
+      <label>Đến hết phút nguồn<input id="clock" type="time" value="14:20" step="60"></label>
+      <div class="timezone">Giờ Việt Nam <strong>UTC+7</strong></div>
+      <span class="tag" id="dataTag">NO DATA</span>
+    </div>
+    <div class="provenance" id="provenance">Tái dựng theo thời gian nguồn · Không gọi API giao dịch · Giá VND/CP, khối lượng CP</div>
+    <div id="message" role="status" aria-live="polite"></div>
+    <section id="empty" class="empty panel">
+      <span class="empty-mark">▥</span><div class="eyebrow">KHO DỮ LIỆU CỦA BẠN</div><h2>Bắt đầu từ một snapshot.</h2><p>Mở tệp DNSE đã chuẩn hóa để xem thanh khoản và mô phỏng trên dữ liệu thực.<br>Tệp được xử lý trong trình duyệt, không tải lên máy chủ.</p>
+      <div class="actions"><button class="button primary" data-import>Mở tệp DNSE (.json)</button><button class="button" id="emptyDemo">Khám phá với dữ liệu mẫu ↗</button></div>
+      <div class="empty-steps"><span><b>01</b>Xuất từ kho DNSE</span><span><b>02</b>Mở tệp trên dashboard</span><span><b>03</b>Chọn thời điểm & phân tích</span></div>
+    </section>
+    <div id="workspace" hidden>
+      <section id="liquidity" class="screen">
+        <div class="metrics" id="liquidityMetrics"></div>
+        <div class="grid two"><section class="panel"><div class="panel-head"><h2>Sổ lệnh ba mức giá</h2><span class="tag" id="bookSymbol">—</span></div><div id="book"></div><div class="panel-foot">Giá VND/CP · Khối lượng CP · Trống là chưa xác định</div></section>
+        <section class="panel"><div class="panel-head"><h2>Độ sâu tích lũy</h2><span class="muted">CP</span></div><div id="depthChart" class="chart"></div><div class="panel-foot">Cộng dồn theo thứ tự mức 1 → 3; chỉ dùng mức giá quan sát được.</div></section></div>
+        <div class="grid watch"><section class="panel"><div class="panel-head"><h2>Các mã trong tệp</h2><label class="search-label"><span class="sr-only">Tìm mã</span><input id="search" placeholder="Tìm mã…" maxlength="10"></label></div><div id="watchlist" class="table-scroll watch-table"></div></section>
+        <section class="panel"><div class="panel-head"><h2>Chất lượng dữ liệu</h2></div><div id="quality"></div></section></div>
+        <section class="panel"><div class="panel-head"><h2>Độ sâu theo thời gian nguồn</h2><span class="muted">Mẫu trong tệp đã nạp</span></div><div id="historyChart" class="chart"></div></section>
+      </section>
+      <section id="execution" class="screen" hidden>
+        <div class="grid form-grid"><section class="panel form-panel"><div class="panel-head"><h2>Thiết lập lệnh</h2><span class="tag">A1</span></div>
+          <label>Chiều lệnh<select id="side"><option value="sell">Bán · Quét Bid</option><option value="buy">Mua · Quét Ask</option></select></label>
+          <label>Số lượng (CP)<input id="quantity" type="number" min="1" max="1000000000000" step="100" value="150000"></label>
+          <label>Benchmark<select id="benchmark"><option value="best">Giá tốt nhất cùng bên</option><option value="mid">Giá giữa Bid / Ask</option></select></label>
+          <div class="pair"><label>Phí giả định (%)<input id="fee" type="number" value="0" min="0" max="100" step="0.01"></label><label>Thuế bán (%)<input id="tax" type="number" value="0" min="0" max="100" step="0.01"></label></div>
+          <label class="check"><input id="consentA1" type="checkbox">Cho phép phân tích snapshot lịch sử</label>
+          <p class="small muted">Mô phỏng quét tối đa ba mức giá, không có hàng đợi hay thanh khoản ẩn.</p>
+        </section><section><div id="executionMessage"></div><div class="metrics square" id="executionMetrics"></div><div class="provenance" id="executionNote">Chọn lệnh và cho phép phân tích để xem kết quả.</div></section></div>
+        <div class="grid two"><section class="panel"><div class="panel-head"><h2>Phân bổ theo mức giá</h2><span class="muted">Phần được bao phủ</span></div><div id="fills"></div></section><section class="panel"><div class="panel-head"><h2>Chi phí theo quy mô lệnh</h2><span class="muted">VND</span></div><div id="costChart" class="chart"></div></section></div>
+        <section class="panel"><div class="panel-head"><h2>Bao phủ theo quy mô lệnh</h2><span class="muted">%</span></div><div id="coverageChart" class="chart"></div></section>
+      </section>
+      <section id="stress" class="screen" hidden>
+        <div class="grid form-grid"><section class="panel form-panel"><div class="panel-head"><h2>Danh mục giả định</h2><span class="tag">B5</span></div><label>CSV · symbol,quantity<textarea id="portfolio" rows="6" spellcheck="false">symbol,quantity
+ACB,150000</textarea></label><label class="range-label">Giảm độ sâu Bid <strong><output id="shockValue">50</output>%</strong><input id="shock" type="range" min="0" max="90" value="50"></label><div class="range-ticks"><span>0%</span><span>45%</span><span>90%</span></div><label class="check"><input id="consentB5" type="checkbox">Cho phép phân tích snapshot lịch sử</label><p class="small muted">Manual Portfolio – Simulated Holdings. Giảm khối lượng từng mức Bid và làm tròn xuống CP nguyên.</p></section>
+        <section><div id="stressMessage"></div><div class="compare"><div class="panel" id="baseline"></div><div class="panel dark" id="stressed"></div></div><p class="small muted">Coverage chỉ tính phần danh mục đủ dữ liệu. Chi phí tuyệt đối có thể giảm khi phần được bao phủ giảm.</p></section></div>
+        <div class="grid two"><section class="panel"><div class="panel-head"><h2>Bao phủ theo mã</h2><span class="muted">Baseline / Stress</span></div><div id="portfolioChart" class="chart"></div></section><section class="panel"><div class="panel-head"><h2>Reverse stress</h2><span class="tag">MÃ ĐANG CHỌN</span></div><label>Coverage tối thiểu (%)<input id="threshold" type="number" value="70" min="1" max="100"></label><label>Số lượng giả định (CP)<input id="reverseQty" type="number" value="150000" min="1" step="100"></label><button id="reverse" class="button primary">Tìm ngưỡng suy giảm →</button><p id="reverseResult" class="small muted">Tìm mức giảm độ sâu nhỏ nhất trên lưới 0,01%, trong khoảng 0–90%.</p></section></div>
+        <section class="panel"><div class="panel-head"><h2>Phạm vi tính toán & loại trừ</h2></div><div id="exclusions"></div><div id="portfolioRows" class="table-scroll"></div></section>
+      </section>
+      <details class="panel details"><summary>Snapshot & nguồn gốc dữ liệu</summary><pre id="raw"></pre></details>
+    </div>
+    <footer><span>LiquidityLab · DNSE <button class="text-button" id="footerHelp">· Hướng dẫn</button></span><span>Ba mức giá quan sát được · Kết quả mô phỏng không bảo đảm khớp lệnh</span></footer>
+  </main>
+  <input type="file" id="file" accept=".json,application/json" hidden>
+  <dialog id="helpDialog"><div class="panel-head"><h2>Mở dữ liệu DNSE trên web</h2><button class="text-button" id="closeHelp" aria-label="Đóng">✕</button></div><p>Trong thư mục dự án trên máy, chạy:</p><pre>.\.venv\Scripts\python.exe -m scripts.export_dashboard</pre><p>Lệnh xuất snapshot trước 14:20 của ngày mới nhất, cho toàn bộ mã có dữ liệu. Tệp nằm trong <code>data/exports/dashboard/</code>.</p><p>Để kèm lịch sử ACB:</p><pre>.\.venv\Scripts\python.exe -m scripts.export_dashboard --symbols ACB --samples 300</pre><p>Bấm <strong>Mở dữ liệu</strong> và chọn tệp JSON. Đổi ngày, mã, thời điểm để tái dựng snapshot cuối không muộn hơn mốc chọn.</p><p class="small muted">Tệp chỉ nằm trong bộ nhớ tab, mất khi tải lại trang. Chưa đồng bộ tự động với bộ thu GitHub. Chỉ dùng schema chuẩn hóa DNSE REST; không nạp raw WebSocket chưa xác minh đơn vị. Đối chiếu nguồn gốc tệp trước khi dùng nhãn xác minh có sẵn trong tệp.</p></dialog>
+</body></html>

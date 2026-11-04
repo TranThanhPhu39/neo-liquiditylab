@@ -18,6 +18,7 @@ from src.finance.stress_testing import apply_scenario, reverse_stress
 from src.models.orderbook import LOCAL_TZ
 from src.models.portfolio import parse_portfolio
 from src.models.scenario import Scenario
+from src.app import theme
 
 
 def number(value, decimals=0):
@@ -25,12 +26,11 @@ def number(value, decimals=0):
 
 
 def chart(fig):
-    fig.update_layout(template='plotly_white', height=330, margin=dict(t=40,b=25,l=10,r=10))
-    st.plotly_chart(fig, width='stretch')
+    theme.chart(fig)
 
 
 def execution_metrics(result):
-    columns = st.columns(4)
+    columns = [*st.columns(2), *st.columns(2)]
     for col, (name, value) in zip(columns, [
         ('Bao phủ', f'{result.coverage_ratio:.1%}'), ('VWAP phần bao phủ', number(result.vwap, 2)),
         ('Chi phí so benchmark (VND)', number(result.book_walking_cost)),
@@ -42,38 +42,48 @@ def execution_metrics(result):
 
 
 def execution_page(book, eligible):
-    st.subheader('A1 · Mô phỏng quét ba mức giá')
     if not eligible:
         st.info('A1 đang khóa cho snapshot này: cần đơn vị đã xác minh, sổ lệnh hợp lệ và nằm trong phiên liên tục.')
         return
     if not st.checkbox('Cho phép phân tích snapshot lịch sử (A1)', key='dnse_allow_a1'):
         st.info('Bật lựa chọn trên để mô phỏng dữ liệu lịch sử.')
         return
-    left, right = st.columns(2)
-    side = left.selectbox('Chiều lệnh', ['sell', 'buy'], key='dnse_side')
-    quantity = right.number_input('Số lượng (CP)', min_value=1, value=150000, step=100, key='dnse_qty')
+    left, right = st.columns([1, 2])
+    with left, st.container(border=True):
+        st.subheader('Thiết lập lệnh')
+        side = st.selectbox('Chiều lệnh', ['sell', 'buy'], key='dnse_side',
+                            format_func=lambda s:'Bán · Quét Bid' if s=='sell' else 'Mua · Quét Ask')
+        quantity = st.number_input('Số lượng (CP)', min_value=1, value=150000, step=100, key='dnse_qty')
+        st.caption('Benchmark: giá tốt nhất cùng bên. Mô phỏng ba mức quan sát được, không có ưu tiên hàng đợi.')
     try:
         result = simulate_execution(book, int(quantity), side=side)
-        execution_metrics(result)
+        with right:
+            execution_metrics(result)
+        st.subheader('Phân bổ theo mức giá')
         st.dataframe(pd.DataFrame([dict(level=f.level, price_vnd=str(f.price), quantity=f.quantity)
                                    for f in result.fills]), hide_index=True, width='stretch')
         sizes = sorted({1, 100, int(quantity), *[max(1, int(quantity*i/10)) for i in range(1, 21)]})
         results = [simulate_execution(book, q, side=side) for q in sizes]
         frame = pd.DataFrame({'quantity': sizes, 'coverage': [float(r.coverage_ratio) for r in results],
                               'cost_vnd': [float(r.book_walking_cost) if r.book_walking_cost is not None else None for r in results]})
-        chart(px.line(frame, x='quantity', y='cost_vnd', title='Chi phí phần bao phủ theo quy mô lệnh'))
-        chart(px.line(frame, x='quantity', y='coverage', title='Coverage theo quy mô lệnh'))
+        cost, coverage = st.columns(2)
+        with cost, st.container(border=True):
+            chart(px.line(frame, x='quantity', y='cost_vnd', title='Chi phí phần bao phủ theo quy mô lệnh'))
+        with coverage, st.container(border=True):
+            chart(px.line(frame, x='quantity', y='coverage', title='Coverage theo quy mô lệnh'))
     except ValueError as error:
         st.error(str(error))
 
 
 def portfolio_page(store, day, at, symbol, settings):
-    st.subheader('B5 · Stress thanh khoản danh mục')
-    st.info('Manual Portfolio – Simulated Holdings · Danh mục giả định; dữ liệu DNSE lịch sử. '
-            'Mã chưa xác minh đơn vị sẽ được báo riêng trong phần loại trừ.')
-    text = st.text_area('Danh mục CSV (symbol,quantity)', 'symbol,quantity\nACB,150000', key='dnse_portfolio')
-    shock = st.slider('Giảm độ sâu mua (%)', 0, 90, 50, key='dnse_shock')
-    if not st.checkbox('Cho phép phân tích snapshot lịch sử (B5)', key='dnse_allow_b5'):
+    form, result_area = st.columns([1, 2])
+    with form, st.container(border=True):
+        st.subheader('Danh mục giả định')
+        text = st.text_area('Danh mục CSV (symbol,quantity)', 'symbol,quantity\nACB,150000', key='dnse_portfolio')
+        shock = st.slider('Giảm độ sâu mua (%)', 0, 90, 50, key='dnse_shock')
+        consent = st.checkbox('Cho phép phân tích snapshot lịch sử (B5)', key='dnse_allow_b5')
+        st.caption('Manual Portfolio – Simulated Holdings. Mã chưa xác minh đơn vị sẽ được báo riêng trong phần loại trừ.')
+    if not consent:
         return
     try:
         positions = parse_portfolio(text)
@@ -83,14 +93,16 @@ def portfolio_page(store, day, at, symbol, settings):
         baseline = liquidate_portfolio(positions, books, **common)
         stressed_books = {s: apply_scenario(b, Scenario(Decimal(shock)/100)) for s,b in books.items()}
         stressed = liquidate_portfolio(positions, stressed_books, **common)
-        columns = st.columns(2)
-        for col, name, result in zip(columns, ['Baseline','Stressed'], [baseline,stressed]):
-            with col:
-                st.markdown('### ' + name)
-                st.metric('Coverage phần đủ dữ liệu', 'Chưa xác định' if result['coverage'] is None else f"{result['coverage']:.1%}")
-                st.metric('Chi phí phần tính được (VND)', number(result['cost']))
-                st.metric('Chưa bao phủ (CP)', number(result['uncovered']))
-                st.caption(f"Đủ dữ liệu: {result['analyzed_quantity']:,} CP · Bị loại: {result['excluded_quantity']:,} CP")
+        with result_area:
+            columns = st.columns(2)
+            for col, name, result in zip(columns, ['Baseline','Stressed'], [baseline,stressed]):
+                with col, st.container(border=True):
+                    st.markdown('### ' + name)
+                    st.metric('Coverage phần đủ dữ liệu', 'Chưa xác định' if result['coverage'] is None else f"{result['coverage']:.1%}")
+                    st.metric('Chi phí phần tính được (VND)', number(result['cost']))
+                    st.metric('Chưa bao phủ (CP)', number(result['uncovered']))
+                    st.caption(f"Đủ dữ liệu: {result['analyzed_quantity']:,} CP · Bị loại: {result['excluded_quantity']:,} CP")
+            st.caption('Chi phí tuyệt đối có thể giảm khi phần được bao phủ giảm. Luôn đọc cùng coverage.')
         if baseline['exclusions']:
             st.warning('Các mã sau bị loại khỏi mẫu số coverage và tổng tiền:')
             st.json(baseline['exclusions'])
@@ -113,7 +125,6 @@ def portfolio_page(store, day, at, symbol, settings):
 
 
 def liquidity_page(store, day, at, record, book):
-    st.subheader('Thanh khoản tại thời điểm quan sát')
     try:
         metrics = liquidity_metrics(book)
         cols = st.columns(4)
@@ -127,8 +138,15 @@ def liquidity_page(store, day, at, record, book):
                             'quantity_shares':x.volume} for side,values in [('Bid',book.bids),('Ask',book.asks)] for x in values])
     st.caption('Giá VND/CP; khối lượng CP. Trường thiếu giữ trống. Độ sâu cộng từ các mức quan sát được. '
                'Với ASSUMED_SHARED_SCHEMA, các giá trị quy đổi vẫn chưa được xác minh trực tiếp cho mã này.')
-    st.dataframe(levels, hide_index=True, width='stretch')
-    chart(px.bar(levels,x='price_vnd',y='quantity_shares',color='side',barmode='group', title='Ba mức giá quan sát được'))
+    left, right = st.columns(2)
+    with left, st.container(border=True):
+        st.subheader('Sổ lệnh ba mức giá')
+        st.dataframe(levels, hide_index=True, width='stretch')
+    with right, st.container(border=True):
+        cumulative = levels.copy()
+        cumulative['cumulative_shares'] = cumulative.groupby('side')['quantity_shares'].cumsum()
+        cumulative.loc[cumulative['price_vnd'].isna(), 'cumulative_shares'] = None
+        chart(px.line(cumulative,x='level',y='cumulative_shares',color='side',markers=True,title='Độ sâu tích lũy (CP)'))
     samples = store.sampled_records(book.symbol, day, at)
     frame = historical_frame([snapshot_from_record(r) for r in samples])
     st.subheader('Lịch sử theo thời gian nguồn')
@@ -145,23 +163,23 @@ def liquidity_page(store, day, at, record, book):
 
 
 def render(settings, mode, page):
-    st.sidebar.info('DNSE · Kho lịch sử chuẩn hóa · OFFLINE')
-    st.title('NEO LiquidityLab · DNSE lịch sử')
-    st.info('TÁI DỰNG LỊCH SỬ · Dữ liệu được tải sau phiên; đây không phải dữ liệu đã nhận tại thời điểm thị trường đó. '
-            'Không gọi API khi xem Dashboard. NEO API chưa tích hợp.')
+    st.sidebar.caption('DNSE · Kho lịch sử chuẩn hóa · OFFLINE')
+    theme.header(page)
+    theme.note('TÁI DỰNG LỊCH SỬ · Dữ liệu tải sau phiên; không chứng minh đã nhận tại thời điểm thị trường đó. Không gọi API khi xem Dashboard.')
     store = DNSEHistory(settings.dnse_database_path)
     try:
         dates = store.dates()
         if not dates:
             st.info('NO DATA · Kho DNSE chưa có snapshot chuẩn hóa.')
             return
-        day = st.sidebar.selectbox('Ngày dữ liệu nguồn (Việt Nam)', dates, index=len(dates)-1, key='dnse_day')
+        filters = st.columns([1, 1, 1])
+        day = filters[0].selectbox('Ngày dữ liệu nguồn (Việt Nam)', dates, index=len(dates)-1, key='dnse_day')
         catalog = store.catalog(day)
         symbols = sorted(catalog)
         if not symbols:
             st.info('NO DATA · Ngày này chưa có danh mục nguồn.')
             return
-        symbol = st.sidebar.selectbox('Mã cổ phiếu', symbols, index=symbols.index('ACB') if 'ACB' in symbols else 0,key='dnse_symbol')
+        symbol = filters[1].selectbox('Mã cổ phiếu', symbols, index=symbols.index('ACB') if 'ACB' in symbols else 0,key='dnse_symbol')
         window = store.window(symbol, day)
         st.caption(f"{symbol} · {catalog[symbol]['exchange']} · {window['snapshots']:,} snapshot chuẩn hóa trong ngày đã chọn.")
         if not window['snapshots']:
@@ -175,7 +193,7 @@ def render(settings, mode, page):
         latest = datetime.fromisoformat(window['last_source_time']).astimezone(LOCAL_TZ)
         at = latest
         if mode == 'Replay lịch sử':
-            clock = st.sidebar.time_input('Đến hết phút nguồn (giờ Việt Nam)', latest.time().replace(second=0,microsecond=0), step=60,
+            clock = filters[2].time_input('Đến hết phút nguồn (giờ Việt Nam)', latest.time().replace(second=0,microsecond=0), step=60,
                                            key=f'dnse_time_{day}')
             at = datetime.combine(datetime.fromisoformat(day).date(), clock, LOCAL_TZ).replace(second=59,microsecond=999999)
         st.caption(f'Khoảng nguồn đã lưu: {window["first_source_time"]} → {window["last_source_time"]} (UTC). '
@@ -186,7 +204,7 @@ def render(settings, mode, page):
             return
         record = records[symbol]
         book = snapshot_from_record(record)
-        st.markdown(f'**{symbol} · {record["unit_verification_status"]} · {book.market_session}**')
+        theme.chips(symbol, record['unit_verification_status'], book.market_session)
         st.caption(f'Thời gian nguồn: {book.source_timestamp.astimezone(LOCAL_TZ).isoformat()} · '
                    f'Thực nhận khi tải: {book.received_at_local.isoformat()} · Chất lượng: {book.data_quality_status}')
         if record['unit_verification_status']=='ASSUMED_SHARED_SCHEMA':
@@ -203,6 +221,6 @@ def render(settings, mode, page):
             st.json(dict(window=window, archive=catalog[symbol], snapshot=record))
             st.download_button('Tải snapshot đang xem (JSON)',json.dumps(record,ensure_ascii=False,indent=2),
                                f'dnse_{symbol}_{day}.json','application/json')
-        st.caption('Ba mức giá không mô tả toàn bộ sổ lệnh hay ưu tiên hàng đợi. Kết quả không bảo đảm khớp lệnh. Không gửi lệnh thật.')
+        theme.footer()
     except (sqlite3.Error, OSError, ValueError, KeyError) as error:
         st.error(f'Không đọc được kho DNSE ({type(error).__name__}). Kiểm tra đường dẫn DNSE_DATABASE_PATH và hoàn tất chuẩn hóa/audit trước khi mở lại.')

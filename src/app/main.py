@@ -29,15 +29,11 @@ from src.finance.portfolio_liquidation import liquidate_portfolio
 from src.finance.stress_testing import apply_scenario, compare_scenario, reverse_stress
 from src.models.portfolio import parse_portfolio
 from src.models.scenario import Scenario
+from src.app import theme
 
-st.set_page_config(page_title="NEO LiquidityLab", page_icon="◈", layout="wide")
+st.set_page_config(page_title="LiquidityLab · DNSE", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 settings = Settings()
-st.markdown("""<style>
-.stApp {background: #f5f7fb;}
-h1,h2,h3 {color: #142b47;}
-[data-testid="stMetric"] {background:white;border:1px solid #e1e6ef;border-radius:12px;padding:16px;}
-[data-testid="stSidebar"] {background:#edf1f7;}
-</style>""",unsafe_allow_html=True)
+theme.configure()
 
 
 def money(value, decimals=0):
@@ -49,8 +45,7 @@ def percent(value):
 
 
 def plot(fig):
-    fig.update_layout(template="plotly_white",paper_bgcolor="rgba(0,0,0,0)",margin=dict(t=35,b=30,l=20,r=20),height=340)
-    st.plotly_chart(fig,width="stretch")
+    theme.chart(fig)
 
 
 def levels_frame(snapshot):
@@ -71,12 +66,15 @@ def result_metrics(result):
                "Chi phí và net chỉ áp dụng cho khối lượng được bao phủ. Với chiều mua, net là tổng tiền chi.")
 
 
-st.sidebar.markdown("## ◈ NEO LiquidityLab")
-st.sidebar.caption("PRE-TRADE • A1 + B5")
-sources = ["demo","vnstock","dnse","neo"]
-source = st.sidebar.selectbox("Nguồn dữ liệu",sources,index=sources.index(settings.data_source) if settings.data_source in sources else 0)
-mode = st.sidebar.radio("Chế độ",["Snapshot","Replay lịch sử"])
-page = st.sidebar.radio("Màn hình",["Thanh khoản","Mô phỏng thực hiện lệnh","Stress danh mục"])
+theme.brand()
+page = st.sidebar.radio("Màn hình",["Thanh khoản","Mô phỏng thực hiện lệnh","Stress danh mục"],key='app_page',
+    label_visibility='collapsed',format_func=lambda p:{'Mô phỏng thực hiện lệnh':'Mô phỏng lệnh · A1','Stress danh mục':'Stress danh mục · B5'}.get(p,p))
+st.sidebar.divider()
+st.sidebar.markdown('<div class="ll-eyebrow">NGUỒN DỮ LIỆU</div>',unsafe_allow_html=True)
+sources = ["dnse","demo","vnstock","neo"]
+source = st.sidebar.selectbox("Nguồn dữ liệu",sources,index=sources.index(settings.data_source) if settings.data_source in sources else 0,
+    key='app_source',format_func=lambda s:{'dnse':'DNSE · Lịch sử','demo':'Demo · Dữ liệu giả lập','vnstock':'Vnstock · Nguồn cũ','neo':'NEO · Adapter cũ'}[s])
+mode = st.sidebar.radio("Chế độ",["Snapshot","Replay lịch sử"],key='app_mode',index=1 if source=='dnse' else 0)
 if source == "dnse":
     from src.app.dnse_history import render
     render(settings, mode, page)
@@ -84,9 +82,9 @@ if source == "dnse":
 provider = create_provider(source)
 label = provider.get_provider_info()["label"]
 st.sidebar.info(label)
-st.sidebar.caption("NEO API: chưa tích hợp / chưa kiểm thử kết nối thật.")
-st.title("NEO LiquidityLab")
-st.caption("Mô phỏng chi phí thực hiện lệnh & sức chịu đựng thanh khoản danh mục cổ phiếu Việt Nam")
+if source=='neo':
+    st.sidebar.caption("Adapter NEO cũ chưa cấu hình. DNSE là nguồn chính của đồ án.")
+theme.header(page)
 
 if "demo_snapshots" not in st.session_state:
     st.session_state.demo_snapshots = create_provider("demo").get_snapshots(["FPT","HPG","ACB"])
@@ -193,7 +191,7 @@ if page == "Thanh khoản":
     st.caption("Độ sâu là tổng các mức hợp lệ quan sát được; PARTIAL DATA có thể thiếu mức. OBI không phải tín hiệu mua/bán.")
     left,right = st.columns([1.2,1])
     with left:
-        plot(px.bar(levels_frame(book),x="Giá (VND/CP)",y="Khối lượng (CP)",color="Bên",barmode="group",title="Ba mức giá đang quan sát",color_discrete_map={"Bid":"#247b87","Ask":"#d58a43"}))
+        plot(px.bar(levels_frame(book),x="Giá (VND/CP)",y="Khối lượng (CP)",color="Bên",barmode="group",title="Ba mức giá đang quan sát",color_discrete_map={"Bid":"#252525","Ask":"#929292"}))
     with right:
         st.dataframe(levels_frame(book),hide_index=True,width="stretch")
     st.subheader("Lịch sử đã lưu & chất lượng dữ liệu")
@@ -338,4 +336,5 @@ with st.expander("Phương pháp & giới hạn"):
     st.markdown("""Ba mức giá chỉ đại diện tại thời điểm quan sát; không bao gồm toàn bộ sổ lệnh, lệnh mới/hủy hay ưu tiên hàng đợi.
     Kết quả không bảo đảm khớp lệnh. Chi phí quét sổ không phải đầy đủ market impact. Stress là giả định, không dự báo xác suất hay thời gian thanh lý.
     Phí/thuế do người dùng nhập, mặc định 0; không đại diện biểu phí VPBankS. Dữ liệu lịch sử phụ thuộc mẫu thực thu.
-    Không có chức năng gửi lệnh thật. NEO chưa tích hợp nên MVP chưa đủ tiêu chí NEO API cốt lõi của đồ án cuối kỳ.""")
+    Không có chức năng gửi lệnh thật. DNSE là nguồn chính; phạm vi đơn vị và độ phủ dữ liệu phải được kiểm tra riêng.""")
+theme.footer()

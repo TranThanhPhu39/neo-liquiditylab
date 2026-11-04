@@ -1,0 +1,64 @@
+name: Deploy LiquidityLab dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'src/app/browser_bridge.py'
+      - 'src/models/**'
+      - 'src/finance/**'
+      - 'src/data_pipeline/dnse_normalization.py'
+      - 'src/data_pipeline/validation.py'
+      - 'scripts/build_web_dashboard.py'
+      - '.github/workflows/dashboard-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install timezone data
+        run: python -m pip install tzdata==2025.2
+      - name: Bundle the shared Decimal finance core
+        run: python -m scripts.build_web_dashboard
+      - name: Validate the public web artifact
+        run: |
+          node --check web/app.js
+          node --check web/engine-worker.js
+          test -f web/index.html
+          test -f web/runtime/pyodide.asm.wasm
+          test -f web/engine.zip
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload only the web directory
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy dashboard
+        id: deployment
+        uses: actions/deploy-pages@v4

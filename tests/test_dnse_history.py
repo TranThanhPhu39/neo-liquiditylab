@@ -94,16 +94,16 @@ def test_dnse_three_screens_and_unverified_guard(history,monkeypatch):
     at=dashboard(history,monkeypatch)
     assert not at.exception and not at.error
     assert at.metric[0].value=='301,100'
-    at.sidebar.radio[0].set_value('Replay lịch sử').run()
+    at.sidebar.radio(key="app_mode").set_value('Replay lịch sử').run()
     assert not at.exception
-    at.sidebar.radio[1].set_value('Mô phỏng thực hiện lệnh').run()
+    at.sidebar.radio(key="app_page").set_value('Mô phỏng thực hiện lệnh').run()
     at.checkbox[0].check().run()
     assert not at.exception and at.metric[0].value=='100.0%'
     assert at.metric[2].value=='2,570,000'
-    at.sidebar.selectbox(key='dnse_symbol').set_value('FPT').run()
+    at.selectbox(key='dnse_symbol').set_value('FPT').run()
     assert not at.exception and not at.metric
     assert any('đang khóa' in i.value for i in at.info)
-    at.sidebar.radio[1].set_value('Stress danh mục').run()
+    at.sidebar.radio(key="app_page").set_value('Stress danh mục').run()
     at.checkbox[0].check().run()
     assert not at.exception and at.metric[0].value=='100.0%'
     at.text_area[0].set_value('symbol,quantity\nACB,150000\nFPT,100').run()
@@ -113,11 +113,11 @@ def test_dnse_three_screens_and_unverified_guard(history,monkeypatch):
 
 def test_dnse_empty_symbol_and_replay_before_first_event(history,monkeypatch):
     at=dashboard(history,monkeypatch)
-    at.sidebar.selectbox(key='dnse_symbol').set_value('EMG').run()
+    at.selectbox(key='dnse_symbol').set_value('EMG').run()
     assert not at.exception and not at.metric
     assert any('chưa thể suy ra' in i.value for i in at.info)
-    at.sidebar.selectbox(key='dnse_symbol').set_value('ACB').run()
-    at.sidebar.radio[0].set_value('Replay lịch sử').run()
-    at.sidebar.time_input[0].set_value(datetime.strptime('09:00','%H:%M').time()).run()
+    at.selectbox(key='dnse_symbol').set_value('ACB').run()
+    at.sidebar.radio(key="app_mode").set_value('Replay lịch sử').run()
+    at.time_input[0].set_value(datetime.strptime('09:00','%H:%M').time()).run()
     assert not at.exception and not at.metric
     assert any('không dùng snapshot tương lai' in i.value for i in at.info)

@@ -17,6 +17,7 @@ data/control/
 data/github/
 data/history/
 data/realtime/
+data/exports/
 report/realtime/
 report/github/
 report/automation/logs/

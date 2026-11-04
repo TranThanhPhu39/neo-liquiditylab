@@ -6,7 +6,32 @@ Hệ thống mô phỏng chi phí thực hiện lệnh và stress thanh khoản 
 
 MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE OpenAPI là nguồn chính theo quyết định ngày 03/11/2026; không tiếp tục tích hợp NEO VPBankS.** Vnstock là nguồn cũ, Demo là synthetic. Không có chức năng đặt/sửa/hủy lệnh thật.
 
-[Quyết định nguồn](docs/data_source_decision.md) ghi nhận người thực hiện đã xác nhận việc dùng DNSE được thống nhất ngày 03/11/2026. Tên dự án/repo và adapter NEO chưa cấu hình còn được giữ; lượt này chưa đổi nhãn giao diện hoặc cấu hình chạy mặc định.
+[Quyết định nguồn](docs/data_source_decision.md) ghi nhận người thực hiện đã xác nhận việc dùng DNSE được thống nhất ngày 03/11/2026. Dashboard dùng giao diện đen–xám theo Penpot, mặc định nguồn DNSE; tên repo và adapter NEO cũ còn được giữ.
+
+## Dashboard web và Streamlit
+
+Bản web chính trên GitHub Pages: https://tranthanhphu39.github.io/neo-liquiditylab/ — truy cập công khai, không cần đăng nhập ChatGPT. Bản Sites riêng tư trước đó vẫn được giữ.
+
+Bản web gồm **Thanh khoản, Mô phỏng lệnh A1 và Stress danh mục B5**, dùng cùng lõi Python/Decimal với Streamlit. Bản web xử lý tệp DNSE chuẩn hóa trong trình duyệt; chưa tự đồng bộ dữ liệu từ GitHub. Dữ liệu mẫu có nhãn giả lập riêng. Không đưa khóa API vào trình duyệt.
+
+Xuất tệp để mở trên web, từ kho đã tải và chuẩn hóa trên máy:
+
+```powershell
+# Toàn bộ mã có snapshot trước 14:20 của ngày mới nhất
+.\.venv\Scripts\python.exe -m scripts.export_dashboard
+# Thêm lịch sử ACB, tối đa 300 điểm mẫu
+.\.venv\Scripts\python.exe -m scripts.export_dashboard --date 2026-11-03 --symbols ACB --samples 300
+```
+
+Tệp nằm ở `data/exports/dashboard/dnse_YYYY-MM-DD.json`. Bấm **Mở dữ liệu** trên web rồi chọn tệp. Có thể dùng `--at 15:10` để xem cuối ngày; mô phỏng vẫn khóa snapshot ngoài phiên liên tục. Tệp không upload lên máy chủ và không còn trong bộ nhớ khi tải lại tab. Mã không có snapshot không được tự gán 0. Tối đa 25 MB / 30.000 snapshot mỗi tệp; nếu nhiều mẫu, hãy giới hạn `--symbols`.
+
+Streamlit tiếp tục đọc trực tiếp SQLite trên máy:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run src/app/main.py
+```
+
+Thiết kế gốc nằm trong Penpot; mã web công khai ở [`web/`](web/README.md). Workflow [`dashboard-pages.yml`](.github/workflows/dashboard-pages.yml) tự đóng gói lõi Python và deploy khi mã web thay đổi trên `main`; không sử dụng secret DNSE. Mã chưa xác minh đơn vị vẫn có thể xem chỉ số quan sát, nhưng bị loại khỏi A1/B5. Chọn Replay và thời điểm phiên liên tục để phân tích dữ liệu lịch sử.
 
 **Chốt dữ liệu đến 03/11/2026:** năm ngày giao dịch 28, 29, 30/10 và 02, 03/11, **4.570.076 snapshot duy nhất**. Audit 5.195.736 lượt raw từ sáu kho đạt, 0 cách ly, integrity ok, 0 lỗi FK. Riêng 03/11: 1.517 mã trong danh mục, 827.811 bản ghi raw, 823.094 snapshot duy nhất. Hồi quy gần nhất **214 tests đạt**; AppTest dữ liệu 02/11 đạt ba màn hình. Báo cáo ngày nằm cục bộ ở `report/dnse_day_completion_2026-11-03.md/.json`. Xem thêm [đối chiếu đề](docs/assignment_compliance.md), [giới hạn](docs/limitations.md).
 
