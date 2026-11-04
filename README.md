@@ -6,6 +6,8 @@ Hệ thống mô phỏng chi phí thực hiện lệnh và stress thanh khoản 
 
 MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE OpenAPI là nguồn chính theo quyết định ngày 03/11/2026; không tiếp tục tích hợp NEO VPBankS.** Vnstock là nguồn cũ, Demo là synthetic. Không có chức năng đặt/sửa/hủy lệnh thật.
 
+**Luồng WS mới (04/11):** sau mỗi checkpoint GitHub, dữ liệu được chuẩn hóa cấu trúc, audit và lưu checkpoint mã hóa riêng `dnse-ws-normalized`. Thu local cũng chuẩn hóa sau khi kết thúc. Giữ số nguồn, timestamp nanosecond, tất cả mức giá, receipts/gaps và quarantine. **Đơn vị WS và full-vs-delta chưa xác minh nên chưa quy đổi VND/CP hoặc mở A1/B5.** Xem [quy trình và lệnh khôi phục](docs/dnse_ws_normalization.md).
+
 [Quyết định nguồn](docs/data_source_decision.md) ghi nhận người thực hiện đã xác nhận việc dùng DNSE được thống nhất ngày 03/11/2026. Dashboard dùng giao diện đen–xám theo Penpot, mặc định nguồn DNSE; tên repo và adapter NEO cũ còn được giữ.
 
 ## Dashboard web và Streamlit
@@ -62,7 +64,8 @@ Các lệnh dưới đây chạy trong **PowerShell tại thư mục chứa READ
 | Nhận raw WebSocket G1 trong phiên | GitHub Actions, đã bật lịch | Không |
 | Lưu checkpoint raw WebSocket mã hóa | GitHub Releases, mỗi 15 phút và khi dừng bình thường | Không |
 | Tự tải checkpoint WebSocket về máy | Chưa có CLI đồng bộ hằng ngày | Chưa tự động |
-| Chuẩn hóa WebSocket để dùng dashboard/A1/B5 | Chưa có luồng nhập; đơn vị WS còn chưa xác minh | Chưa dùng được bằng lệnh REST |
+| Chuẩn hóa cấu trúc WebSocket | Tự chạy sau mỗi checkpoint GitHub, lưu mã hóa riêng; đơn vị WS còn chưa xác minh | Không cần mở máy để chuẩn hóa cấu trúc; chưa dùng A1/B5 |
+| Khôi phục bản cấu trúc WS về máy | `scripts.sync_dnse_ws_normalized --date YYYY-MM-DD --partition morning` hoặc `afternoon` | Có, khi cần xem trên máy |
 | Tải lịch sử REST và chuẩn hóa cho dashboard | Lệnh `scripts.update_dnse_day` trên máy | Có, trong khi lệnh chạy |
 | Làm mới danh mục dùng cho GitHub | Lệnh `scripts.prepare_dnse_realtime --publish` trên máy | Có, trong lúc cập nhật |
 
@@ -79,7 +82,7 @@ Mở [Actions → DNSE realtime G1 collector](https://github.com/TranThanhPhu39/
 
 Lịch đã bật ngày 03/11, lượt định kỳ đầu dự kiến 04/11. GitHub có thể khởi chạy trễ; chưa tích hợp lịch nghỉ lễ. WebSocket cần kết nối trong phiên, không tải lại diễn biến đã qua bằng cách chạy cuối phiên. Hai lượt thử ngoài giờ đã xác minh kết nối/lưu/khôi phục trên hai runner mới; tải thực cả phiên và lần cron đầu vẫn cần kiểm chứng.
 
-Sau khi job kết thúc, xem summary và log bước **Restore collect audit and save encrypted checkpoints**:
+Sau khi job kết thúc, xem summary và log bước **Restore collect normalize audit and save encrypted checkpoints**:
 
 - Trạng thái kết thúc bình thường của lượt thu là `WINDOW_ENDED_OBSERVED_ONLY`.
 - Kiểm tra `shards_subscribed` bằng `expected_connections`, `fatal_error` là `null`, `unpersisted_receipts_this_run` bằng 0, `audit.state` là `VERIFIED`, checkpoint đã lưu.

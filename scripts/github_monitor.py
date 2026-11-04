@@ -28,9 +28,11 @@ DNSE_REALTIME_FIELDS={"provider","purpose","state","date_local","partition","mod
     "receipt_count","duplicate_receipts","symbols_requested","symbols_observed","connection_attempts",
     "authenticated_connections","subscription_acknowledgements","expected_connections","shards_subscribed",
     "known_gaps","unit_status","finance_enabled","unpersisted_receipts_this_run","audit",
-    "seed_checkpoint","restored_checkpoint","catalog_symbols","error_code","started_network","stop_requested"}
+    "seed_checkpoint","restored_checkpoint","catalog_symbols","error_code","started_network","stop_requested","normalization"}
 DNSE_REALTIME_AUDIT_FIELDS={"state","sqlite_integrity","foreign_key_errors","payloads_checked",
     "unique_events","receipt_count","units_verified","financial_eligible"}
+DNSE_NORMALIZATION_FIELDS={"state","normalization_version","normalized_events","quarantined_events",
+    "receipt_count","units_verified","financial_eligible","checkpoint","raw_checkpoint","restored_checkpoint","error_code"}
 
 
 def dnse_summary(candidate):
@@ -67,7 +69,9 @@ def summarize_log(log):
                 records.append(candidate)
             elif isinstance(candidate,dict) and candidate.get("purpose")=="REALTIME_G1_COLLECTOR" and set(candidate)<=DNSE_REALTIME_FIELDS:
                 audit=candidate.get("audit")
-                if audit is None or (isinstance(audit,dict) and set(audit)<=DNSE_REALTIME_AUDIT_FIELDS):
+                normalization=candidate.get('normalization')
+                if ((audit is None or (isinstance(audit,dict) and set(audit)<=DNSE_REALTIME_AUDIT_FIELDS))
+                        and (normalization is None or isinstance(normalization,dict) and set(normalization)<=DNSE_NORMALIZATION_FIELDS)):
                     records.append(candidate)
     totals=[line for line in log.splitlines() if re.search(r"\b[0-9]+ passed\b",line)]
     return {"worker_summaries":records,"pytest_totals":totals[-3:]}

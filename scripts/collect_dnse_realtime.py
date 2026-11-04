@@ -60,7 +60,14 @@ def run_local(args):
                              os.getenv('DNSE_API_KEY'), os.getenv('DNSE_API_SECRET'), seconds,
                              mode=args.mode, status_hook=status, stop_file=ROOT/'data/control/STOP_DNSE_REALTIME')
     with exclusive_job(ROOT/'data/control/dnse_realtime.lock'), keep_awake():
-        return asyncio.run(execute())
+        result=asyncio.run(execute())
+        if (folder/'quotes.db').exists():
+            from scripts.normalize_dnse_realtime import normalize
+            with exclusive_job(ROOT/'data/control/dnse_ws_normalization.lock'):
+                normalized=normalize(folder/'quotes.db',ROOT/'data/processed/dnse_ws'/now.date().isoformat()/partition/'normalized.db')
+            result['normalization']={**normalized['audit'],'state':normalized['state']}
+            write_json(reports/'normalization.json',normalized)
+        return result
 
 
 def main():

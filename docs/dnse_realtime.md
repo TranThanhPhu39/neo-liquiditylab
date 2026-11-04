@@ -1,5 +1,7 @@
 # Bộ thu realtime DNSE G1
 
+**Bổ sung 04/11:** mỗi checkpoint raw trên GitHub có thêm bước chuẩn hóa cấu trúc, audit và lưu checkpoint AES-GCM vào namespace `dnse-ws-normalized`. Thu local cũng gọi bước này sau khi kết thúc. Đơn vị và full-vs-delta của WS chưa xác minh, nên chưa quy đổi VND/CP hoặc dùng cho A1/B5. Xem [luồng chuẩn hóa và lệnh khôi phục](dnse_ws_normalization.md).
+
 Cập nhật 03/11/2026. Bộ thu dùng WebSocket DNSE cho dữ liệu thị trường, không gọi API giao dịch. Nguồn chính của đồ án là DNSE. REST lịch sử, kho chuẩn hóa và bộ thu WebSocket có đường lưu riêng.
 
 ## Khởi chạy cục bộ

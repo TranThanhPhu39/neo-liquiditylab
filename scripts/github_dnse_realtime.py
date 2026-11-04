@@ -17,6 +17,7 @@ from scripts.scheduled_collection import exclusive_job, write_json
 from src.data_pipeline.dnse_realtime import collect, Limits, validate_catalog
 from src.data_pipeline.dnse_realtime_store import audit
 from src.models.orderbook import LOCAL_TZ
+from scripts.normalize_dnse_realtime import normalize
 
 REPOSITORY = 'TranThanhPhu39/neo-liquiditylab'
 
@@ -69,6 +70,13 @@ def run(mode='smoke', session='auto', seconds=60):
     folder.mkdir(parents=True, exist_ok=True)
     database = folder/'quotes.db'
     reports = ROOT/'report/realtime/dnse'/day/partition
+    normalized_folder = ROOT/'data/processed/dnse_ws'/day/partition
+    normalized_folder.mkdir(parents=True,exist_ok=True)
+    normalized_database = normalized_folder/'normalized.db'
+    normalized_store = ReleaseStore(REPOSITORY,key,namespace='dnse-ws-normalized')
+    normalized_restored = None
+    if not normalized_database.exists():
+        normalized_restored = normalized_store.restore(day_key,normalized_database,reports/'normalized-restored')
     store = ReleaseStore(REPOSITORY, key, namespace='dnse-ws-state')
     restored = None
     if not database.exists():
@@ -93,6 +101,27 @@ def run(mode='smoke', session='auto', seconds=60):
             write_json(frozen/'universe.json', catalog)
             tag = store.publish(day_key, frozen/'frozen.db', frozen,
                                 os.getenv('GITHUB_RUN_ID', 'manual'), os.getenv('GITHUB_RUN_ATTEMPT', '1'))
+            # Derived-data errors must not interrupt or discard successful raw persistence.
+            try:
+                with exclusive_job(ROOT/'data/control/dnse_ws_normalization.lock'):
+                    converted = normalize(frozen/'frozen.db',normalized_database)
+                    derived = frozen/'normalized'
+                    derived.mkdir()
+                    write_json(derived/'audit.json',converted['audit'])
+                    write_json(derived/'status.json',converted)
+                    write_json(derived/'universe.json',catalog)
+                    normalized_tag = normalized_store.publish(day_key,normalized_database,derived,
+                        os.getenv('GITHUB_RUN_ID','manual'),os.getenv('GITHUB_RUN_ATTEMPT','1'))
+                normalization = dict(state='SAVED_ENCRYPTED',normalization_version=converted['normalization_version'],
+                    normalized_events=converted['audit']['normalized_events'],
+                    quarantined_events=converted['audit']['quarantined_events'],
+                    receipt_count=converted['audit']['receipt_count'],units_verified=False,
+                    financial_eligible=False,checkpoint=normalized_tag,raw_checkpoint=tag,
+                    restored_checkpoint=normalized_restored)
+            except Exception as error:
+                code=str(error)
+                normalization=dict(state='FAILED_RESUMABLE',error_code=code if re.fullmatch('[A-Z0-9_]{1,90}',code) else type(error).__name__)
+            write_json(ROOT/'report/github/dnse_ws_normalization_checkpoint.json',normalization)
         write_json(ROOT/'report/github/dnse_realtime_checkpoint.json', {'state': 'SAVED', 'tag': tag, 'partition': partition})
 
     async def execute():
@@ -111,6 +140,11 @@ def run(mode='smoke', session='auto', seconds=60):
     with exclusive_job(ROOT/'data/control/dnse_realtime.lock'):
         result = asyncio.run(execute())
     result.update(seed_checkpoint=seed, restored_checkpoint=restored)
+    normalized_report=ROOT/'report/github/dnse_ws_normalization_checkpoint.json'
+    if normalized_report.exists():
+        result['normalization']=json.loads(normalized_report.read_text(encoding='utf-8'))
+        if result['normalization']['state']=='FAILED_RESUMABLE' and not result['state'].startswith('FAILED'):
+            result['state']='FAILED_NORMALIZATION_RESUMABLE'
     write_json(ROOT/'report/github/dnse_realtime_result.json', result)
     return result
 

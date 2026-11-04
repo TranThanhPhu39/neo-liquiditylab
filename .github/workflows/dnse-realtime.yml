@@ -43,7 +43,7 @@ jobs:
           python-version: '3.12'
       - name: Install collector dependencies
         run: python -m pip install python-dotenv==1.2.4 websockets==15.0.1 cryptography==46.0.7
-      - name: Restore collect audit and save encrypted checkpoints
+      - name: Restore collect normalize audit and save encrypted checkpoints
         env:
           DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
           DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
