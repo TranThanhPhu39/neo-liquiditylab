@@ -12,7 +12,8 @@ from scripts.github_api import GitHubAPI, GitHubError, repository_path
 from scripts.github_setup import public_source, REPOSITORY
 
 WEB_FILES = {
-    '.nojekyll', 'README.md', 'app.js', 'cloud-data.js', 'engine-worker.js', 'engine.zip', 'index.html',
+    '.nojekyll', 'README.md', 'app.js', 'cloud-data.js', 'depth-surface.js','engine-worker.js', 'engine.zip', 'index.html',
+    'vendor/plotly-gl3d-3.7.0.min.js','vendor/PLOTLY-LICENSE','vendor/plotly-manifest.json',
     'mark.svg', 'style.css', 'THIRD_PARTY.md', 'fonts/OFL.txt', 'fonts/rubik-0.woff2',
     'fonts/rubik-1.woff2', 'fonts/rubik-2.woff2', 'runtime/PYODIDE-LICENSE',
     'runtime/pyodide-lock.json', 'runtime/pyodide.asm.js', 'runtime/pyodide.asm.wasm',

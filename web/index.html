@@ -5,7 +5,7 @@
   <meta name="description" content="LiquidityLab: độ sâu DNSE ba mức giá, mô phỏng thực hiện lệnh và stress thanh khoản danh mục.">
   <meta name="theme-color" content="#252525"><title>LiquidityLab · DNSE</title>
   <link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
-  <script src="./cloud-data.js" defer></script><script src="./app.js" defer></script>
+  <script src="./cloud-data.js" defer></script><script src="./depth-surface.js" defer></script><script src="./app.js" defer></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -43,6 +43,11 @@
         <section class="panel"><div class="panel-head"><h2>Độ sâu tích lũy</h2><span class="muted">CP</span></div><div id="depthChart" class="chart"></div><div class="panel-foot">Cộng dồn theo thứ tự mức 1 → 3; chỉ dùng mức giá quan sát được.</div></section></div>
         <div class="grid watch"><section class="panel"><div class="panel-head"><h2>Danh mục theo ngày</h2><label class="search-label"><span class="sr-only">Tìm mã</span><input id="search" placeholder="Tìm mã…" maxlength="10"></label></div><div id="watchlist" class="table-scroll watch-table"></div></section>
         <section class="panel"><div class="panel-head"><h2>Chất lượng dữ liệu</h2></div><div id="quality"></div></section></div>
+        <section class="panel depth-panel"><div class="panel-head"><div><h2>Độ sâu 3D theo thời gian</h2><p class="depth-subtitle">Ba mức giá · Kéo để xoay, cuộn để phóng to</p></div><span class="tag">LỊCH SỬ ĐÃ LƯU</span></div>
+          <div class="depth-controls"><label>Bên sổ lệnh<select id="depthSide"><option value="bid">Bid · Chờ mua</option><option value="ask">Ask · Chờ bán</option><option value="both">Cả Bid và Ask</option></select></label><label>Trục khối lượng<select id="depthMode"><option value="volume">Khối lượng từng mức</option><option value="cumulative">Khối lượng tích lũy</option></select></label><span id="depthSummary" class="small muted" role="status"></span></div>
+          <div id="depthSurface" class="depth-surface" role="region" aria-label="Biểu đồ độ sâu ba chiều theo thời gian">Chưa có điểm dữ liệu.</div>
+          <p class="panel-foot" id="depthSurfaceNote">Mặt lưới nối các điểm mẫu của ba mức mỗi bên. Phần thiếu được ngắt; không khôi phục mức giá hoặc tick chưa quan sát.</p>
+        </section>
         <section class="panel"><div class="panel-head"><h2>Độ sâu theo thời gian nguồn</h2><span class="muted">Điểm lịch sử đã tải</span></div><div id="historyChart" class="chart"></div></section>
       </section>
       <section id="execution" class="screen" hidden>

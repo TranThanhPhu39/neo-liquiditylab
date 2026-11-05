@@ -8,7 +8,7 @@ import tzdata
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = (
-    'src/__init__.py', 'src/app/__init__.py', 'src/app/browser_bridge.py',
+    'src/__init__.py', 'src/app/__init__.py', 'src/app/browser_bridge.py','src/app/depth_surface.py',
     'src/models/__init__.py', 'src/models/orderbook.py', 'src/models/execution.py',
     'src/models/portfolio.py', 'src/models/scenario.py',
     'src/data_pipeline/__init__.py', 'src/data_pipeline/validation.py',

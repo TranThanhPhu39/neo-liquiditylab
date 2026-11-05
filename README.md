@@ -1,4 +1,4 @@
-# NEO LiquidityLab
+﻿# NEO LiquidityLab
 
 Các đoạn về task toàn thị trường, server và mẫu 66 snapshot dưới đây mô tả **nguồn Vnstock cũ**. Dữ liệu/luồng DNSE hiện tại được mô tả ở đầu trang và trong hướng dẫn DNSE.
 
@@ -320,6 +320,8 @@ Collector chạy trong cửa sổ bảo thủ 09:15–11:30 và 13:00–14:30 gi
 Khởi đầu 3 mã; thêm 10–15 mã trong `config/symbols.yaml` khi quyền/hạn mức cho phép. Theo dõi báo cáo chất lượng mỗi ngày. Nghỉ tối thiểu 180 giây trong provider và database dùng chung, kể cả bấm lại dashboard; nhịp này **không bảo đảm** đủ quota ngày/tháng. Không chạy nhiều database/collector cho cùng tài khoản để tăng hạn mức. Mục tiêu 5–10 phiên thật trở lên, tốt hơn một tháng thực thu; báo cáo không tự tạo phiên thiếu.
 
 ## Bộ thu realtime DNSE
+
+**Biểu đồ độ sâu 3D:** màn hình Thanh khoản có mặt lưới xanh theo **giá – thời gian nguồn – khối lượng**, chọn Bid/Ask/hai bên và khối lượng từng mức/tích lũy. Chỉ dùng ba mức quan sát, ngắt khi thiếu và qua khoảng nghỉ; không tạo tick hoặc mức giá mới. Có bản xuất HTML tương tác độc lập. Xem [cách dùng và giới hạn](docs/depth_surface.md).
 
 Đã có bộ thu WebSocket G1 theo toàn bộ danh mục, chia kết nối, lưu SQLite riêng, reconnect và ghi nhận khoảng chưa quan sát. Xem [hướng dẫn chạy realtime](docs/dnse_realtime.md). Đã kiểm tra hai runner mới trong các cửa sổ ngắn ngày 04/11, đăng ký đủ 1.518 mã trên 8 kết nối và lưu/khôi phục checkpoint mã hóa; chưa kiểm chứng tải cả phiên. ACB có thêm bản quy đổi ba mức đã đối chiếu, còn các mã khác giữ chặn tính toán. Lịch đã bật lúc 08:52 và 12:52 giờ Việt Nam ngày thường. Seed danh mục hiện dùng đến 10/11, cần làm mới trước 11/11.
 

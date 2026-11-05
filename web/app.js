@@ -39,12 +39,17 @@ function validNumber(id,min,max,integer=false){const v=$(id).value;if(v.trim()==
 function request(reverse=false){return {day:$('day').value,symbol:$('symbol').value,time:$('clock').value||'23:59',page:state.page,
   side:$('side').value,quantity:validNumber(reverse?'reverseQty':'quantity',1,1e12,true),benchmark:$('benchmark').value,
   fee_percent:(validNumber('fee',0,100),$('fee').value),tax_percent:(validNumber('tax',0,100),$('tax').value),portfolio:$('portfolio').value,
-  shock:validNumber('shock',0,90,true),threshold:validNumber('threshold',1,100),reverse};}
+  shock:validNumber('shock',0,90,true),threshold:validNumber('threshold',1,100),
+  depth_side:$('depthSide').value,depth_mode:$('depthMode').value,reverse};}
 async function update(reverse=false){
   if(!state.loaded)return;const version=++state.version;
   if(!reverse)$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';
   try {
     const query=request(reverse);
+    if(state.page==='liquidity'){
+      const scope=[query.day,query.symbol,query.time].join('|'),element=$('depthSurface');
+      if(element.dataset.scope!==scope){DepthSurface.clear(element,'Đang chọn dữ liệu lịch sử…');$('depthSummary').textContent='Đang tải';element.dataset.scope=scope;}
+    }
     if(cloud.enabled){
       const positions=query.page==='stress'?await call('portfolio_symbols',query.portfolio):[];
       const prepared=await cloud.prepare(query.day,[query.symbol,...positions]);
@@ -59,10 +64,16 @@ async function update(reverse=false){
     if(version!==state.version)return;
     state.data=result;notice('');render(result);
     if(reverse)$('reverseResult').textContent=result.stress_error||result.execution_error||(result.reverse===null?'Coverage không rơi dưới ngưỡng trong khoảng giảm độ sâu 0–90%.':result.reverse===undefined?'Không đủ dữ liệu hợp lệ cho reverse stress.':`Ngưỡng suy giảm độ sâu: ${pct(result.reverse)} (lưới 0,01%).`);
-  }catch(error){if(version!==state.version)return;notice(error.message);clearFinancial();if(cloud.enabled){state.data=null;$('liquidityMetrics').replaceChildren();$('export').disabled=true;clearCharts(['book','depthChart','quality','historyChart','watchlist'],'Chưa tải được dữ liệu hợp lệ cho lựa chọn này.');$('raw').textContent='Chưa có snapshot hợp lệ.';$('provenance').textContent='Chưa dùng dữ liệu để tính toán. Hãy thử tải lại ngày hoặc mã đã chọn.';}}
+  }catch(error){if(version!==state.version)return;notice(error.message);clearFinancial();DepthSurface.clear($('depthSurface'),'Chưa có dữ liệu hợp lệ cho lựa chọn này.');$('depthSummary').textContent='Chưa có dữ liệu';if(cloud.enabled){state.data=null;$('liquidityMetrics').replaceChildren();$('export').disabled=true;clearCharts(['book','depthChart','quality','historyChart','watchlist'],'Chưa tải được dữ liệu hợp lệ cho lựa chọn này.');$('raw').textContent='Chưa có snapshot hợp lệ.';$('provenance').textContent='Chưa dùng dữ liệu để tính toán. Hãy thử tải lại ngày hoặc mã đã chọn.';}}
 }
 function clearFinancial(){$('executionMetrics').replaceChildren();$('baseline').replaceChildren();$('stressed').replaceChildren();clearCharts(['fills','costChart','coverageChart','portfolioChart','portfolioRows','exclusions'],'Chưa có kết quả hợp lệ.');}
 function render(r){
+  if(state.page==='liquidity'){
+    DepthSurface.render($('depthSurface'),r.depth_surface);
+    const d=r.depth_surface;
+    $('depthSummary').textContent=d?.points?`${d.points} snapshot mẫu · ${d.gaps} khoảng ngắt${d.units_verified?'':' · Đơn vị chưa xác minh độc lập'}`:'Chưa có snapshot';
+    $('depthSurfaceNote').textContent=(d?.points===1?'Chỉ có một snapshot: hiển thị lát cắt ba mức, chưa đủ mặt theo thời gian. ':'')+'Mặt lưới nối điểm mẫu của ba mức mỗi bên. Khoảng cách nguồn trên 15 phút và phần thiếu được ngắt; không khôi phục mức giá hoặc tick chưa quan sát.';
+  }
   $('empty').hidden=true;$('workspace').hidden=false;$('export').disabled=!r.record;
   const b=r.record;
   const wsBook=b?.capture_method==='websocket_realtime';
@@ -166,7 +177,7 @@ document.querySelectorAll('[data-import]').forEach(b=>b.addEventListener('click'
 $('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>25*1024*1024){notice('Tệp lớn hơn 25 MB. Hãy xuất ít mã/điểm mẫu hơn.');return;}await ingest(await f.text(),f.name);e.target.value='';});
 $('demo').addEventListener('click',demo);$('emptyDemo').addEventListener('click',demo);
 $('day').addEventListener('change',()=>{if(cloud.enabled){loadCloudDay($('day').value,$('symbol').value);return;}optionList('symbol',state.daySymbols[$('day').value],$('symbol').value);update();});
-for(const id of ['symbol','clock','side','quantity','benchmark','fee','tax','consentA1','portfolio','consentB5','threshold','reverseQty'])$(id).addEventListener('change',()=>{$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';update();});
+for(const id of ['symbol','clock','side','quantity','benchmark','fee','tax','consentA1','portfolio','consentB5','threshold','reverseQty','depthSide','depthMode'])$(id).addEventListener('change',()=>{$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';update();});
 let debounce;$('shock').addEventListener('input',()=>{$('shockValue').value=$('shock').value;$('reverseResult').textContent='Tìm lại ngưỡng sau khi thay đổi thông số.';clearTimeout(debounce);debounce=setTimeout(update,100);});
 $('search').addEventListener('input',renderWatchlist);$('watchlist').addEventListener('click',e=>{const b=e.target.closest('[data-symbol]');if(b){$('symbol').value=b.dataset.symbol;update();}});
 $('reverse').addEventListener('click',()=>{if(!$('consentB5').checked){alertIn('stressMessage','Cho phép phân tích lịch sử trước khi tìm reverse stress.');return;}update(true);});

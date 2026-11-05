@@ -6,6 +6,7 @@ import sqlite3
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.data_pipeline.dnse_history import DNSEHistory
@@ -19,6 +20,7 @@ from src.models.orderbook import LOCAL_TZ
 from src.models.portfolio import parse_portfolio
 from src.models.scenario import Scenario
 from src.app import theme
+from src.app.depth_surface import depth_surface,figure_spec
 
 
 def number(value, decimals=0):
@@ -148,6 +150,23 @@ def liquidity_page(store, day, at, record, book):
         cumulative.loc[cumulative['price_vnd'].isna(), 'cumulative_shares'] = None
         chart(px.line(cumulative,x='level',y='cumulative_shares',color='side',markers=True,title='Độ sâu tích lũy (CP)'))
     samples = store.sampled_records(book.symbol, day, at)
+    st.subheader('Độ sâu 3D theo thời gian')
+    controls=st.columns(2)
+    side=controls[0].selectbox('Bên sổ lệnh',['bid','ask','both'],key='dnse_depth_side',
+        format_func=lambda s:{'bid':'Bid · Chờ mua','ask':'Ask · Chờ bán','both':'Cả Bid và Ask'}[s])
+    cumulative=controls[1].selectbox('Trục khối lượng',['volume','cumulative'],key='dnse_depth_mode',
+        format_func=lambda s:'Khối lượng từng mức' if s=='volume' else 'Khối lượng tích lũy')=='cumulative'
+    surface=depth_surface(samples,book.symbol,day,at)
+    if surface['points']:
+        spec=figure_spec(surface,side,cumulative)
+        st.plotly_chart(go.Figure(data=spec['data'],layout=spec['layout']),width='stretch',
+                        config=dict(scrollZoom=True,displaylogo=False),key='dnse_depth_surface_plot')
+        st.caption(f"{surface['points']} snapshot mẫu · {surface['gaps']} khoảng nguồn cách nhau trên 15 phút. "
+                   'Kéo để xoay, cuộn để phóng to. Mặt lưới nối điểm mẫu; chỉ có ba mức mỗi bên, không khôi phục giá hoặc tick chưa quan sát.')
+        if surface['points']==1:
+            st.info('Chỉ có một snapshot trước mốc chọn: hiển thị lát cắt ba mức, chưa đủ để tạo mặt theo thời gian.')
+    else:
+        st.info('Chưa có điểm dữ liệu để vẽ độ sâu 3D.')
     frame = historical_frame([snapshot_from_record(r) for r in samples])
     st.subheader('Lịch sử theo thời gian nguồn')
     st.caption(f'{len(samples):,} điểm đại diện: snapshot cuối mỗi khoảng 144 giây, tối đa 600 điểm/ngày. '

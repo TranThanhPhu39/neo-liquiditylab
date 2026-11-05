@@ -14,6 +14,7 @@ from src.finance.stress_testing import apply_scenario, reverse_stress
 from src.models.orderbook import LOCAL_TZ
 from src.models.portfolio import parse_portfolio
 from src.models.scenario import Scenario
+from src.app.depth_surface import depth_surface,figure_spec
 
 _records = []
 _catalogs = {}
@@ -80,6 +81,11 @@ def view(request):
     catalog = _catalogs.get(day, {})
     out = {'symbols': sorted({r['symbol'] for r in today} | set(catalog)), 'watchlist': [], 'record': record,
            'at': at.isoformat(), 'rows': len(selected), 'metrics': None}
+    if q.get('page','liquidity')=='liquidity':
+        surface=depth_surface(selected,symbol,day,at)
+        out['depth_surface']=dict(points=surface['points'],available_points=surface['available_points'],
+            gaps=surface['gaps'],units_verified=surface['units_verified'],
+            figure=figure_spec(surface,q.get('depth_side','bid'),q.get('depth_mode')=='cumulative'))
     for s in out['symbols']:
         r = latest.get(s, {})
         entry = {k: r.get(k) for k in ('symbol', 'exchange', 'bid_observed_depth_shares',

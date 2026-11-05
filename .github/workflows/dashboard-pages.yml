@@ -6,6 +6,7 @@ on:
     paths:
       - 'web/**'
       - 'src/app/browser_bridge.py'
+      - 'src/app/depth_surface.py'
       - 'src/models/**'
       - 'src/finance/**'
       - 'src/data_pipeline/dnse_normalization.py'
@@ -40,6 +41,8 @@ jobs:
         run: |
           node --check web/app.js
           node --check web/cloud-data.js
+          node --check web/depth-surface.js
+          test -f web/vendor/plotly-gl3d-3.7.0.min.js
           node --check web/engine-worker.js
           test -f web/index.html
           test -f web/runtime/pyodide.asm.wasm
