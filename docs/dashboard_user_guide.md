@@ -6,7 +6,7 @@
 
 | Cách mở | Dữ liệu tại lần kiểm tra 05/11 | Thao tác |
 | --- | --- | --- |
-| [GitHub Pages](https://tranthanhphu39.github.io/neo-liquiditylab/) | Bộ lịch sử công khai đến 04/11 | Mở link, đợi bộ tính và dữ liệu tải xong |
+| [GitHub Pages](https://tranthanhphu39.github.io/neo-liquiditylab/) | Bộ lịch sử công khai đến 05/11 | Mở link, đợi bộ tính và dữ liệu tải xong |
 | Streamlit trên máy | Kho chuẩn hóa đến 05/11, có sáng và chiều | Chạy lệnh bên dưới, chọn nguồn DNSE |
 | Web + Mở tệp riêng | Tệp ngày 05/11 trên máy | Chọn `data/exports/dashboard/dnse_2026-11-05.json` |
 
@@ -20,7 +20,7 @@ Mở http://localhost:8501, giữ cửa sổ chạy lệnh khi sử dụng. Ch�
 
 ## 2. Chọn ngày, mã, giờ
 
-Trên Streamlit: chọn **Replay lịch sử**, ngày **05/11/2026**, mã **ACB**, **Đến hết phút nguồn = 14:20**. Trên web, ba bộ chọn nằm phía trên cùng; dữ liệu public hiện mới nhất 04/11.
+Trên Streamlit: chọn **Replay lịch sử**, ngày **05/11/2026**, mã **ACB**, **Đến hết phút nguồn = 14:20**. Trên web, ba bộ chọn nằm phía trên cùng; dữ liệu public hiện mới nhất 05/11.
 
 14:20 nghĩa là chọn snapshot cuối không muộn hơn **14:20:59.999999 giờ Việt Nam**. Đọc thời gian nguồn thực tế, không mặc định snapshot đúng 14:20:00. Không có điểm trước mốc chọn thì báo NO DATA, không lấy điểm tương lai.
 
