@@ -28,12 +28,39 @@ DNSE_REALTIME_FIELDS={"provider","purpose","state","date_local","partition","mod
     "receipt_count","duplicate_receipts","symbols_requested","symbols_observed","connection_attempts",
     "authenticated_connections","subscription_acknowledgements","expected_connections","shards_subscribed",
     "known_gaps","unit_status","finance_enabled","unpersisted_receipts_this_run","audit",
-    "seed_checkpoint","restored_checkpoint","catalog_symbols","error_code","started_network","stop_requested","normalization"}
+    "seed_checkpoint","restored_checkpoint","catalog_symbols","error_code","started_network","stop_requested","normalization",
+    "session","realtime_window_missed","realtime_recovered","backfill","realtime_result"}
 DNSE_REALTIME_AUDIT_FIELDS={"state","sqlite_integrity","foreign_key_errors","payloads_checked",
     "unique_events","receipt_count","units_verified","financial_eligible"}
 DNSE_NORMALIZATION_FIELDS={"state","normalization_version","normalized_events","quarantined_events",
     "receipt_count","units_verified","financial_eligible","checkpoint","raw_checkpoint","restored_checkpoint","error_code",
     "canonical_events","canonical_financial_eligible"}
+DNSE_BACKFILL_FIELDS={'provider','purpose','state','date_local','session','source','units_verified',
+    'financial_eligible','realtime_recovered','checkpoint','restored_checkpoint','collection_state',
+    'symbols_total','symbols_fully_paginated','pages_saved','raw_quote_count','sqlite_integrity',
+    'no_data_symbols_count','incomplete_symbols_count','error_code','checkpoint_error','audit'}
+DNSE_BACKFILL_AUDIT_FIELDS={'sqlite_integrity','all_symbols_fully_paginated','page_checksums_verified',
+    'raw_quote_count_verified','symbols_with_records'}
+
+
+def backfill_summary_allowed(value):
+    return (isinstance(value,dict) and set(value)<=DNSE_BACKFILL_FIELDS and
+            ('audit' not in value or isinstance(value['audit'],dict) and
+             set(value['audit'])<=DNSE_BACKFILL_AUDIT_FIELDS))
+
+
+def realtime_summary_allowed(value, nested=False):
+    if not isinstance(value,dict) or not set(value)<=DNSE_REALTIME_FIELDS:
+        return False
+    for field,allowed in (('audit',DNSE_REALTIME_AUDIT_FIELDS),('normalization',DNSE_NORMALIZATION_FIELDS)):
+        item=value.get(field)
+        if item is not None and (not isinstance(item,dict) or not set(item)<=allowed):
+            return False
+    if 'backfill' in value and not backfill_summary_allowed(value['backfill']):
+        return False
+    if 'realtime_result' in value and (nested or not realtime_summary_allowed(value['realtime_result'],True)):
+        return False
+    return True
 
 
 def dnse_summary(candidate):
@@ -69,11 +96,10 @@ def summarize_log(log):
             elif isinstance(candidate,dict) and candidate.get("purpose")=="READ_ONLY_WEBSOCKET_DIAGNOSTIC" and set(candidate)<=DNSE_WS_FIELDS:
                 records.append(candidate)
             elif isinstance(candidate,dict) and candidate.get("purpose")=="REALTIME_G1_COLLECTOR" and set(candidate)<=DNSE_REALTIME_FIELDS:
-                audit=candidate.get("audit")
-                normalization=candidate.get('normalization')
-                if ((audit is None or (isinstance(audit,dict) and set(audit)<=DNSE_REALTIME_AUDIT_FIELDS))
-                        and (normalization is None or isinstance(normalization,dict) and set(normalization)<=DNSE_NORMALIZATION_FIELDS)):
+                if realtime_summary_allowed(candidate):
                     records.append(candidate)
+            elif isinstance(candidate,dict) and candidate.get('purpose')=='REST_HISTORY_BACKFILL' and backfill_summary_allowed(candidate):
+                records.append(candidate)
     totals=[line for line in log.splitlines() if re.search(r"\b[0-9]+ passed\b",line)]
     return {"worker_summaries":records,"pytest_totals":totals[-3:]}
 

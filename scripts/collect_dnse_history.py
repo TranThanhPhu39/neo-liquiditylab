@@ -240,12 +240,16 @@ def summary(db,state,error=None):
     return result
 
 
-def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None,session='day'):
+def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None,session='day',
+        max_seconds=None,progress_hook=None):
     if not isinstance(page_size,int) or not 1<=page_size<=1000:
         raise ValueError('PAGE_SIZE_MUST_BE_1_TO_1000')
     date.fromisoformat(day)
     if session not in ('day','morning'):
         raise ValueError('INVALID_COLLECTION_SESSION')
+    if max_seconds is not None and max_seconds<=0:
+        raise ValueError('INVALID_COLLECTION_TIME_LIMIT')
+    deadline=time.monotonic()+max_seconds if max_seconds is not None else None
     folder=root/'data/history/dnse'/day
     if session!='day':
         folder=folder/session
@@ -259,6 +263,8 @@ def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None,session='da
             settings=initialize(db,day,page_size,session)
             client=client or DNSEReadOnly(min_interval=0.5)
             load_universe(db,client,folder)
+            if progress_hook:
+                progress_hook(summary(db,'RUNNING'))
             initial_requests=db.execute('SELECT count(*) FROM requests').fetchone()[0]
             last_progress=0
             consecutive_failures=0
@@ -267,15 +273,18 @@ def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None,session='da
                 if (root/'data/control/STOP_DNSE_HISTORY').exists():
                     state='STOPPED_BY_USER'
                     break
+                if deadline is not None and time.monotonic()>=deadline:
+                    state='PAUSED_TIME_LIMIT'
+                    break
                 if shutil.disk_usage(folder).free<5*1024**3:
                     state='STOPPED_LOW_DISK'
-                    break
-                if max_requests is not None and db.execute('SELECT count(*) FROM requests').fetchone()[0]-initial_requests>=max_requests:
-                    state='PAUSED_REQUEST_LIMIT'
                     break
                 row=db.execute("SELECT * FROM symbols WHERE status IN ('PENDING','PARTIAL') ORDER BY page_count,symbol LIMIT 1").fetchone()
                 if row is None:
                     state='COMPLETED_WITH_ERRORS' if db.execute("SELECT 1 FROM symbols WHERE status='ERROR'").fetchone() else 'COMPLETED'
+                    break
+                if max_requests is not None and db.execute('SELECT count(*) FROM requests').fetchone()[0]-initial_requests>=max_requests:
+                    state='PAUSED_REQUEST_LIMIT'
                     break
                 params={'boardId':'G1','from':settings['from'],'to':settings['to'],
                         'limit':page_size,'order':'ASC'}
@@ -307,6 +316,8 @@ def run(day,*,page_size=1000,root=ROOT,max_requests=None,client=None,session='da
                     result=summary(db,'RUNNING')
                     write_json(report,result)
                     print(json.dumps({key:result[key] for key in ('state','symbols_total','symbols_fully_paginated','pages_saved','raw_quote_count')}),flush=True)
+                    if progress_hook:
+                        progress_hook(result)
                     last_progress=time.monotonic()
         except KeyboardInterrupt:
             state='INTERRUPTED_RESUMABLE'

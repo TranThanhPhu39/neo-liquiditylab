@@ -10,12 +10,21 @@ on:
         description: Bounded smoke or scheduled-session collection
         type: choice
         default: smoke
-        options: [smoke, collect]
+        options: [smoke, collect, backfill]
       session:
         description: Vietnam session
         type: choice
         default: auto
         options: [auto, morning, afternoon]
+      backfill_session:
+        description: Closed REST session for manual backfill mode
+        type: choice
+        default: day
+        options: [morning, day]
+      rest_max_requests:
+        description: Quote request budget for REST recovery (1-6000; use 1 for a bounded connectivity check)
+        type: number
+        default: 6000
 
 permissions:
   contents: read
@@ -28,7 +37,7 @@ jobs:
   collector:
     if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && vars.DNSE_REALTIME_STORAGE_APPROVED == 'true' && (inputs.mode == 'smoke' || vars.DNSE_REALTIME_ENABLED == 'true')
     runs-on: ubuntu-24.04
-    timeout-minutes: 195
+    timeout-minutes: 355
     permissions:
       contents: write
     env:
@@ -54,7 +63,9 @@ jobs:
           DNSE_SCHEDULE_CRON: ${{ github.event.schedule }}
           MODE: ${{ inputs.mode || 'collect' }}
           SESSION: ${{ inputs.session || 'auto' }}
-        run: python -m scripts.github_dnse_realtime --mode "$MODE" --session "$SESSION" --seconds 60
+          BACKFILL_SESSION: ${{ inputs.backfill_session || 'day' }}
+          REST_MAX_REQUESTS: ${{ inputs.rest_max_requests || 6000 }}
+        run: python -m scripts.github_dnse_realtime --mode "$MODE" --session "$SESSION" --seconds 60 --backfill-session "$BACKFILL_SESSION" --rest-max-requests "$REST_MAX_REQUESTS"
       - name: Write safe operational summary
         if: always()
         shell: python
@@ -64,4 +75,10 @@ jobs:
           path = Path('report/github/dnse_realtime_result.json')
           if path.exists():
               with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
-                  summary.write('```json\n' + json.dumps(json.loads(path.read_text(encoding='utf-8')), indent=2) + '\n```\n')
+                  result = json.loads(path.read_text(encoding='utf-8'))
+                  summary.write('## Collector result: ' + result['state'] + '\n\n')
+                  if result.get('realtime_window_missed'):
+                      summary.write('**Realtime window missed in part or in full. REST history is separate and does not restore lost WS receipts.**\n\n')
+                  if result['state'].startswith('FAILED'):
+                      summary.write('**Collection/recovery failed or is incomplete. Check the error and encrypted checkpoint before retrying.**\n\n')
+                  summary.write('```json\n' + json.dumps(result, indent=2) + '\n```\n')

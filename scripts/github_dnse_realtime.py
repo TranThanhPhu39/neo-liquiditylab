@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sqlite3
 import tempfile
+import time
 
 from config.settings import ROOT
 from scripts.collect_dnse_realtime import session_plan
@@ -19,6 +20,7 @@ from src.data_pipeline.dnse_realtime_store import audit
 from src.models.orderbook import LOCAL_TZ
 from scripts.normalize_dnse_realtime import normalize
 from src.data_pipeline.dnse_ws_units import load_ws_rules
+from scripts.github_dnse_backfill import run_backfill, closed_session
 
 REPOSITORY = 'TranThanhPhu39/neo-liquiditylab'
 
@@ -47,7 +49,27 @@ def load_seed(key):
     return catalog, tag
 
 
-def run(mode='smoke', session='auto', seconds=60):
+def recover_session(day, session, key, *, max_requests=6000):
+    """Afternoon WS closes at 15:06; the existing REST day gate is 15:10."""
+    rest_session = 'morning' if session == 'morning' else 'day'
+    if rest_session == 'day':
+        until = datetime.fromisoformat(day+'T15:10:00').replace(tzinfo=LOCAL_TZ)
+        while datetime.now(LOCAL_TZ) < until:
+            if (ROOT/'data/control/STOP_DNSE_REALTIME').exists() or (ROOT/'data/control/STOP_DNSE_HISTORY').exists():
+                return dict(state='FAILED_REST_BACKFILL',error_code='REST_STOP_REQUESTED')
+            time.sleep(min(1,max(0,(until-datetime.now(LOCAL_TZ)).total_seconds())))
+    closed_session(day,rest_session)
+    return run_backfill(day,rest_session,key,root=ROOT,max_requests=max_requests)
+
+
+def recovery_result(day, session, recovered):
+    return dict(provider='dnse',purpose='REALTIME_G1_COLLECTOR',date_local=day,session=session,
+                state=('RECOVERED_REST_HISTORY_REALTIME_MISSED' if recovered['state']=='REST_BACKFILL_COMPLETED'
+                       else 'FAILED_REST_BACKFILL'),realtime_window_missed=True,
+                realtime_recovered=False,backfill=recovered)
+
+
+def run(mode='smoke', session='auto', seconds=60, *, backfill_session='day', rest_max_requests=6000):
     require_environment()
     now = datetime.now(LOCAL_TZ)
     if os.getenv('GITHUB_EVENT_NAME') == 'schedule':
@@ -56,16 +78,26 @@ def run(mode='smoke', session='auto', seconds=60):
             raise ValueError('WS_UNKNOWN_SCHEDULE')
         session = scheduled[os.environ['DNSE_SCHEDULE_CRON']]
     plan = session_plan(now, session)
-    if mode == 'collect' and os.getenv('DNSE_REALTIME_ENABLED') != 'true':
+    if mode in ('collect','backfill') and os.getenv('DNSE_REALTIME_ENABLED') != 'true':
         raise ValueError('WS_SCHEDULE_NOT_ENABLED')
+    if not isinstance(rest_max_requests,int) or not 1 <= rest_max_requests <= 6000:
+        raise ValueError('REST_REQUEST_LIMIT_INVALID')
+    day = now.date().isoformat()
+    if mode == 'backfill':
+        return run_backfill(day,backfill_session,state_key(os.environ['LIQUIDITYLAB_STATE_KEY']),
+                            root=ROOT,max_requests=rest_max_requests)
     if mode == 'collect' and not plan['ready']:
-        return {'state': 'SKIPPED_OUTSIDE_COLLECTION_WINDOW', 'purpose': 'REALTIME_G1_COLLECTOR', 'date_local': now.date().isoformat()}
+        if now.weekday() < 5 and now >= plan['end']:
+            recovered = recover_session(day,plan['session'],state_key(os.environ['LIQUIDITYLAB_STATE_KEY']),
+                                        max_requests=rest_max_requests)
+            return recovery_result(day,plan['session'],recovered)
+        return dict(state='FAILED_OUTSIDE_COLLECTION_WINDOW',purpose='REALTIME_G1_COLLECTOR',
+                    date_local=day,session=plan['session'],error_code='WS_TOO_EARLY_OR_NON_WEEKDAY')
     if mode == 'smoke' and not 1 <= seconds <= 120:
         raise ValueError('WS_SMOKE_DURATION_INVALID')
     key = state_key(os.environ['LIQUIDITYLAB_STATE_KEY'])
     catalog, seed = load_seed(key)
     partition = 'smoke' if mode == 'smoke' else plan['session']
-    day = now.date().isoformat()
     day_key = day+'-'+partition
     folder = ROOT/'data/realtime/dnse'/day/partition
     folder.mkdir(parents=True, exist_ok=True)
@@ -148,20 +180,38 @@ def run(mode='smoke', session='auto', seconds=60):
         result['normalization']=json.loads(normalized_report.read_text(encoding='utf-8'))
         if result['normalization']['state']=='FAILED_RESUMABLE' and not result['state'].startswith('FAILED'):
             result['state']='FAILED_NORMALIZATION_RESUMABLE'
+    # A runner arriving during the session can observe the remainder, but cannot
+    # recover its missed opening via WS. Preserve WS results and fetch REST separately.
+    if mode == 'collect':
+        result['realtime_window_missed'] = now > plan['start']
+        if result['realtime_window_missed'] and result['state']=='WINDOW_ENDED_OBSERVED_ONLY':
+            recovered = recover_session(day,plan['session'],key,max_requests=rest_max_requests)
+            original = dict(result)
+            result = {**result,**recovery_result(day,plan['session'],recovered),'realtime_result':original}
     write_json(ROOT/'report/github/dnse_realtime_result.json', result)
     return result
 
 
+def exit_code(result):
+    # Positive allowlist: unknown/skipped/paused/stopped states must not look successful.
+    return 0 if result.get('state') in ('SMOKE_FINISHED','WINDOW_ENDED_OBSERVED_ONLY',
+        'REST_BACKFILL_COMPLETED','RECOVERED_REST_HISTORY_REALTIME_MISSED') else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mode', choices=['smoke', 'collect'], default='smoke')
+    parser.add_argument('--mode', choices=['smoke', 'collect','backfill'], default='smoke')
     parser.add_argument('--session', choices=['auto', 'morning', 'afternoon'], default='auto')
     parser.add_argument('--seconds', type=int, default=60)
+    parser.add_argument('--backfill-session',choices=['morning','day'],default='day')
+    parser.add_argument('--rest-max-requests',type=int,default=6000)
     args = parser.parse_args()
     try:
-        result = run(args.mode, args.session, args.seconds)
+        result = run(args.mode, args.session, args.seconds,backfill_session=args.backfill_session,
+                     rest_max_requests=args.rest_max_requests)
+        write_json(ROOT/'report/github/dnse_realtime_result.json', result)
         print(json.dumps(result), flush=True)
-        return 1 if result['state'].startswith('FAILED') else 0
+        return exit_code(result)
     except Exception as error:
         code = str(error)
         if not re.fullmatch('[A-Z0-9_]{1,90}', code):

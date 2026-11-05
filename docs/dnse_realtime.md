@@ -45,7 +45,7 @@ SQLite nằm ở `data/realtime/dnse/YYYY-MM-DD/morning/quotes.db` hoặc `after
 
 ## GitHub Actions: đã bật ngày 03/11/2026
 
-Workflow `.github/workflows/dnse-realtime.yml` dự kiến khởi chạy 08:52 và 12:52 giờ Việt Nam ngày thường, chuẩn bị trước cửa sổ thu 5 phút. Khởi chạy trễ sẽ được ghi nhận; WebSocket không bù lịch sử đã bỏ lỡ. Cron sáng không bị chuyển thành phiên chiều khi runner đến trễ. Mỗi job tối đa 195 phút, concurrency không hủy job đang thu.
+Workflow `.github/workflows/dnse-realtime.yml` dự kiến khởi chạy 08:52 và 12:52 giờ Việt Nam ngày thường, chuẩn bị trước cửa sổ thu 5 phút. Khởi chạy trễ sẽ được ghi nhận; WebSocket không bù lịch sử đã bỏ lỡ. Cron sáng không bị chuyển thành phiên chiều khi runner đến trễ. Mỗi job tối đa 355 phút, concurrency không hủy job đang thu. Bản sửa 05/11 thêm [tải bù REST sau phiên](dnse_rest_recovery.md), checkpoint mã hóa riêng và trả mã lỗi khi bỏ qua/tải bù chưa xong. Kết nối REST từ runner vẫn cần kiểm chứng; lịch sử REST không thay thế receipts realtime bị lỡ.
 
 Hai biến repo `DNSE_REALTIME_STORAGE_APPROVED` và `DNSE_REALTIME_ENABLED` đã bật sau chấp thuận của người dùng và kiểm tra hai runner. Lịch Vnstock cũ vẫn tắt. Lượt định kỳ kế tiếp dự kiến 08:52 và 12:52 ngày 04/11/2026; đây là giờ cron dự kiến, không bảo đảm runner bắt đầu đúng phút.
 

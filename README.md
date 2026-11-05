@@ -67,6 +67,8 @@ Các lệnh dưới đây chạy trong **PowerShell tại thư mục chứa READ
 | Chuẩn hóa cấu trúc WebSocket | Tự chạy sau mỗi checkpoint GitHub, lưu mã hóa riêng; đơn vị WS còn chưa xác minh | Không cần mở máy để chuẩn hóa cấu trúc; chưa dùng A1/B5 |
 | Khôi phục bản cấu trúc WS về máy | `scripts.sync_dnse_ws_normalized --date YYYY-MM-DD --partition morning` hoặc `afternoon` | Có, khi cần xem trên máy |
 | Tải lịch sử REST và chuẩn hóa cho dashboard | Lệnh `scripts.update_dnse_day` trên máy | Có, trong khi lệnh chạy |
+| Tải bù raw REST khi runner bỏ lỡ cửa sổ realtime | Actions tự thử sau khi phiên đóng; lưu checkpoint mã hóa `dnse-rest-history`. Nếu REST không kết nối được hoặc tải chưa đủ, job báo lỗi | Không; chưa bảo đảm kết nối REST từ runner |
+| Khôi phục raw REST tải bù để chuẩn hóa trên máy | `scripts.sync_dnse_rest_history --date YYYY-MM-DD --session day`, rồi `scripts.update_dnse_day --date YYYY-MM-DD` | Có |
 | Làm mới danh mục dùng cho GitHub | Lệnh `scripts.prepare_dnse_realtime --publish` trên máy | Có, trong lúc cập nhật |
 
 **Lệnh chuẩn hóa hiện tại chỉ đọc lịch sử REST trong `data/history/dnse`, không đọc checkpoint WebSocket trên Releases.** GitHub đã thu raw không có nghĩa dashboard trên máy tự có ngày mới. Nếu chỉ cần tích lũy raw WS, không phải mở máy mỗi ngày. Nếu muốn cập nhật kho phân tích hiện có, dùng bước 3 sau phiên; bước này tải REST riêng, không nhập dữ liệu từ GitHub.
@@ -87,6 +89,25 @@ Sau khi job kết thúc, xem summary và log bước **Restore collect normalize
 - Trạng thái kết thúc bình thường của lượt thu là `WINDOW_ENDED_OBSERVED_ONLY`.
 - Kiểm tra `shards_subscribed` bằng `expected_connections`, `fatal_error` là `null`, `unpersisted_receipts_this_run` bằng 0, `audit.state` là `VERIFIED`, checkpoint đã lưu.
 - Xem thêm `receipt_count`, `symbols_observed`, `known_gaps`. Job xanh hoặc subscribe đủ chưa chứng minh dữ liệu đủ cả phiên; mã không có thông điệp chưa được coi là khối lượng 0. `SKIPPED_OUTSIDE_COLLECTION_WINDOW` nghĩa là đã bỏ qua lượt thu.
+
+**Phục hồi khi chạy trễ (bản sửa 05/11):** lịch sáng đến sau 11:31 tự thử REST phiên sáng; lịch chiều đến sau 15:06 đợi tới 15:10 rồi thử REST cả ngày. Lượt đến giữa phiên vẫn nhận WS phần còn lại rồi tải bù REST khi đóng phiên. Cron sáng luôn giữ phiên sáng dù GitHub giao vào buổi chiều. Không đổi các mốc cron; bản sửa không khắc phục việc GitHub chưa phát sự kiện lịch.
+
+- `RECOVERED_REST_HISTORY_REALTIME_MISSED`: lịch sử REST đã tải hết trang, audit đạt và lưu mã hóa; vẫn đánh dấu phần realtime bị lỡ. Không khôi phục được receipts WS đã mất.
+- `FAILED_REST_BACKFILL`: kết nối, tải, audit hoặc lưu checkpoint chưa thành công; job đỏ. Khi có DB, phần đã tải cũng được thử lưu mã hóa để chạy tiếp. Trường `checkpoint` cho biết đã lưu được hay chưa.
+- Trạng thái bỏ qua, dừng, tạm dừng và trạng thái lạ không còn tự trả mã thành công. Summary vẫn được ghi khi bước thu lỗi.
+
+Tải bù trên Actions có giới hạn 6.000 request quote/lượt, tối đa 90 phút cho vòng tải (cộng thời gian request đang thực hiện, audit và lưu checkpoint). Checkpoint tiến độ khoảng 5 phút khi vòng tải đang chạy, và khi kết thúc. Mỗi lần thử vẫn theo rate limit hiện có; lỗi kết nối REST từ GitHub trước đây chưa được xem là đã giải quyết.
+
+Muốn chạy tiếp một bản tải bù trên GitHub: **Run workflow → mode `backfill` → backfill_session `morning` hoặc `day` → rest_max_requests `6000`**. Chế độ này lấy ngày hiện tại theo Việt Nam và chỉ cho phiên đã đóng. Chọn `1` để kiểm tra ngắn (ngoài các request danh mục và retry hữu hạn); tải một phần sẽ báo lỗi, không coi là đã xong.
+
+Để lấy checkpoint REST về kho trên máy, ví dụ sau khi phiên đã đóng:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.sync_dnse_rest_history --date 2026-11-05 --session day
+.\.venv\Scripts\python.exe -m scripts.update_dnse_day --date 2026-11-05
+```
+
+Lệnh đồng bộ cần quyền đọc Releases và khóa giải mã đang lưu cục bộ; từ chối ghi đè `history.db`/`universe.json` đã có. Nếu đã có kho ngày đó trên máy, dùng `update_dnse_day` để tiếp tục kho hiện tại. Checkpoint chỉ chứa raw REST và báo cáo mã hóa; cần bước cập nhật trên máy để chuẩn hóa/audit, dashboard và Pages chưa tự nhận ngày mới từ checkpoint này. Xem [chi tiết phục hồi](docs/dnse_rest_recovery.md).
 
 Có thể tải báo cáo log đã lọc về máy bằng lệnh dưới đây. Run ID là số cuối URL dạng `/actions/runs/41629043291`:
 
