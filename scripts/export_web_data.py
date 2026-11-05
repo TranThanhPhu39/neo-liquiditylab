@@ -59,7 +59,7 @@ def referenced_files(index):
     return result
 
 
-def export_data(store, out, rule_hash, days=None):
+def export_data(store, out, rule_hash, days=None, *, preserve_previous=False):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     before = (store.path.stat().st_size, store.path.stat().st_mtime_ns)
@@ -67,6 +67,8 @@ def export_data(store, out, rule_hash, days=None):
     if (out/'index.json').exists():
         old = json.loads((out/'index.json').read_text(encoding='utf-8'))
         if old.get('format') == FORMAT:
+            if preserve_previous and old.get('rule_hash') != rule_hash:
+                raise ValueError('PUBLIC_RULE_CHANGE_REQUIRES_REVIEW')
             previous = {d['date']: d for d in old['days']}
     entries = []
     for day in days or store.dates():
@@ -109,6 +111,16 @@ def export_data(store, out, rule_hash, days=None):
         entries.append(entry)
         print(json.dumps({'exported_day': day, 'catalog_symbols': len(symbols),
                           'sampled_records': sum(r['records'] for r in entry['groups'].values())}), flush=True)
+    if preserve_previous:
+        present={e['date'] for e in entries}
+        for day,entry in previous.items():
+            if day in present:
+                continue
+            for item in referenced_files({'days':[entry]}):
+                path=out/item['path']
+                if not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:
+                    raise ValueError('PREVIOUS_PUBLIC_PARTITION_MISSING_OR_CORRUPT')
+            entries.append(entry)
     if not entries:
         raise ValueError('NO_AUDITED_DATA_TO_PUBLISH')
     if before != (store.path.stat().st_size, store.path.stat().st_mtime_ns):
@@ -135,11 +147,9 @@ def main():
     with exclusive_job(ROOT/'data/control/dnse_update.lock'):
         result = export_data(DNSEHistory(Settings().dnse_database_path), ROOT/'web/data', source['rule_hash'])
     if args.publish:
-        from scripts.github_pages import prepare, publish
-        from scripts.github_api import GitHubAPI
-        api = GitHubAPI()
-        base, head, tree, changed = prepare(api)
-        result['publication'] = publish(api, base, head, tree, changed)
+        from scripts.publish_dnse_web import publish_samples
+        with exclusive_job(ROOT/'data/control/dnse_update.lock'):
+            result['publication'] = publish_samples(ROOT,export=False)
     print(json.dumps(result))
 
 

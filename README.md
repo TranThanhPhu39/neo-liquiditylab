@@ -55,6 +55,8 @@ Thiết kế gốc nằm trong Penpot; mã web công khai ở [`web/`](web/READM
 
 ## Quy trình vận hành hằng ngày
 
+**Tự công bố trên máy đã bật theo yêu cầu ngày 05/11:** lệnh `scripts.update_dnse_day` cho cả ngày tự xuất dữ liệu lấy mẫu và đẩy lên Pages sau khi toàn bộ audit/kiểm tra tài chính đạt. Chính sách nằm ở `config/web_publication.json`; thêm `--no-publish-web` nếu muốn một lượt chỉ lưu trên máy. Nhánh GitHub chuẩn hóa → audit → công bố đã viết và kiểm thử offline, giữ `github_enabled=false` đến khi người dùng duyệt bootstrap bằng chứng riêng. REST trên runner hiện vẫn timeout. Xem [hướng dẫn tự cập nhật web](docs/automatic_web_publication.md).
+
 Các lệnh dưới đây chạy trong **PowerShell tại thư mục chứa README**, trên workspace đã có `.venv`, `.env` và hồ sơ đối chiếu đơn vị DNSE cục bộ. Clone repo public không tự tải dữ liệu, hồ sơ bằng chứng riêng hoặc khóa giải mã về máy. Trong `.env` cần có `DNSE_API_KEY` và `DNSE_API_SECRET`; không in giá trị hoặc đưa vào câu lệnh.
 
 ### 1. Phân biệt việc GitHub tự làm và việc cần chạy trên máy

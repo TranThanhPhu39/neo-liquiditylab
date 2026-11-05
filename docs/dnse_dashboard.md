@@ -1,5 +1,7 @@
 # Sử dụng kho DNSE trong LiquidityLab
 
+[Hướng dẫn thao tác chi tiết cả web và Streamlit, có ví dụ ACB ngày 05/11](dashboard_user_guide.md).
+
 ## Mở ứng dụng
 
 ```powershell
@@ -8,7 +10,7 @@
 
 Mở http://localhost:8501, chọn **Nguồn dữ liệu → dnse**. Dữ liệu lấy từ `data/processed/dnse/normalized.db`; biến tùy chọn `DNSE_DATABASE_PATH` có thể trỏ tới kho khác. Không cần khóa API hay mạng để xem kho đã thu. Clone source public không có dữ liệu thật và bằng chứng riêng của máy này.
 
-Chọn ngày dữ liệu nguồn (giờ Việt Nam), mã và màn hình. Kho hiện tại có ngày 28/10 và riêng phiên sáng 29/10/2026; không coi kho sáng là dữ liệu đủ cả ngày. Snapshot mặc định là bản cuối ngày đã lưu cho mã, có thể thuộc giai đoạn ngoài phiên liên tục. Muốn phân tích thời điểm khác, chọn **Replay lịch sử** rồi chọn **Đến hết phút nguồn**: 10:30 có nghĩa không muộn hơn 10:30:59.999999 giờ Việt Nam. Không nội suy, không lấy snapshot của ngày trước hoặc sau thời điểm đã chọn.
+Chọn ngày dữ liệu nguồn (giờ Việt Nam), mã và màn hình. Tại lần cập nhật 05/11/2026, kho trên máy có 7 ngày 28, 29, 30/10 và 02, 03, 04, 05/11; ngày 05/11 đã tải cả ngày và audit xong. Snapshot mặc định là bản cuối ngày đã lưu cho mã, có thể thuộc giai đoạn ngoài phiên liên tục. Muốn phân tích thời điểm khác, chọn **Replay lịch sử** rồi chọn **Đến hết phút nguồn**: 10:30 có nghĩa không muộn hơn 10:30:59.999999 giờ Việt Nam. Không nội suy, không lấy snapshot của ngày trước hoặc sau thời điểm đã chọn.
 
 ## Ba màn hình
 

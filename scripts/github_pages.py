@@ -74,29 +74,32 @@ def blob_sha(content):
     return hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
 
 
-def prepare(api):
+def prepare(api, files=None):
     base = repository_path(REPOSITORY)
     repo = api.request('GET', base)
-    if repo['private'] or repo['default_branch'] != 'main' or not repo['permissions']['admin']:
+    if repo['private'] or repo['default_branch'] != 'main' or (files is None and not repo['permissions']['admin']):
         raise ValueError('EXPECTED_PUBLIC_MAIN_ADMIN_REPOSITORY')
     head = api.request('GET', base+'/git/ref/heads/main')['object']['sha']
     commit = api.request('GET', base+'/git/commits/'+head)
     tree = api.request('GET', base+'/git/trees/'+commit['tree']['sha']+'?recursive=1')
     existing = {row['path']: row['sha'] for row in tree['tree'] if row['type']=='blob'}
-    changed = {path: data for path, data in reviewed_files().items() if existing.get(path) != blob_sha(data)}
+    selected=reviewed_files() if files is None else files
+    changed = {path: data for path, data in selected.items() if existing.get(path) != blob_sha(data)}
     return base, head, commit['tree']['sha'], changed
 
 
-def publish(api, base, head, base_tree, files):
+def publish(api, base, head, base_tree, files, *, configure_pages=True):
     # Enable Pages before the push can start its deployment workflow.
-    try:
-        pages = api.request('GET', base+'/pages')
-    except GitHubError as error:
-        if error.status != 404:
-            raise
-        pages = api.request('POST', base+'/pages', {'build_type': 'workflow'})
-    if pages.get('build_type') != 'workflow':
-        api.request('PUT', base+'/pages', {'build_type': 'workflow'})
+    pages={'html_url':'https://tranthanhphu39.github.io/neo-liquiditylab/','build_type':'workflow'}
+    if configure_pages:
+        try:
+            pages = api.request('GET', base+'/pages')
+        except GitHubError as error:
+            if error.status != 404:
+                raise
+            pages = api.request('POST', base+'/pages', {'build_type': 'workflow'})
+        if pages.get('build_type') != 'workflow':
+            api.request('PUT', base+'/pages', {'build_type': 'workflow'})
     entries = []
     for path, content in files.items():
         entry = {'path': path, 'mode': '100644', 'type': 'blob'}

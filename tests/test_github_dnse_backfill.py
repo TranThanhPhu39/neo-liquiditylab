@@ -204,8 +204,9 @@ def test_workflow_preserves_crons_and_always_reports_recovery():
     steps=workflow['jobs']['collector']['steps']
     assert steps[-1]['if']=='always()' and 'realtime_window_missed' in steps[-1]['run']
     # An explicitly invalid numeric zero must reach validation, not become a full-budget run.
-    assert steps[-2]['env']['REST_MAX_REQUESTS']=='${{ inputs.rest_max_requests }}'
-    assert '${REST_MAX_REQUESTS:-6000}' in steps[-2]['run']
+    collector=next(s for s in steps if s.get('name')=='Restore collect normalize audit and save encrypted checkpoints')
+    assert collector['env']['REST_MAX_REQUESTS']=='${{ inputs.rest_max_requests }}'
+    assert '${REST_MAX_REQUESTS:-6000}' in collector['run']
     assert 'upload-artifact' not in source
 
 

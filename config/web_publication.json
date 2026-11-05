@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "github_enabled": false,
+  "repository": "TranThanhPhu39/neo-liquiditylab",
+  "source": "AUDITED_DNSE_REST_SAMPLES",
+  "scope": "CURRENT_AND_FUTURE_COMPLETED_DAYS",
+  "raw_or_credentials": false
+}

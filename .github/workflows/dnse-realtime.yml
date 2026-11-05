@@ -40,6 +40,7 @@ jobs:
     timeout-minutes: 355
     permissions:
       contents: write
+      actions: write
     env:
       PYTHONUTF8: '1'
       PYTHONUNBUFFERED: '1'
@@ -66,6 +67,12 @@ jobs:
           BACKFILL_SESSION: ${{ inputs.backfill_session || 'day' }}
           REST_MAX_REQUESTS: ${{ inputs.rest_max_requests }}
         run: python -m scripts.github_dnse_realtime --mode "$MODE" --session "$SESSION" --seconds 60 --backfill-session "$BACKFILL_SESSION" --rest-max-requests "${REST_MAX_REQUESTS:-6000}"
+      - name: Normalize audit and publish completed REST day
+        if: success() && inputs.mode != 'smoke'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIQUIDITYLAB_STATE_KEY: ${{ secrets.LIQUIDITYLAB_STATE_KEY }}
+        run: python -m scripts.publish_dnse_backfill_web
       - name: Write safe operational summary
         if: always()
         shell: python
@@ -82,3 +89,7 @@ jobs:
                   if result['state'].startswith('FAILED'):
                       summary.write('**Collection/recovery failed or is incomplete. Check the error and encrypted checkpoint before retrying.**\n\n')
                   summary.write('```json\n' + json.dumps(result, indent=2) + '\n```\n')
+          publication = Path('report/github/dnse_web_publication.json')
+          if publication.exists():
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+                  summary.write('\n## Web publication\n\n```json\n' + publication.read_text(encoding='utf-8') + '\n```\n')

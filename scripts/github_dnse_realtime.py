@@ -62,10 +62,10 @@ def recover_session(day, session, key, *, max_requests=6000):
     return run_backfill(day,rest_session,key,root=ROOT,max_requests=max_requests)
 
 
-def recovery_result(day, session, recovered):
+def recovery_result(day, session, recovered, *, missed=True):
     return dict(provider='dnse',purpose='REALTIME_G1_COLLECTOR',date_local=day,session=session,
-                state=('RECOVERED_REST_HISTORY_REALTIME_MISSED' if recovered['state']=='REST_BACKFILL_COMPLETED'
-                       else 'FAILED_REST_BACKFILL'),realtime_window_missed=True,
+                state=(('RECOVERED_REST_HISTORY_REALTIME_MISSED' if missed else 'COLLECTED_AND_REST_BACKFILLED') if recovered['state']=='REST_BACKFILL_COMPLETED'
+                       else 'FAILED_REST_BACKFILL'),realtime_window_missed=missed,
                 realtime_recovered=False,backfill=recovered)
 
 
@@ -184,10 +184,11 @@ def run(mode='smoke', session='auto', seconds=60, *, backfill_session='day', res
     # recover its missed opening via WS. Preserve WS results and fetch REST separately.
     if mode == 'collect':
         result['realtime_window_missed'] = now > plan['start']
-        if result['realtime_window_missed'] and result['state']=='WINDOW_ENDED_OBSERVED_ONLY':
+        if result['state']=='WINDOW_ENDED_OBSERVED_ONLY':
             recovered = recover_session(day,plan['session'],key,max_requests=rest_max_requests)
             original = dict(result)
-            result = {**result,**recovery_result(day,plan['session'],recovered),'realtime_result':original}
+            result = {**result,**recovery_result(day,plan['session'],recovered,
+                missed=result['realtime_window_missed']),'realtime_result':original}
     write_json(ROOT/'report/github/dnse_realtime_result.json', result)
     return result
 
@@ -195,7 +196,7 @@ def run(mode='smoke', session='auto', seconds=60, *, backfill_session='day', res
 def exit_code(result):
     # Positive allowlist: unknown/skipped/paused/stopped states must not look successful.
     return 0 if result.get('state') in ('SMOKE_FINISHED','WINDOW_ENDED_OBSERVED_ONLY',
-        'REST_BACKFILL_COMPLETED','RECOVERED_REST_HISTORY_REALTIME_MISSED') else 1
+        'REST_BACKFILL_COMPLETED','RECOVERED_REST_HISTORY_REALTIME_MISSED','COLLECTED_AND_REST_BACKFILLED') else 1
 
 
 def main():
