@@ -64,8 +64,8 @@ jobs:
           MODE: ${{ inputs.mode || 'collect' }}
           SESSION: ${{ inputs.session || 'auto' }}
           BACKFILL_SESSION: ${{ inputs.backfill_session || 'day' }}
-          REST_MAX_REQUESTS: ${{ inputs.rest_max_requests || 6000 }}
-        run: python -m scripts.github_dnse_realtime --mode "$MODE" --session "$SESSION" --seconds 60 --backfill-session "$BACKFILL_SESSION" --rest-max-requests "$REST_MAX_REQUESTS"
+          REST_MAX_REQUESTS: ${{ inputs.rest_max_requests }}
+        run: python -m scripts.github_dnse_realtime --mode "$MODE" --session "$SESSION" --seconds 60 --backfill-session "$BACKFILL_SESSION" --rest-max-requests "${REST_MAX_REQUESTS:-6000}"
       - name: Write safe operational summary
         if: always()
         shell: python
