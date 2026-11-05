@@ -42,6 +42,9 @@ jobs:
           node --check web/app.js
           node --check web/cloud-data.js
           node --check web/depth-surface.js
+          node --check web/market-view.js
+          node --check web/engine-client.js
+          node --test tests/js/native-dashboard.test.cjs
           test -f web/vendor/plotly-gl3d-3.7.0.min.js
           node --check web/engine-worker.js
           test -f web/index.html

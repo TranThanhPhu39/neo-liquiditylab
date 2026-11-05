@@ -19,15 +19,8 @@ const labels = {liquidity:['Thanh khoản','Quan sát độ sâu sổ lệnh, ch
 const state = {page:'liquidity',loaded:false,demo:false,data:null,days:[],symbols:[],version:0,workerReady:false};
 const cloud = new LiquidityCloud();
 let cloudEpoch=0;
-const worker = new Worker('./engine-worker.js');
-const pending = new Map(); let nextId = 0;
-function call(method, text) {return new Promise((resolve,reject) => {const id=++nextId;pending.set(id,{resolve,reject});worker.postMessage({id,method,text});});}
-worker.onmessage = ({data}) => {
-  if(data.ready){state.workerReady=true;$('engineState').textContent='Bộ tính sẵn sàng';return;}
-  if(data.fatal){$('engineState').textContent='Bộ tính chưa sẵn sàng';notice('Không tải được bộ tính. Hãy tải lại trang để thử lại.');return;}
-  const item=pending.get(data.id);if(!item)return;pending.delete(data.id);data.error?item.reject(new Error(data.error)):item.resolve(data.result);
-};
-worker.onerror=()=>{notice('Bộ tính gặp lỗi tải. Hãy tải lại trang.');$('engineState').textContent='Lỗi tải bộ tính';};
+const engine=new EngineClient({onstate:status=>{state.workerReady=status==='ready';$('engineState').textContent=({loading:'Đang tải bộ tính A1/B5…',ready:'Bộ tính A1/B5 sẵn sàng',failed:'Bộ tính A1/B5 chưa sẵn sàng'})[status];}});
+const call=(method,text)=>engine.call(method,text);
 function notice(text){$('message').className=text?'alert':'';$('message').textContent=text;}
 function alertIn(id,text){$(id).className=text?'alert':'';$(id).textContent=text;}
 function metric(label,value,note=''){return `<div class="metric"><div class="metric-label">${escapeHTML(label)}</div><div class="metric-value">${escapeHTML(value)}</div><div class="metric-note">${escapeHTML(note)}</div></div>`;}
@@ -50,17 +43,23 @@ async function update(reverse=false){
       const scope=[query.day,query.symbol,query.time].join('|'),element=$('depthSurface');
       if(element.dataset.scope!==scope){DepthSurface.clear(element,'Đang chọn dữ liệu lịch sử…');$('depthSummary').textContent='Đang tải';element.dataset.scope=scope;}
     }
+    let prepared={key:state.sourceKey,payload:state.payload};
     if(cloud.enabled){
       const positions=query.page==='stress'?await call('portfolio_symbols',query.portfolio):[];
-      const prepared=await cloud.prepare(query.day,[query.symbol,...positions]);
-      if(version!==state.version||!cloud.enabled)return;
-      if(cloud.hydrated!==prepared.key){
-        await call('ingest',JSON.stringify(prepared.payload));
-        cloud.hydrated=prepared.key;
-      }
+      prepared=await cloud.prepare(query.day,[query.symbol,...positions]);
       if(version!==state.version||!cloud.enabled)return;
     }
-    const result=await call('view',JSON.stringify(query));
+    let result;
+    if(query.page==='liquidity'){
+      result=MarketView.view(prepared.payload,query);
+    }else{
+      if(state.engineKey!==prepared.key){
+        await call('ingest',JSON.stringify(prepared.payload));
+        state.engineKey=prepared.key;
+      }
+      if(version!==state.version)return;
+      result=await call('view',JSON.stringify(query));
+    }
     if(version!==state.version)return;
     state.data=result;notice('');render(result);
     if(reverse)$('reverseResult').textContent=result.stress_error||result.execution_error||(result.reverse===null?'Coverage không rơi dưới ngưỡng trong khoảng giảm độ sâu 0–90%.':result.reverse===undefined?'Không đủ dữ liệu hợp lệ cho reverse stress.':`Ngưỡng suy giảm độ sâu: ${pct(result.reverse)} (lưới 0,01%).`);
@@ -87,7 +86,7 @@ function render(r){
     $('book').innerHTML=`<table><thead><tr><th>Mức</th><th>KL mua</th><th>Giá mua</th><th>Giá bán</th><th>KL bán</th></tr></thead><tbody>${[1,2,3].map(i=>`<tr><td>0${i}</td><td>${format(b['bid_vol_'+i])}</td><td class="book-bid">${format(b['bid_price_'+i])}</td><td class="book-ask">${format(b['ask_price_'+i])}</td><td>${format(b['ask_vol_'+i])}</td></tr>`).join('')}</tbody></table>`;
     const cumulative=side=>{let sum=0;return[1,2,3].map(i=>{if(b[`${side}_price_${i}`]===null||b[`${side}_vol_${i}`]===null)return null;sum+=b[`${side}_vol_${i}`];return sum;});};
     chart('depthChart',['Mức 1','Mức 2','Mức 3'],[{name:'Bid',values:cumulative('bid'),color:'#252525'},{name:'Ask',values:cumulative('ask'),color:'#aaa'}]);
-    const quality=[['Đơn vị',state.demo?'GIẢ LẬP':b.unit_verification_status],['Chất lượng',b.data_quality_status],['Phiên nguồn',b.market_session],['A1 / B5',b.financial_eligible?'Đủ điều kiện đơn vị / phiên':'Chưa đủ điều kiện'],['Giá / Khối lượng','VND / CP'],['Điểm đến mốc chọn',format(r.rows)]];
+    const quality=[['Đơn vị',state.demo?'GIẢ LẬP':b.unit_verification_status],['Chất lượng',b.data_quality_status],['Phiên nguồn',b.market_session],['A1 / B5',b.eligibility_pending?'Kiểm tra khi mở A1/B5':b.financial_eligible?'Đủ điều kiện đơn vị / phiên':'Chưa đủ điều kiện'],['Giá / Khối lượng','VND / CP'],['Điểm đến mốc chọn',format(r.rows)]];
     $('quality').innerHTML=quality.map(([k,v])=>`<div class="quality-row"><span>${escapeHTML(k)}</span><strong>${escapeHTML(v)}</strong></div>`).join('')+`<p class="small muted" style="margin-top:14px">${escapeHTML(r.quality_error||(wsBook?'WS đã lưu: kiểm chứng ba mức trong từng thông điệp đầy đủ. Không ghép mức thiếu và không bảo đảm đã quan sát toàn phiên.':cloud.enabled?'Đơn vị theo hồ sơ chuẩn hóa, kiểm chứng riêng từng mã. Dữ liệu lịch sử tải sau phiên.':'Nhãn xác minh theo tệp đã nhập. Dữ liệu tải sau phiên; không chứng minh đã nhận tại thời điểm thị trường đó.'))}</p>`;
     const h=r.history||[];
     h.length>1?chart('historyChart',h.map(x=>localTime(x.source_local_time)),[{name:'Bid',values:h.map(x=>x.bid_observed_depth_shares),color:'#252525'},{name:'Ask',values:h.map(x=>x.ask_observed_depth_shares),color:'#aaa'}]):clearCharts(['historyChart'],'Chưa đủ điểm lịch sử trước thời gian đã chọn để vẽ biểu đồ.');
@@ -97,7 +96,7 @@ function render(r){
   if(state.page==='stress')renderStress(r);
   renderWatchlist();
 }
-function renderWatchlist(){if(!state.data)return;const term=$('search').value.trim().toUpperCase();const rows=state.data.watchlist.filter(r=>r.symbol.includes(term));$('watchlist').innerHTML=`<table><thead><tr><th>Mã / Sàn</th><th>Bid (CP)</th><th>Ask (CP)</th><th>A1 / B5</th></tr></thead><tbody>${rows.map(r=>`<tr><td><button class="symbol-button" data-symbol="${escapeHTML(r.symbol)}">${escapeHTML(r.symbol)}</button> <small class="muted">${escapeHTML(r.exchange)}</small></td><td>${format(r.bid_observed_depth_shares)}</td><td>${format(r.ask_observed_depth_shares)}</td><td>${!r.has_snapshot?'NO DATA':r.financial_eligible?'Đủ điều kiện':'Chưa xác minh / ngoài phiên'}</td></tr>`).join('')}</tbody></table>`;if(!rows.length)$('watchlist').textContent='Không có mã khớp bộ lọc tại thời điểm này.';}
+function renderWatchlist(){if(!state.data)return;const term=$('search').value.trim().toUpperCase();const rows=state.data.watchlist.filter(r=>r.symbol.includes(term));$('watchlist').innerHTML=`<table><thead><tr><th>Mã / Sàn</th><th>Bid (CP)</th><th>Ask (CP)</th><th>A1 / B5</th></tr></thead><tbody>${rows.map(r=>`<tr><td><button class="symbol-button" data-symbol="${escapeHTML(r.symbol)}">${escapeHTML(r.symbol)}</button> <small class="muted">${escapeHTML(r.exchange)}</small></td><td>${format(r.bid_observed_depth_shares)}</td><td>${format(r.ask_observed_depth_shares)}</td><td>${!r.has_snapshot?'NO DATA':r.eligibility_pending?'Kiểm tra trong A1/B5':r.financial_eligible?'Đủ điều kiện':'Chưa xác minh / ngoài phiên'}</td></tr>`).join('')}</tbody></table>`;if(!rows.length)$('watchlist').textContent='Không có mã khớp bộ lọc tại thời điểm này.';}
 function renderExecution(r){
   const allowed=$('consentA1').checked;
   const error=!allowed?'Bật cho phép phân tích snapshot lịch sử để xem mô phỏng.':r.execution_error;
@@ -142,7 +141,7 @@ async function ingest(text,name,demo=false){
   const previousCloud=cloud.enabled;
   cloud.enabled=false;cloudEpoch++;state.version++;
   notice('Đang kiểm tra và mở dữ liệu…');
-  try{const parsed=JSON.parse(text);const info=await call('ingest',text);state.loaded=true;state.demo=demo;state.days=info.days;
+  try{const parsed=JSON.parse(text);const info=MarketView.read(parsed).info;state.payload=parsed;state.sourceKey='private-'+cloudEpoch;state.loaded=true;state.demo=demo;state.days=info.days;
     optionList('day',info.days,info.days.at(-1));state.symbols=info.symbols[$('day').value];
     state.daySymbols=info.symbols;optionList('symbol',state.symbols,state.symbols.includes('ACB')?'ACB':state.symbols[0]);
     const cutoff=parsed.cutoff?.match(/T(\d\d:\d\d)/)?.[1];$('clock').value=cutoff||'14:20';$('sourceName').textContent=demo?'Mẫu giả lập · 2 mã':'DNSE · Lịch sử chuẩn hóa';$('sourceDetail').textContent=`${name} · ${format(info.count)} snapshot · Xử lý trong tab này`;$('consentA1').checked=false;$('consentB5').checked=false;$('reverseResult').textContent='Tìm mức giảm độ sâu nhỏ nhất trên lưới 0,01%, trong khoảng 0–90%.';await update();
@@ -185,4 +184,5 @@ $('export').addEventListener('click',()=>{if(!state.data?.record)return;const ur
 $('help').addEventListener('click',()=>$('helpDialog').showModal());$('closeHelp').addEventListener('click',()=>$('helpDialog').close());
 $('footerHelp').addEventListener('click',()=>$('helpDialog').showModal());
 $('cloudReload').addEventListener('click',startCloud);
+$('depthReset').addEventListener('click',()=>DepthSurface.reset($('depthSurface')));
 window.addEventListener('hashchange',page);page();startCloud();

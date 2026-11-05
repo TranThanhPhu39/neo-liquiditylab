@@ -6,7 +6,8 @@ Mở màn hình **Thanh khoản → Độ sâu 3D theo thời gian** trên web h
 - **Y:** thời gian nguồn, giờ Việt Nam.
 - **Z:** khối lượng CP của từng mức, hoặc khối lượng tích lũy khi chuyển lựa chọn.
 - **Bên sổ lệnh:** Bid xanh lam, Ask xanh ngọc, hoặc hai bên cùng lúc.
-- Kéo để xoay, cuộn để phóng to; thanh công cụ Plotly có đặt lại góc nhìn và lưu ảnh.
+- Web: kéo để xoay, cuộn để phóng to; nút **Đặt lại góc nhìn**, nhấp đúp hoặc phím Home để đặt lại. Có thể dùng phím mũi tên để xoay.
+- Streamlit/HTML xuất riêng: thanh công cụ Plotly hỗ trợ đặt lại góc nhìn và lưu ảnh.
 
 Màu mặt chuyển từ xanh nhạt sang xanh đậm theo khối lượng, kèm các đường tại những lát cắt được lấy mẫu, gần phong cách hình tham khảo người dùng gửi. Đây là mặt lưới nối điểm quan sát để xem hình học; không phải dữ liệu đầy đủ ở mọi mức giá hoặc mọi thời điểm giữa các điểm.
 
@@ -14,9 +15,11 @@ Mỗi bên chỉ có ba mức. Dữ liệu thiếu giữ null, số 0 thực đ�
 
 Biểu đồ dùng tối đa 180 snapshot trong ngày/mã, không muộn hơn mốc giờ đang chọn. Giữ điểm đầu/cuối, không lấy dữ liệu tương lai. Web vẫn dùng lịch sử public lấy mẫu 6 phút; Streamlit đọc các điểm đại diện từ kho trên máy. Nhãn chưa xác minh đơn vị vẫn được giữ và không mở khóa A1/B5.
 
-Mô hình hình học và figure schema nằm trong `src/app/depth_surface.py`, dùng chung cho browser bridge và Streamlit. Chỉ chuyển sang số vẽ biểu đồ ở đây; lõi tính toán tài chính vẫn dùng Decimal.
+Web dựng hình học mô tả trong `web/market-view.js` và chiếu mặt 3D bằng SVG trong `web/depth-surface.js`. Không chờ Python, không cần WebGL hoặc CDN. Bộ tính Python chỉ tải khi mở A1/B5; có thời hạn chờ và thông báo lỗi nếu runtime không khởi động/trả kết quả. A1/B5 tiếp tục xác minh điều kiện và tính tiền bằng lõi Python/Decimal; nhãn đủ điều kiện trong tệp nhập không được tin trực tiếp.
 
-Plotly gl3d 3.7.0 được ghim phiên bản/checksum trong `web/vendor/plotly-manifest.json`, phục vụ từ chính Pages. Trình duyệt không gửi dữ liệu thị trường đến CDN Plotly khi dùng biểu đồ.
+Mô hình Python và figure schema trong `src/app/depth_surface.py` vẫn phục vụ Streamlit/HTML xuất riêng. Kiểm thử đối chiếu hình học JS/Python, lấy mẫu, thời gian nguồn microsecond, khoảng trống và 0/null. Kiểm thử ứng dụng với worker không hoạt động xác nhận sổ lệnh và SVG 3D vẫn được dựng.
+
+Plotly gl3d 3.7.0 vẫn được lưu tại `web/vendor` cho tương thích bản trước; màn hình 3D web hiện không tải thư viện này.
 
 Xuất bản HTML tương tác độc lập, không cần bộ tính Python trên web:
 

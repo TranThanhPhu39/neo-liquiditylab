@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "start_date": "2026-11-05",
+  "lookback_days": 7,
+  "publish_web": true,
+  "excluded_dates": []
+}

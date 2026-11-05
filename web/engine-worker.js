@@ -3,7 +3,7 @@ let engine;
 async function initialize() {
   importScripts('./runtime/pyodide.js');
   engine = await loadPyodide({indexURL: new URL('./runtime/', self.location.href).href});
-  const response = await fetch('./engine.zip');
+  const response = await fetch('./engine.zip?v=20261105-svg1');
   if (!response.ok) throw new Error('Không tải được bộ tính.');
   engine.unpackArchive(await response.arrayBuffer(), 'zip', {extractDir: '/app'});
   engine.runPython("import sys, zoneinfo\nsys.path.insert(0, '/app')\nzoneinfo.reset_tzpath(['/app/zones'])\nfrom src.app.browser_bridge import ingest, view, portfolio_symbols");

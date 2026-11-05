@@ -14,7 +14,7 @@ MVP gồm A1, B5, danh mục nhập tay, SQLite, collector và Replay. **DNSE Op
 
 Bản web chính trên GitHub Pages: https://tranthanhphu39.github.io/neo-liquiditylab/ — truy cập công khai, không cần đăng nhập ChatGPT. Bản Sites riêng tư trước đó vẫn được giữ.
 
-Bản web gồm **Thanh khoản, Mô phỏng lệnh A1 và Stress danh mục B5**, dùng cùng lõi Python/Decimal với Streamlit. Khi mở trang, dashboard **tự tải ngày DNSE mới nhất đã công bố**, không cần chọn tệp. Dữ liệu công khai là lịch sử đã chuẩn hóa/audit, có lấy mẫu; dữ liệu mẫu giả lập vẫn có nhãn riêng. Không đưa khóa API vào trình duyệt.
+Bản web gồm **Thanh khoản, Mô phỏng lệnh A1 và Stress danh mục B5**. A1/B5 dùng cùng lõi Python/Decimal với Streamlit; phần quan sát sổ lệnh và 3D chạy trực tiếp bằng JavaScript/SVG, không chờ Python hoặc WebGL. Khi mở trang, dashboard **tự tải ngày DNSE mới nhất đã công bố**, không cần chọn tệp. Dữ liệu công khai là lịch sử đã chuẩn hóa/audit, có lấy mẫu; dữ liệu mẫu giả lập vẫn có nhãn riêng. Không đưa khóa API vào trình duyệt. Xem [cách dùng biểu đồ 3D](docs/depth_surface.md).
 
 Lần xuất hiện tại gồm 7 ngày đến 05/11/2026, 119 phần dữ liệu nén tổng khoảng 17,9 MB. Mỗi ngày có mốc 11:29, 14:20, 15:10 toàn thị trường và lịch sử từng mã lấy snapshot cuối mỗi khoảng 6 phút. Trình duyệt chỉ tải thêm lịch sử của mã/danh mục đang chọn, kiểm tra checksum và giữ nguyên nhãn thiếu dữ liệu, chưa xác minh đơn vị. Đây không phải toàn bộ tick trong phiên hoặc dữ liệu realtime.
 
@@ -55,6 +55,8 @@ Thiết kế gốc nằm trong Penpot; mã web công khai ở [`web/`](web/READM
 
 ## Quy trình vận hành hằng ngày
 
+**Lịch dự phòng trên máy đã bật ngày 05/11:** task **LiquidityLab - DNSE Daily Fallback** chạy **15:15 thứ Hai–thứ Sáu** và kiểm tra tải bù khi người dùng đăng nhập. Máy cần bật và người dùng đăng nhập; nếu lỡ lịch, rà các ngày đã đóng phiên trong bảy ngày lịch gần nhất, bắt đầu từ 05/11. Ngày hoàn tất và đã có trên web được bỏ qua. Tự tải REST → chuẩn hóa → audit → công bố mẫu đã duyệt lên Pages; raw/database đầy đủ giữ trên máy. Lượt chạy thử 05/11 trả mã 0 và nhận đúng ngày đã hoàn tất, không tải lại. Lần định kỳ kế tiếp: **06/11/2026 15:15, giờ Việt Nam**. Xem [lịch Windows, lệnh kiểm tra, log và cách dừng](docs/dnse_local_fallback.md). Đây là dự phòng cho lỗi GitHub khởi chạy trễ và REST timeout; không khẳng định kết nối REST trên runner đã được sửa.
+
 **Tự công bố trên máy đã bật theo yêu cầu ngày 05/11:** lệnh `scripts.update_dnse_day` cho cả ngày tự xuất dữ liệu lấy mẫu và đẩy lên Pages sau khi toàn bộ audit/kiểm tra tài chính đạt. Chính sách nằm ở `config/web_publication.json`; thêm `--no-publish-web` nếu muốn một lượt chỉ lưu trên máy. Nhánh GitHub chuẩn hóa → audit → công bố đã viết và kiểm thử offline, giữ `github_enabled=false` đến khi người dùng duyệt bootstrap bằng chứng riêng. REST trên runner hiện vẫn timeout. Xem [hướng dẫn tự cập nhật web](docs/automatic_web_publication.md).
 
 Các lệnh dưới đây chạy trong **PowerShell tại thư mục chứa README**, trên workspace đã có `.venv`, `.env` và hồ sơ đối chiếu đơn vị DNSE cục bộ. Clone repo public không tự tải dữ liệu, hồ sơ bằng chứng riêng hoặc khóa giải mã về máy. Trong `.env` cần có `DNSE_API_KEY` và `DNSE_API_SECRET`; không in giá trị hoặc đưa vào câu lệnh.
@@ -68,7 +70,7 @@ Các lệnh dưới đây chạy trong **PowerShell tại thư mục chứa READ
 | Tự tải checkpoint WebSocket về máy | Chưa có CLI đồng bộ hằng ngày | Chưa tự động |
 | Chuẩn hóa cấu trúc WebSocket | Tự chạy sau mỗi checkpoint GitHub, lưu mã hóa riêng; đơn vị WS còn chưa xác minh | Không cần mở máy để chuẩn hóa cấu trúc; chưa dùng A1/B5 |
 | Khôi phục bản cấu trúc WS về máy | `scripts.sync_dnse_ws_normalized --date YYYY-MM-DD --partition morning` hoặc `afternoon` | Có, khi cần xem trên máy |
-| Tải lịch sử REST và chuẩn hóa cho dashboard | Lệnh `scripts.update_dnse_day` trên máy | Có, trong khi lệnh chạy |
+| Tải lịch sử REST, chuẩn hóa và cập nhật dashboard | Task Windows 15:15 + tải bù lúc đăng nhập; có thể chạy tay `scripts.update_dnse_day` | Có, trong khi tác vụ chạy |
 | Tải bù raw REST khi runner bỏ lỡ cửa sổ realtime | Actions tự thử sau khi phiên đóng; lưu checkpoint mã hóa `dnse-rest-history`. Nếu REST không kết nối được hoặc tải chưa đủ, job báo lỗi | Không; chưa bảo đảm kết nối REST từ runner |
 | Khôi phục raw REST tải bù để chuẩn hóa trên máy | `scripts.sync_dnse_rest_history --date YYYY-MM-DD --session day`, rồi `scripts.update_dnse_day --date YYYY-MM-DD` | Có |
 | Làm mới danh mục dùng cho GitHub | Lệnh `scripts.prepare_dnse_realtime --publish` trên máy | Có, trong lúc cập nhật |

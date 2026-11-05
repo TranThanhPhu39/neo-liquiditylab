@@ -6,7 +6,7 @@
 
 | Cách mở | Dữ liệu tại lần kiểm tra 05/11 | Thao tác |
 | --- | --- | --- |
-| [GitHub Pages](https://tranthanhphu39.github.io/neo-liquiditylab/) | Bộ lịch sử công khai đến 05/11 | Mở link, đợi bộ tính và dữ liệu tải xong |
+| [GitHub Pages](https://tranthanhphu39.github.io/neo-liquiditylab/) | Bộ lịch sử công khai đến 05/11 | Mở link, dữ liệu và 3D tự tải; Python chỉ tải khi mở A1/B5 |
 | Streamlit trên máy | Kho chuẩn hóa đến 05/11, có sáng và chiều | Chạy lệnh bên dưới, chọn nguồn DNSE |
 | Web + Mở tệp riêng | Tệp ngày 05/11 trên máy | Chọn `data/exports/dashboard/dnse_2026-11-05.json` |
 

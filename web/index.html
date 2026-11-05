@@ -4,8 +4,8 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="LiquidityLab: độ sâu DNSE ba mức giá, mô phỏng thực hiện lệnh và stress thanh khoản danh mục.">
   <meta name="theme-color" content="#252525"><title>LiquidityLab · DNSE</title>
-  <link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
-  <script src="./cloud-data.js" defer></script><script src="./depth-surface.js" defer></script><script src="./app.js" defer></script>
+  <link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=20261105-svg1">
+  <script src="./cloud-data.js?v=20261105-svg1" defer></script><script src="./market-view.js?v=20261105-svg1" defer></script><script src="./depth-surface.js?v=20261105-svg1" defer></script><script src="./engine-client.js?v=20261105-svg1" defer></script><script src="./app.js?v=20261105-svg1" defer></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -17,7 +17,7 @@
       <a href="#stress" data-page="stress"><span class="nav-icon">◫</span>Stress danh mục <small>B5</small></a>
     </nav>
     <section class="source-box"><div class="eyebrow">NGUỒN DỮ LIỆU</div><strong id="sourceName">DNSE · Dữ liệu web</strong><p id="sourceDetail">Đang tải ngày dữ liệu mới nhất đã công bố…</p><button class="button primary wide" id="cloudReload">↻ Tải lại dữ liệu</button><button class="button quiet wide" data-import>Mở tệp riêng</button><button class="button quiet wide" id="demo">Thử dữ liệu mẫu</button></section>
-    <div class="sidebar-bottom"><span class="dot"></span><span id="engineState" role="status">Đang tải bộ tính…</span><p>Python · Decimal<br>Phân tích trong trình duyệt</p><button class="text-button" id="help">Hướng dẫn sử dụng ↗</button></div>
+    <div class="sidebar-bottom"><span class="dot"></span><span id="engineState" role="status">Bộ tính tải khi mở A1/B5</span><p>Python · Decimal<br>Phân tích trong trình duyệt</p><button class="text-button" id="help">Hướng dẫn sử dụng ↗</button></div>
   </aside>
   <main>
     <header class="topbar"><span>Phân tích <span class="slash">/</span> <span id="breadcrumb">Thanh khoản</span></span><span class="tag">DNSE · 3 MỨC GIÁ</span></header>
@@ -45,7 +45,8 @@
         <section class="panel"><div class="panel-head"><h2>Chất lượng dữ liệu</h2></div><div id="quality"></div></section></div>
         <section class="panel depth-panel"><div class="panel-head"><div><h2>Độ sâu 3D theo thời gian</h2><p class="depth-subtitle">Ba mức giá · Kéo để xoay, cuộn để phóng to</p></div><span class="tag">LỊCH SỬ ĐÃ LƯU</span></div>
           <div class="depth-controls"><label>Bên sổ lệnh<select id="depthSide"><option value="bid">Bid · Chờ mua</option><option value="ask">Ask · Chờ bán</option><option value="both">Cả Bid và Ask</option></select></label><label>Trục khối lượng<select id="depthMode"><option value="volume">Khối lượng từng mức</option><option value="cumulative">Khối lượng tích lũy</option></select></label><span id="depthSummary" class="small muted" role="status"></span></div>
-          <div id="depthSurface" class="depth-surface" role="region" aria-label="Biểu đồ độ sâu ba chiều theo thời gian">Chưa có điểm dữ liệu.</div>
+          <button class="button quiet" id="depthReset">Đặt lại góc nhìn</button>
+          <div id="depthSurface" class="depth-surface" role="region" aria-label="Biểu đồ độ sâu ba chiều theo thời gian. Dùng phím mũi tên để xoay, Home để đặt lại.">Chưa có điểm dữ liệu.</div>
           <p class="panel-foot" id="depthSurfaceNote">Mặt lưới nối các điểm mẫu của ba mức mỗi bên. Phần thiếu được ngắt; không khôi phục mức giá hoặc tick chưa quan sát.</p>
         </section>
         <section class="panel"><div class="panel-head"><h2>Độ sâu theo thời gian nguồn</h2><span class="muted">Điểm lịch sử đã tải</span></div><div id="historyChart" class="chart"></div></section>

@@ -2,7 +2,7 @@
 
 Public web: https://tranthanhphu39.github.io/neo-liquiditylab/
 
-Three screens: liquidity, execution A1 and portfolio stress B5. The Penpot monochrome design uses the same repository Python/Decimal finance core, running in a vendored Pyodide Web Worker.
+Three screens: liquidity, execution A1 and portfolio stress B5. Liquidity and the interactive 3D depth surface render directly in JavaScript/SVG without waiting for Python or WebGL. A1/B5 use the same repository Python/Decimal finance core, loaded lazily in a vendored Pyodide Web Worker with startup/request deadlines. Imported financial eligibility is rechecked by Python.
 
 Run from the repository root:
 
