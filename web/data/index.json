@@ -1,7 +1,7 @@
 {
   "format": "liquiditylab-cloud-v1",
-  "latest_day": "2026-11-06",
-  "generated_at": "2026-11-06T23:22:47.325503+07:00",
+  "latest_day": "2026-11-09",
+  "generated_at": "2026-11-10T14:50:39.195995+07:00",
   "provider": "dnse",
   "normalization_version": "dnse-canonical-v1",
   "rule_hash": "5b2b5d53198bebf5d4e08949b2d025645ab802c8006d64fdc1900093ae121474",
@@ -892,6 +892,116 @@
           "sha256": "fec34c62c02d3c438ef82f9186df36d6ffc26f9e440938766f99fe2db891bc63",
           "bytes": 153110,
           "records": 1834
+        }
+      }
+    },
+    {
+      "date": "2026-11-09",
+      "fingerprint": "79e10677b04bc118649904e309b608cb806d44359e7e9f9f7dea9a5a2914634a",
+      "catalog_symbols": 1517,
+      "preferred_time": "14:20",
+      "market": {
+        "path": "2026-11-09/market-a896526f493fa0f0.json.gz",
+        "sha256": "a896526f493fa0f0cd7b4a64eefcdf54ba46d48c66a49dfcf6654552b2caec78",
+        "bytes": 402998,
+        "records": 3601
+      },
+      "groups": {
+        "0": {
+          "path": "2026-11-09/history-0-e06b6adf7bce76af.json.gz",
+          "sha256": "e06b6adf7bce76afc25d8a68f0dbf75a5a0e39ad2b99c43c315ea6ab106a0fac",
+          "bytes": 146568,
+          "records": 1808
+        },
+        "1": {
+          "path": "2026-11-09/history-1-2b69f805812cc776.json.gz",
+          "sha256": "2b69f805812cc77699d356dbf0f293841de27e9f787e5f4976e2319b52fabbeb",
+          "bytes": 114190,
+          "records": 1387
+        },
+        "2": {
+          "path": "2026-11-09/history-2-ea9b0c8191f350eb.json.gz",
+          "sha256": "ea9b0c8191f350eb42f0586eb243f4f8b3c200c0af26f25c72afb3e309cf44e5",
+          "bytes": 137819,
+          "records": 1714
+        },
+        "3": {
+          "path": "2026-11-09/history-3-e33b3e3a7f262fd4.json.gz",
+          "sha256": "e33b3e3a7f262fd4594e5cd1e352e3a04f40db5c1b6b8600add3cf9058c191ef",
+          "bytes": 108216,
+          "records": 1354
+        },
+        "4": {
+          "path": "2026-11-09/history-4-c6ba9b8b139f5f2b.json.gz",
+          "sha256": "c6ba9b8b139f5f2bb452248ac8203dff9f273fc39cfe3584db80b13e6f16361c",
+          "bytes": 134509,
+          "records": 1635
+        },
+        "5": {
+          "path": "2026-11-09/history-5-4eecd18fe253ec3c.json.gz",
+          "sha256": "4eecd18fe253ec3c030d72fc378d97cf4aa400ae094ad84eefe30a028539dafd",
+          "bytes": 101178,
+          "records": 1289
+        },
+        "6": {
+          "path": "2026-11-09/history-6-aa9e8ceaf586aae1.json.gz",
+          "sha256": "aa9e8ceaf586aae1b65c65839d7e2f80cd852cf5824a79e8a351a7d836be9fd5",
+          "bytes": 146283,
+          "records": 1803
+        },
+        "7": {
+          "path": "2026-11-09/history-7-ac1849f7ee785735.json.gz",
+          "sha256": "ac1849f7ee7857351588c89f9dcaeee40108cff9013aeaff5d0512f32a0990a5",
+          "bytes": 126445,
+          "records": 1553
+        },
+        "8": {
+          "path": "2026-11-09/history-8-a3a482328f08bcf9.json.gz",
+          "sha256": "a3a482328f08bcf9809a42bad9dd30c727f79b0afbb09e76f7c8885f0c0376b4",
+          "bytes": 161133,
+          "records": 1979
+        },
+        "9": {
+          "path": "2026-11-09/history-9-be8b0963f189da40.json.gz",
+          "sha256": "be8b0963f189da4081d8f53646d314662b5a0e19d6777867529fb757a11a38f9",
+          "bytes": 128119,
+          "records": 1558
+        },
+        "a": {
+          "path": "2026-11-09/history-a-de6806e12c7bcae5.json.gz",
+          "sha256": "de6806e12c7bcae5bcabd53d9e65347225b974997cb1eaa83e2dd65aeded2923",
+          "bytes": 143442,
+          "records": 1765
+        },
+        "b": {
+          "path": "2026-11-09/history-b-2a9046ca6045ea53.json.gz",
+          "sha256": "2a9046ca6045ea53f9f5921d68b9f518a746424187afb66685db1631be09d2e3",
+          "bytes": 105366,
+          "records": 1293
+        },
+        "c": {
+          "path": "2026-11-09/history-c-ddf7fb09760b857e.json.gz",
+          "sha256": "ddf7fb09760b857ef6f4ccaf7a202042fd379e1e3edc94e668645de8138006e3",
+          "bytes": 126767,
+          "records": 1597
+        },
+        "d": {
+          "path": "2026-11-09/history-d-d5bf98ef720b15c3.json.gz",
+          "sha256": "d5bf98ef720b15c37d38829a01fd904ebb17e5968682bbfe66ccdb96b56e5f19",
+          "bytes": 111116,
+          "records": 1377
+        },
+        "e": {
+          "path": "2026-11-09/history-e-3e567a1c68dd3299.json.gz",
+          "sha256": "3e567a1c68dd32990e9cd0d127a09d57b0166fabd0419168bcc0b166911c3a0c",
+          "bytes": 124164,
+          "records": 1516
+        },
+        "f": {
+          "path": "2026-11-09/history-f-36586e92e12db785.json.gz",
+          "sha256": "36586e92e12db78529d698d9ac38eb4fb54c028b65ffb759f13dda1bd943776f",
+          "bytes": 139140,
+          "records": 1670
         }
       }
     }
