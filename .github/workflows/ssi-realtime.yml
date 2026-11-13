@@ -1,0 +1,92 @@
+name: SSI realtime Parquet collector
+
+on:
+  schedule:
+    - cron: '37 1 * * 1-5' # 08:37 Vietnam; capture 08:50-11:35
+    - cron: '37 5 * * 1-5' # 12:37 Vietnam; capture 12:45-15:10
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Network-only, bounded live smoke, or scheduled-session collection
+        type: choice
+        default: network
+        options: [network, smoke, collect]
+      session:
+        description: Vietnam session for manual collect
+        type: choice
+        default: morning
+        options: [morning, afternoon]
+      seconds:
+        description: Smoke duration (10-120 seconds)
+        type: number
+        default: 60
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquiditylab-ssi-${{ inputs.mode == 'network' && 'network' || 'collector' }}
+  cancel-in-progress: false
+
+jobs:
+  network:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && inputs.mode == 'network'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install SSI dependencies and check source closure
+        run: python -m pip install -r requirements-ssi.txt
+      - name: Check DNS, TCP and TLS without credentials
+        run: python -m scripts.github_ssi_realtime --mode network
+  collector:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main' && inputs.mode != 'network' && vars.SSI_REALTIME_STORAGE_APPROVED == 'true' && (inputs.mode == 'smoke' || vars.SSI_REALTIME_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 220
+    permissions:
+      contents: write
+    env:
+      PYTHONUTF8: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install SSI collector dependencies
+        run: python -m pip install -r requirements-ssi.txt
+      - name: Collect and verify encrypted Parquet checkpoints
+        env:
+          SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
+          SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          LIQUIDITYLAB_STATE_KEY: ${{ secrets.LIQUIDITYLAB_STATE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SSI_REALTIME_STORAGE_APPROVED: ${{ vars.SSI_REALTIME_STORAGE_APPROVED }}
+          SSI_REALTIME_ENABLED: ${{ vars.SSI_REALTIME_ENABLED }}
+          SSI_SCHEDULE_CRON: ${{ github.event.schedule }}
+          MODE: ${{ inputs.mode || 'collect' }}
+          SESSION: ${{ inputs.session || 'morning' }}
+          SMOKE_SECONDS: ${{ inputs.seconds || '60' }}
+        run: python -m scripts.github_ssi_realtime --mode "$MODE" --session "$SESSION" --seconds "$SMOKE_SECONDS"
+      - name: Write safe operational summary
+        if: always()
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          p = Path('report/github/ssi_realtime_result.json')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              if p.exists():
+                  r = json.loads(p.read_text(encoding='utf-8'))
+                  summary.write('## SSI result: ' + r['state'] + '\n\n')
+                  summary.write('Parquet is encrypted. No SSI raw payload or credentials are published.\n\n')
+                  summary.write('```json\n' + json.dumps(r, indent=2) + '\n```\n')
+              else:
+                  summary.write('SSI worker did not produce a result. Check setup/installation failure.\n')

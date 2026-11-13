@@ -1,0 +1,14 @@
+{
+  "repository": "TranThanhPhu39/neo-liquiditylab",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "symbols": ["ACB", "FPT", "HPG"],
+  "schedule_utc": {"37 1 * * 1-5": "morning", "37 5 * * 1-5": "afternoon"},
+  "sessions": {
+    "morning": {"capture_from": "08:50", "coverage_from": "09:00", "close": "11:35"},
+    "afternoon": {"capture_from": "12:45", "coverage_from": "13:00", "close": "15:10"}
+  },
+  "excluded_dates": [],
+  "checkpoint_seconds": 900,
+  "storage": "AES_GCM_ENCRYPTED_GITHUB_RELEASES",
+  "live_web_hosting": false
+}
