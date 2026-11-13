@@ -85,6 +85,10 @@ class SSILive:
             if state=='TICK':
                 self._check_stale(datetime.now(timezone.utc));self.journal.tick();return
             if state=='SUBSCRIPTION_ACK':return
+            if state=='SCOPE_DIAGNOSTIC':
+                self.journal.append(dict(kind='SYSTEM',symbol='',received_at=datetime.now(timezone.utc).isoformat(),
+                    state=state,reason=info['reason'],diagnostic=info['diagnostic'],connection=self.connection))
+                self.journal.flush();return
             if state=='CONNECTING':self.connection=info['connection'];self.flags={}
             self.state=state;self.reason=info.get('reason')
             now=datetime.now(timezone.utc).isoformat();patches={}
@@ -106,7 +110,14 @@ class SSILive:
             identity=hashlib.sha256((self.journal.run_id+':'+str(self.journal.ordinal+1)).encode()).hexdigest()
             record=dict(observation)
             try:
-                if kind=='MARKET':
+                if kind=='SESSION_UNRESOLVED':
+                    self.rejected+=1;self.flags={};patches={}
+                    for code,engine in self.engines.items():
+                        before=len(engine.patches);engine.interrupt(self.counts[code],'SSI_SESSION_METADATA_UNRESOLVED')
+                        patches[code]=self._new_patches(code,before,observation['received_at'])
+                    record.update(kind='SYSTEM',state='SESSION_METADATA_QUARANTINED',
+                                  reason='SSI_SESSION_METADATA_UNRESOLVED',patches=patches)
+                elif kind=='MARKET':
                     p=observation['payload']
                     if p.get('f') and p.get('b')=='HOSE':
                         previous=self.flags.get('HOSE',{})

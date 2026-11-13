@@ -23,6 +23,8 @@ Runner không có evidence đơn vị riêng của máy nên bắt đầu với 
 
 Collector đăng ký `market.flag` theo SDK SSI, bên cạnh `market.hose` và `indexsummary.VNINDEX`. Chỉ giữ cờ HOSE; bỏ qua cờ các sàn khác trên kênh phát chung. Ưu tiên cờ trực tiếp hơn metadata chỉ số. Trong các cờ trực tiếp, bản tin mới hơn được dùng; xung đột cùng thời gian nguồn khóa detector. `LO` cần cùng ngày/kết nối và cùng khoảng liên tục sáng hoặc chiều với quote; không mang LO sáng qua giờ nghỉ trưa. Nguồn cờ, đồng hồ và lý do chọn/bỏ cờ được lưu để đối chiếu.
 
+Metadata phiên không đủ schema trên topic market đã đăng ký được cô lập thành `SYSTEM/SESSION_METADATA_QUARANTINED`, tăng số bản tin bị loại và xóa cờ đã nhớ để khóa detector, còn bộ thu tiếp tục nhận quote/trade. Bộ kiểm tra phạm vi quote/trade và kênh riêng tư vẫn dừng khi có vi phạm. Lỗi phạm vi được ghi thêm chẩn đoán cấu trúc đã lọc trong Parquet, không ghi thông tin tài khoản/khóa. Có bản tin bị loại thì job không được báo đã thu sạch toàn phiên.
+
 ## Kết quả công việc
 
 - `NETWORK_PREFLIGHT_PASSED`: DNS/TCP/TLS công khai đạt, chưa chứng minh quyền đọc quote/trade.

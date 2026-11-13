@@ -36,7 +36,7 @@ def public_record(frame,symbols,credentials=(),received_at=None):
     if topic=='market.flag':
         # This topic broadcasts multiple boards. Keep only the requested HOSE scope.
         if data.get('b') in ('HNX','UPCOM','DER','DERIVATIVES'):return None
-        if data.get('b')!='HOSE' or data.get('s') is not None:
+        if data.get('b')!='HOSE' or data.get('s') not in (None,''):
             raise ProviderError('SSI_TOPIC_SCOPE_MISMATCH')
         clean={k:data.get(k) for k in ('b','t','f')}
         if any(not isinstance(v,str) or not v or len(v)>64 for v in clean.values()):
@@ -55,8 +55,21 @@ def public_record(frame,symbols,credentials=(),received_at=None):
         return dict(kind='MARKET',symbol='',topic=topic,payload=dict(b=clean.get('b'),t=clean.get('t'),f=clean.get('ss'),index_symbol=clean.get('s')),
             received_at=received_at or datetime.now(timezone.utc).isoformat())
     symbol=data.get('s')
-    if kind=='market' and topic.lower()=='market.hose' and symbol is not None and symbol not in symbols:
+    if kind=='market' and topic.lower()=='market.hose' and symbol not in (None,'') and symbol not in symbols:
         return None  # subscribe to the board flag, not other securities' reference data
+    # An explicitly subscribed market topic can carry board/session metadata
+    # without a security symbol. Unknown status shapes are quarantined, not
+    # mistaken for a quote/trade scope escape. Other securities still fail closed.
+    if kind=='market' and topic in ['market.'+s for s in symbols]+['market.hose'] and symbol in (None,''):
+        if data.get('b')!='HOSE' or not isinstance(data.get('f'),str) or not data.get('f'):
+            clean={k:data[k] for k in ('b','t','f') if k in data and type(data[k]) in (str,int,float,type(None))}
+            if any(isinstance(v,str) and len(v)>128 for v in clean.values()):raise ProviderError('SSI_INVALID_SESSION_SCHEMA')
+            encoded=json.dumps(clean)
+            if any(secret and secret in encoded for secret in credentials):raise ProviderError('SSI_AUTH_MATERIAL_IN_DATA')
+            return dict(kind='SESSION_UNRESOLVED',symbol='',topic=topic,payload=clean,
+                        reason='SSI_SESSION_METADATA_UNRESOLVED',received_at=received_at or datetime.now(timezone.utc).isoformat())
+        # Empty symbol is equivalent to omitted symbol only for this board flag.
+        symbol=None
     # Session flags are board-wide. Never keep other securities or private fields.
     flag=kind=='market' and symbol is None and data.get('b')=='HOSE' and isinstance(data.get('f'),str)
     if not flag and symbol not in symbols:raise ProviderError('SSI_SYMBOL_SCOPE_MISMATCH')
@@ -117,7 +130,18 @@ async def collect(client,symbols,seconds,stop,on_record,on_state,*,connect=None,
                         if str(frame.get('status','')).lower() in ('error','denied','401','403','429'):
                             raise ProviderError('SSI_SUBSCRIPTION_REJECTED')
                         on_state('SUBSCRIPTION_ACK',dict(status=str(frame.get('status','UNKNOWN'))[:16]));continue
-                    record=public_record(frame,symbols,(client._key,client._secret,client._token))
+                    try:record=public_record(frame,symbols,(client._key,client._secret,client._token))
+                    except ProviderError as error:
+                        if str(error) in ('SSI_SYMBOL_SCOPE_MISMATCH','SSI_TOPIC_SCOPE_MISMATCH'):
+                            p=frame.get('data') if isinstance(frame.get('data'),dict) else {}
+                            s=p.get('s');allowed={r['topics'][0] for r in requests(symbols)}
+                            diagnostic=dict(topic=frame.get('topic') if frame.get('topic') in allowed else 'OUT_OF_SCOPE_TOPIC',
+                                fields_present=[k for k in ('s','b','t','f','bids','asks','p','q') if k in p],
+                                symbol_status='ABSENT' if 's' not in p else 'NULL' if s is None else 'EMPTY' if s=='' else 'IN_SCOPE' if s in symbols else 'OUT_OF_SCOPE',
+                                board_status='HOSE' if p.get('b')=='HOSE' else 'OTHER_OR_ABSENT',
+                                flag_is_string=isinstance(p.get('f'),str))
+                            on_state('SCOPE_DIAGNOSTIC',dict(reason=str(error),diagnostic=diagnostic))
+                        raise
                     if record:
                         record['connection']=attempt
                         on_record(record)

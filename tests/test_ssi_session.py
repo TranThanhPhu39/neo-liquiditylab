@@ -103,3 +103,53 @@ def test_c_is_retained_without_becoming_lo_and_units_remain_independent_gate():
     selected,_=select_session_flag({},flag())
     r,_=normalize_quote(quote(),dict(CONTRACT,status='UNVERIFIED',symbols=[]),'units',selected)
     assert r['market_session']=='SSI_CONTINUOUS_AM' and features(r)['reason']=='UNVERIFIED_UNITS'
+
+
+def test_unknown_session_metadata_is_isolated_without_relaxing_security_or_private_scope(tmp_path):
+    pytest.importorskip('pyarrow')
+    from src.monitoring.ssi_live import SSILive
+    from src.monitoring.events import OfflineEngine
+    from src.data_pipeline.ssi_live_store import LiveJournal
+    frame=dict(channel='DATA',topic='market.ACB',data=dict(b='UNCONFIRMED_BOARD',t='2026/11/13 11:30:00',f='BREAK',account='discard'))
+    unresolved=public_record(frame,['ACB'])
+    assert unresolved['kind']=='SESSION_UNRESOLVED' and 'account' not in str(unresolved)
+    with pytest.raises(Exception,match='SCOPE'):
+        public_record(dict(frame,topic='market.FPT'),['ACB'])
+    with pytest.raises(Exception,match='SCOPE'):
+        public_record(dict(frame,data=dict(frame['data'],s='OTHER')),['ACB'])
+    with pytest.raises(Exception,match='PRIVATE'):public_record(dict(frame,channel='TRADING'),['ACB'])
+    service=SSILive(tmp_path);service.journal=LiveJournal(tmp_path,['ACB'])
+    service.engines={'ACB':OfflineEngine('fixture')};service.flags={'HOSE':{'f':'LO'}}
+    unresolved.update(connection=1,received_at='2026-11-13T04:30:00+00:00')
+    service.receive(unresolved)
+    assert not service.flags and service.rejected==1
+    service.receive(quote('13:00:01'))
+    assert service.quote_total==1 and service.frames['ACB'][-1]['session']=='SSI_SESSION_UNKNOWN'
+    service.journal.close()
+    assert service.journal.manifest['quote_counts']['ACB']==1
+
+
+def test_empty_symbol_in_known_board_flag_is_not_a_security_scope_escape():
+    f=dict(channel='DATA',topic='market.ACB',data=dict(flag()['payload'],s=''))
+    assert public_record(f,['ACB'])['kind']=='MARKET'
+    assert public_record(dict(f,topic='market.hose'),['ACB'])['kind']=='MARKET'
+    assert public_record(dict(f,topic='market.flag'),['ACB'])['kind']=='MARKET'
+
+
+def test_scope_diagnostic_does_not_persist_other_symbol_or_credentials():
+    import asyncio,threading,time,json
+    from src.data_providers.ssi_stream import collect
+    class Client:
+        _key='fixture-private-key';_secret='fixture-private-secret';_token='fixture-private-token';_expires_at=time.time()+3600
+        def authenticate(self):return {}
+    class Socket:
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        async def send(self,p):pass
+        async def recv(self):return json.dumps(dict(channel='DATA',topic='quote.ACB@tick',data={'s':'OTHER','account':'private-account'}))
+    states=[]
+    asyncio.run(collect(Client(),['ACB'],10,threading.Event(),lambda r:None,
+        lambda state,info:states.append((state,info)),connect=lambda *a,**k:Socket()))
+    diagnostic=next(info['diagnostic'] for state,info in states if state=='SCOPE_DIAGNOSTIC')
+    assert diagnostic['symbol_status']=='OUT_OF_SCOPE' and states[-1][0]=='FAILED'
+    assert 'private-account' not in str(states) and 'fixture-private' not in str(states)
