@@ -11,7 +11,7 @@ import time
 from src.data_providers.ssi_readonly import SSIReadOnly
 from src.data_providers.ssi_stream import collect, SYMBOLS
 from src.data_pipeline.ssi_live_store import LiveJournal,run_folder,read_records,atomic
-from src.data_pipeline.ssi_live_normalization import load_contract,normalize_quote,normalize_trade,source_time,serial,LOCAL
+from src.data_pipeline.ssi_live_normalization import load_contract,normalize_quote,normalize_trade,select_session_flag,serial
 from src.monitoring.events import OfflineEngine
 
 
@@ -109,18 +109,18 @@ class SSILive:
                 if kind=='MARKET':
                     p=observation['payload']
                     if p.get('f') and p.get('b')=='HOSE':
-                        day=source_time(p.get('t')).astimezone(LOCAL).date().isoformat()
-                        primary=observation.get('topic','').startswith('market.')
                         previous=self.flags.get('HOSE',{})
-                        if primary or not previous.get('primary'):
-                            self.flags['HOSE']=dict(f=p['f'],day=day,connection=observation['connection'],primary=primary)
+                        selected,decision=select_session_flag(previous,observation)
+                        record['flag_resolution']=decision
+                        if selected:self.flags['HOSE']=selected
                 elif kind=='QUOTE':
                     r,levels=normalize_quote(observation,self.contract,identity,self.flags.get('HOSE'))
                     index=self.counts[symbol];engine=self.engines[symbol];before=len(engine.patches)
                     f=serial(engine.push(r,index));patches=self._new_patches(symbol,before,observation['received_at'])
                     frame=dict(id=identity,index=index,time=observation['received_at'],received_at=observation['received_at'],
                         source_time=r['source_timestamp'],session=r['market_session'],quality=r['data_quality_status'],
-                        market_flag=r['market_flag'],
+                        market_flag=r['market_flag'],market_flag_source=r['market_flag_source'],
+                        market_flag_conflict=r['market_flag_conflict'],
                         units=r['unit_verification_status'],clock_delta_ms=r['source_receive_clock_delta_ms'],
                         issues=r['issues'],bids=levels['bids'],asks=levels['asks'],features=f,connection=observation['connection'])
                     record.update(quote_index=index,frame=frame,canonical=r,patches=patches)

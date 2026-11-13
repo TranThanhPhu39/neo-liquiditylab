@@ -21,6 +21,8 @@ Mỗi 15 phút tạo checkpoint Parquet mã hóa; bản cuối được tải l�
 
 Runner không có evidence đơn vị riêng của máy nên bắt đầu với nhãn chưa xác minh và detector khóa. Cờ C vẫn không được tự đổi sang LO. Điều này không chặn thu quote/trade và lưu raw/canonical nguồn.
 
+Collector đăng ký `market.flag` theo SDK SSI, bên cạnh `market.hose` và `indexsummary.VNINDEX`. Chỉ giữ cờ HOSE; bỏ qua cờ các sàn khác trên kênh phát chung. Ưu tiên cờ trực tiếp hơn metadata chỉ số. Trong các cờ trực tiếp, bản tin mới hơn được dùng; xung đột cùng thời gian nguồn khóa detector. `LO` cần cùng ngày/kết nối và cùng khoảng liên tục sáng hoặc chiều với quote; không mang LO sáng qua giờ nghỉ trưa. Nguồn cờ, đồng hồ và lý do chọn/bỏ cờ được lưu để đối chiếu.
+
 ## Kết quả công việc
 
 - `NETWORK_PREFLIGHT_PASSED`: DNS/TCP/TLS công khai đạt, chưa chứng minh quyền đọc quote/trade.

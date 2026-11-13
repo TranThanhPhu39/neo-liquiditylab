@@ -20,7 +20,8 @@ def requests(symbols):
         raise ValueError('SSI_LIVE_INVALID_SYMBOLS')
     return [dict(method='SUBSCRIBE',channel='DATA',topics=[kind+'.'+symbol+('@tick' if kind!='market' else '')])
             for symbol in symbols for kind in FIELDS]+[dict(method='SUBSCRIBE',channel='DATA',topics=['indexsummary.VNINDEX']),
-                                                        dict(method='SUBSCRIBE',channel='DATA',topics=['market.hose'])]
+                                                        dict(method='SUBSCRIBE',channel='DATA',topics=['market.hose']),
+                                                        dict(method='SUBSCRIBE',channel='DATA',topics=['market.flag'])]
 
 
 def public_record(frame,symbols,credentials=(),received_at=None):
@@ -32,6 +33,18 @@ def public_record(frame,symbols,credentials=(),received_at=None):
     if kind not in FIELDS and kind!='indexsummary':raise ProviderError('SSI_UNREQUESTED_TOPIC')
     data=frame.get('data')
     if not isinstance(data,dict):raise ProviderError('SSI_INVALID_DATA_SCHEMA')
+    if topic=='market.flag':
+        # This topic broadcasts multiple boards. Keep only the requested HOSE scope.
+        if data.get('b') in ('HNX','UPCOM','DER','DERIVATIVES'):return None
+        if data.get('b')!='HOSE' or data.get('s') is not None:
+            raise ProviderError('SSI_TOPIC_SCOPE_MISMATCH')
+        clean={k:data.get(k) for k in ('b','t','f')}
+        if any(not isinstance(v,str) or not v or len(v)>64 for v in clean.values()):
+            raise ProviderError('SSI_INVALID_SESSION_SCHEMA')
+        encoded=json.dumps(clean)
+        if any(secret and secret in encoded for secret in credentials):raise ProviderError('SSI_AUTH_MATERIAL_IN_DATA')
+        return dict(kind='MARKET',symbol='',topic=topic,payload=clean,
+                    received_at=received_at or datetime.now(timezone.utc).isoformat())
     if kind=='indexsummary':
         if topic!='indexsummary.VNINDEX' or data.get('s') not in ('VNINDEX','VNIND') or data.get('b')!='HOSE':
             raise ProviderError('SSI_TOPIC_SCOPE_MISMATCH')

@@ -46,6 +46,36 @@ def source_time(text):
     raise ValueError('SSI_SOURCE_TIME_INVALID')
 
 
+def select_session_flag(previous,observation):
+    """Prefer direct board status over index metadata, retaining source clocks."""
+    p=observation['payload'];stamp=source_time(p.get('t'))
+    received=datetime.fromisoformat(observation['received_at'])
+    if received.tzinfo is None:raise ValueError('SSI_AWARE_RECEIVE_TIME_REQUIRED')
+    day=stamp.astimezone(LOCAL).date().isoformat()
+    if day!=received.astimezone(LOCAL).date().isoformat() or (stamp-received).total_seconds()>5:
+        return previous,'IGNORED_FLAG_CLOCK'
+    topic=observation.get('topic','');primary=topic.startswith('market.')
+    candidate=dict(f=p['f'],day=day,connection=observation['connection'],primary=primary,
+                   priority=2 if primary else 1,source_topic=topic,
+                   source_timestamp=stamp.isoformat(),received_at=observation['received_at'])
+    if previous and previous.get('day')==day and previous.get('connection')==candidate['connection']:
+        priority=previous.get('priority',2 if previous.get('primary') else 1)
+        if priority>candidate['priority']:return previous,'IGNORED_LOWER_PRIORITY'
+        if priority==candidate['priority'] and previous.get('source_timestamp'):
+            old_stamp=datetime.fromisoformat(previous['source_timestamp'])
+            if old_stamp>stamp:return previous,'IGNORED_OLDER_FLAG'
+            if old_stamp==stamp and (previous.get('conflict') or previous['f']!=p['f']):
+                return dict(previous,conflict=True,conflicting_flags=sorted(set(
+                    previous.get('conflicting_flags',[previous['f']])+[p['f']]))),'CONFLICTING_FLAGS'
+    return candidate,'SELECTED'
+
+
+def continuous_window(local):
+    if time(9,15)<=local.time()<time(11,30):return 'SSI_CONTINUOUS_AM'
+    if time(13)<=local.time()<time(14,30):return 'SSI_CONTINUOUS_PM'
+    return 'SSI_SESSION_UNKNOWN'
+
+
 def number(value,factor='1',quantity=False):
     if value is None or isinstance(value,bool):return None
     try:
@@ -70,9 +100,12 @@ def normalize_quote(observation,contract,identity,flag=None):
              and all(Decimal(a[0])<Decimal(b[0]) for a,b in zip(known['asks'],known['asks'][1:]))) if complete else False
     delta=(received-source).total_seconds()
     session='SSI_SESSION_UNKNOWN'
-    if flag and flag.get('f')=='LO' and flag.get('day')==local.date().isoformat() and flag.get('connection')==observation['connection']:
-        if time(9,15)<=local.time()<time(11,30):session='SSI_CONTINUOUS_AM'
-        elif time(13)<=local.time()<time(14,30):session='SSI_CONTINUOUS_PM'
+    if flag and flag.get('f')=='LO' and not flag.get('conflict') and flag.get('day')==local.date().isoformat() and flag.get('connection')==observation['connection']:
+        session=continuous_window(local)
+        if flag.get('source_timestamp'):
+            flag_time=datetime.fromisoformat(flag['source_timestamp'])
+            if flag_time>source or continuous_window(flag_time.astimezone(LOCAL))!=session:
+                session='SSI_SESSION_UNKNOWN'
     reasons=[]
     if not complete or not ordered:reasons.append('PARTIAL_OR_INVALID_BOOK')
     if complete and Decimal(levels['bids'][0][0])>Decimal(levels['asks'][0][0]):reasons.append('CROSSED_BOOK')
@@ -84,7 +117,8 @@ def normalize_quote(observation,contract,identity,flag=None):
         source_receive_clock_delta_ms=round(delta*1000),event_id=identity,unit_contract_hash=contract['hash'],
         price_unit='VND' if verified else 'SSI_SOURCE_PRICE',volume_unit='shares' if verified else 'SSI_SOURCE_QUANTITY',
         unit_verification_status='EMPIRICALLY_VERIFIED' if verified else 'UNVERIFIED_SSI_QUOTE',
-        data_quality_status='INVALID' if reasons else 'VALID',market_session=session,market_flag=flag.get('f') if flag else None,issues=reasons,
+        data_quality_status='INVALID' if reasons else 'VALID',market_session=session,market_flag=flag.get('f') if flag else None,
+        market_flag_source=flag.get('source_topic') if flag else None,market_flag_conflict=bool(flag and flag.get('conflict')),issues=reasons,
         provided_slots={s:len(v) for s,v in levels.items()},observed_levels={s:len(v) for s,v in known.items()})
     for side,key in (('bid','bids'),('ask','asks')):
         for i in (1,2,3):
