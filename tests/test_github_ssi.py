@@ -123,3 +123,13 @@ def test_remote_checkpoint_download_is_verified_before_own_temporary_release_is_
     assert len(api.deleted)==2 and temporary['tag'] in api.deleted[-1]
     files,_=store.restore(final['tag'])
     assert 'csrf' not in json.loads(files['status.json'])
+
+
+def test_import_cloud_capture_does_not_overwrite_local_runs(tmp_path):
+    from scripts.restore_ssi_checkpoint import install
+    j=capture(tmp_path/'source');assets=pack(j.folder,j.manifest,{'state':'STOPPED'},b'x'*32,'test')
+    files,_=unpack(assets,b'x'*32,'test');root=tmp_path/'destination'
+    destination=Path(install(files,root=root))
+    assert json.loads((destination/'manifest.json').read_bytes())['state']=='IMPORTED_CLOUD_CHECKPOINT'
+    assert destination.parent.parent==root/'data/realtime/ssi'
+    with pytest.raises(ValueError,match='NO_OVERWRITE'):install(files,root=root)

@@ -32,6 +32,17 @@ Runner không có evidence đơn vị riêng của máy nên bắt đầu với 
 
 Kết quả an toàn nằm trong Actions Summary và `report/github/ssi_realtime_result.json` trên runner. Releases chỉ chứa ciphertext và manifest kỹ thuật; không có payload SSI plaintext. Lưu trữ cloud trong bước này là để thu và xem lại, chưa làm GitHub Pages thành backend live hoặc dịch vụ 24/7.
 
+## Đưa dữ liệu cloud vào dashboard trên máy
+
+Liệt kê các bản đã lưu rồi nhập đúng tag cần xem:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.restore_ssi_checkpoint --list
+.\.venv\Scripts\python.exe -m scripts.restore_ssi_checkpoint --tag <tag-trong-danh-sach>
+```
+
+Lệnh tải ciphertext, giải mã bằng khóa khôi phục có sẵn trên máy, kiểm tra checksum/Parquet rồi lưu vào `data/realtime/ssi/<ngày>/<run_id>/`. Không ghi đè run đã có. Trong trang `/realtime` của dashboard local, tải lại danh sách và chọn run đã nhập để replay. Cần giữ an toàn bản khóa khôi phục; không thể giải mã nếu mất khóa. Lệnh không tự tạo khóa mới khi thiếu khóa cũ.
+
 ## Giới hạn
 
 Giới hạn 6 giờ hiện tại trong ứng dụng là giới hạn an toàn của collector, không phải SSI xác nhận. Mỗi job GitHub-hosted cũng có giới hạn 6 giờ; workflow SSI đặt timeout 220 phút, chia sáng/chiều để chừa thời gian lưu. [Giới hạn GitHub](https://docs.github.com/en/actions/reference/limits).

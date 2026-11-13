@@ -69,7 +69,7 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
     if os.getenv('GITHUB_REPOSITORY')!=REPOSITORY or os.getenv('GITHUB_REF')!='refs/heads/main':
         raise ValueError('SSI_UNEXPECTED_REPOSITORY_OR_REF')
     if mode=='network':
-        result=network_probe();atomic(report,result);return result
+        result=network_probe();atomic(report,result);print(json.dumps(result),flush=True);return result
     if mode not in ('smoke','collect'):raise ValueError('SSI_UNKNOWN_MODE')
     if os.getenv('SSI_REALTIME_STORAGE_APPROVED')!='true':raise ValueError('SSI_ENCRYPTED_STORAGE_APPROVAL_REQUIRED')
     if mode=='collect' and os.getenv('SSI_REALTIME_ENABLED')!='true':raise ValueError('SSI_SCHEDULE_NOT_ENABLED')
