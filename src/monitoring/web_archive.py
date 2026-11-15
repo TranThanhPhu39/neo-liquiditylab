@@ -162,7 +162,15 @@ class CloudRecovery:
                             else:install(files,root=self.root)
                             self.known_tags.add(r['tag_name'])
                     self.state='READY';self.last_error=None
-                except Exception as error:self.state='RECOVERY_RETRY';self.last_error=type(error).__name__
+                except Exception as error:
+                    self.state='RECOVERY_RETRY';self.last_error=type(error).__name__
+                    # Emit only an exception class and bounded diagnostic code,
+                    # never URLs, credentials, response bodies, or raw messages.
+                    code=getattr(error,'status',None) or getattr(error,'code',None)
+                    if isinstance(error,ValueError) and re.fullmatch(r'[A-Z0-9_]{1,100}',str(error)):
+                        code=str(error)
+                    if not isinstance(code,(int,str)):code=None
+                    print(json.dumps(dict(state=self.state,error_type=self.last_error,code=code)),flush=True)
                 self.closed.wait(900)
         self.thread=threading.Thread(target=worker,daemon=True,name='monitor-cloud-recovery');self.thread.start()
 
