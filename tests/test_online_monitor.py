@@ -15,6 +15,7 @@ pytest.importorskip('pyarrow')
 from scripts.serve_monitor_cloud import CloudServer
 from src.monitoring.web_relay import RelayLive,validate,RelayPublisher
 from src.monitoring.web_archive import encrypt_seed,restore_seed,safe_name,REPOSITORY
+from src.monitoring.public_releases import PublicReleases
 
 
 def packet():
@@ -162,3 +163,56 @@ def test_runtime_secret_file_does_not_load_broker_keys_or_override_platform_valu
     import os
     assert os.environ['MONITOR_WEB_PASSWORD']=='fixture-web-password' and os.environ['MONITOR_INGEST_TOKEN']=='platform-value'
     assert 'SSI_API_KEY' not in os.environ
+
+
+def test_public_recovery_restores_verified_ciphertext_without_rest_or_credentials(tmp_path):
+    import io
+    source=tmp_path/'source';source.mkdir()
+    name='data/exports/orderbook-monitor/index.json';data=b'{"datasets":[]}'
+    (source/name).parent.mkdir(parents=True);(source/name).write_bytes(data)
+    (source/'seed-manifest.json').write_text(json.dumps(dict(format='liquiditylab-private-web-seed-v1',datasets=0,
+        files=[dict(path=name,bytes=len(data),sha256=hashlib.sha256(data).hexdigest())])))
+    tag='monitor-web-seed-20261115-fixture';encrypted=tmp_path/'encrypted';key=b'x'*32
+    encrypt_seed(source,key,tag,encrypted)
+    seen=[];api=PublicReleases(REPOSITORY)
+    class Opener:
+        def open(self,request,timeout):
+            assert not request.has_header('Authorization')
+            assert request.full_url.startswith('https://github.com/'+REPOSITORY+'/releases/download/'+tag+'/')
+            seen.append(request.full_url)
+            return io.BytesIO((encrypted/request.full_url.rsplit('/',1)[1]).read_bytes())
+    api._opener=Opener()
+    assert restore_seed(tmp_path/'restored',key,tag,api)['state']=='DECRYPTED_AND_VERIFIED'
+    assert (tmp_path/'restored'/name).read_bytes()==data and len(seen)>=3
+
+
+def test_public_release_manifest_rejects_paths_sizes_and_wrong_context(monkeypatch):
+    api=PublicReleases(REPOSITORY);tag='ssi-ws-20261115-fixture';path=api.base+'/releases/tags/'+tag
+    outer=dict(format='ssi-encrypted-parquet-v1',context=REPOSITORY+':'+tag,
+               parts=[dict(name='part-0000.enc',bytes=100,sha256='a'*64)])
+    monkeypatch.setattr(api,'download',lambda url,limit:json.dumps(outer).encode())
+    assert len(api.request('GET',path)['assets'])==2
+    outer['parts'][0]['name']='../escape.enc'
+    with pytest.raises(ValueError,match='PART_INVALID'):api.request('GET',path)
+    outer['parts'][0].update(name='part-0000.enc',bytes=100_000_000)
+    with pytest.raises(ValueError,match='PART_INVALID'):api.request('GET',path)
+    outer['context']='another-repository:'+tag
+    with pytest.raises(ValueError,match='CONTEXT'):api.request('GET',path)
+    with pytest.raises(ValueError,match='READ_ONLY'):api.request('POST',path)
+
+
+def test_public_release_feed_limits_scope_and_xml_entities(monkeypatch):
+    import io
+    api=PublicReleases(REPOSITORY);tag='ssi-ws-20261115-fixture'
+    feed=('<feed xmlns="http://www.w3.org/2005/Atom"><entry><link rel="alternate" href="'+api.public+
+          '/releases/tag/'+tag+'"/></entry><entry><link href="https://evil.example/releases/tag/'+tag+'"/></entry></feed>').encode()
+    monkeypatch.setattr(api,'download',lambda url,limit:feed)
+    assert api.request('GET',api.base+'/releases?per_page=100')==[dict(tag_name=tag)]
+    feed=b'<!DOCTYPE feed [<!ENTITY x "unsafe">]><feed/>'
+    with pytest.raises(ValueError,match='FEED_INVALID'):api.request('GET',api.base+'/releases?per_page=100')
+    api=PublicReleases(REPOSITORY)
+    class Opener:
+        def open(self,request,timeout):return io.BytesIO(b'12345')
+    api._opener=Opener()
+    with pytest.raises(ValueError,match='RESPONSE_LIMIT'):api.download(api.public+'/releases.atom',4)
+    with pytest.raises(ValueError,match='UNAPPROVED'):api.download('https://evil.example/releases.atom',4)

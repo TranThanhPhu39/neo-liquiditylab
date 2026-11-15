@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from scripts.github_api import GitHubAPI,repository_path,release_asset_bytes
 from scripts.ssi_checkpoint import SSICheckpoints
 from scripts.restore_ssi_checkpoint import install
+from src.monitoring.public_releases import PublicReleases
 
 REPOSITORY='TranThanhPhu39/neo-liquiditylab'
 CHUNK=16*1024*1024
@@ -70,7 +71,7 @@ def publish_seed(folder,key,api=None):
 
 def restore_seed(root,key,tag,api=None):
     if not re.fullmatch(r'monitor-web-seed-[a-z0-9-]{10,80}',tag):raise ValueError('WEB_SEED_TAG')
-    api=api or GitHubAPI(token='');base=repository_path(REPOSITORY)
+    api=api or PublicReleases(REPOSITORY);base=repository_path(REPOSITORY)
     release=api.request('GET',base+'/releases/tags/'+tag);assets={a['name']:a for a in release['assets']}
     if any(n!='manifest.json' and not re.fullmatch(r'part-\d{4}\.enc',n) for n in assets):raise ValueError('WEB_SEED_ASSETS')
     def download(name):
@@ -122,7 +123,7 @@ def restore_seed(root,key,tag,api=None):
 
 class CloudRecovery:
     def __init__(self,root,key,seed_tag=None,*,api=None,live=None,on_seed=None):
-        self.root=Path(root);self.key=key;self.seed_tag=seed_tag;self.api=api or GitHubAPI(token='');self.live=live
+        self.root=Path(root);self.key=key;self.seed_tag=seed_tag;self.api=api or PublicReleases(REPOSITORY);self.live=live
         self.state='NOT_STARTED';self.seed_ready=not bool(seed_tag);self.last_error=None;self.closed=threading.Event();self.thread=None;self.known_tags=set();self.on_seed=on_seed
 
     def start(self):
