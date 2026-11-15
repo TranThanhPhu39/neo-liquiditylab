@@ -23,6 +23,8 @@ def check(origin,password):
     else:raise RuntimeError('CLOUD_HEALTHCHECK_TIMEOUT')
     code,body=get('/')
     assert code==200 and b'LiquidityLab' in body and b'/dashboard' in body
+    code,css=get('/intro.css')
+    assert code==200 and b'--paper' in css
     assert get('/dashboard')[0]==401
     assert get('/api/datasets')[0]==401
     assert get('/dashboard',True)[0]==200

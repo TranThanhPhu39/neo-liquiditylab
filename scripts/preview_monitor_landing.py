@@ -18,6 +18,9 @@ def preview(url=None):
     if url and url not in ('https://neo-liquiditylab-monitor.onrender.com', 'https://neo-liquiditylab-monitor.onrender.com/'):
         raise ValueError('PUBLIC_LANDING_ORIGIN_REQUIRED')
     profile = ROOT / 'data/control/public-preview-cdp'
+    port_file = profile / 'DevToolsActivePort'
+    if port_file.is_file():
+        port_file.unlink()  # This helper's previous browser has already exited.
     stack = ExitStack()
     edge = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
     process = subprocess.Popen([edge, '--headless=new', '--disable-gpu', '--no-first-run',
@@ -27,7 +30,6 @@ def preview(url=None):
                                creationflags=subprocess.CREATE_NO_WINDOW)
     socket = None
     try:
-        port_file = profile / 'DevToolsActivePort'
         for _ in range(100):
             if port_file.is_file():
                 break
@@ -58,9 +60,13 @@ def preview(url=None):
                 if ready['result'].get('value'):
                     break
                 time.sleep(.25)
+            else:
+                raise RuntimeError('PUBLIC_LANDING_NOT_READY')
             layout = call('Runtime.evaluate', dict(expression='JSON.stringify({width:innerWidth,scroll:document.documentElement.scrollWidth})', returnByValue=True))
             dimensions = json.loads(layout['result']['value'])
             assert dimensions['width'] == width and dimensions['scroll'] <= width, dimensions
+            appearance = call('Runtime.evaluate', dict(expression='getComputedStyle(document.body).backgroundColor', returnByValue=True))
+            assert appearance['result']['value'] == 'rgb(244, 245, 239)', 'PUBLIC_LANDING_STYLE_NOT_APPLIED'
             image = call('Page.captureScreenshot', dict(format='png', captureBeyondViewport=True,
                          clip=dict(x=0, y=0, width=width, height=1800, scale=1)))
             (ROOT / 'report' / ('public_landing_' + name + '.png')).write_bytes(base64.b64decode(image['data']))

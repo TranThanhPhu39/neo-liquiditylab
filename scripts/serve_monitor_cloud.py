@@ -85,9 +85,11 @@ class CloudHandler(Handler):
         if route.path=='/healthz':return self.send_json(dict(status='ok',application=APPLICATION_VERSION))
         if not self.valid_host():return self.send_json({'error':'INVALID_HOST'},403)
         if route.path in ('/','/about'):
-            return self.send_bytes((self.server.assets/'landing.html').read_bytes(),'text/html; charset=utf-8')
+            return self.send_bytes((self.server.assets/'landing.html').read_bytes(),'text/html')
+        if route.path=='/intro.css':
+            return self.send_bytes((self.server.assets/'intro.css').read_bytes(),'text/css')
         if route.path=='/robots.txt':
-            return self.send_bytes(b'User-agent: *\nAllow: /$\nDisallow: /dashboard\nDisallow: /index.html\nDisallow: /realtime\nDisallow: /api/\n','text/plain; charset=utf-8')
+            return self.send_bytes(b'User-agent: *\nAllow: /$\nDisallow: /dashboard\nDisallow: /index.html\nDisallow: /realtime\nDisallow: /api/\n','text/plain')
         if not self.authenticated():return
         if route.path=='/api/hosting':
             r=self.server.recovery

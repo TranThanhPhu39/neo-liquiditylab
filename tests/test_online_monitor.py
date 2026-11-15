@@ -65,6 +65,10 @@ def test_hosted_http_is_private_and_ingest_does_not_grant_browser_or_collection_
         assert request('GET','/healthz')[0]==200
         code,headers,body=request('GET','/')
         assert code==200 and 'WWW-Authenticate' not in headers and b'/dashboard' in body
+        assert b'intro.css' in body and b'<style>' not in body
+        code,headers,css=request('GET','/intro.css')
+        assert code==200 and 'text/css' in headers['Content-Type'] and b'--paper' in css
+        assert "style-src 'self'" in headers['Content-Security-Policy']
         assert password.encode() not in body and token.encode() not in body and b'/api/' not in body
         assert request('GET','/dashboard')[0]==401
         assert request('GET','/index.html')[0]==401
