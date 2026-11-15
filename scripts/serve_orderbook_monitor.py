@@ -22,7 +22,7 @@ from scripts.build_orderbook_monitor import build, serial
 from src.monitoring.events import configs_from_parameters, VERSION
 import zlib
 
-ASSETS = {'/': ('index.html', 'text/html'), '/index.html': ('index.html', 'text/html'),
+ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/html'), '/index.html': ('index.html', 'text/html'),
           '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'),
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript')}
 ASSETS.update({'/realtime':('realtime.html','text/html'),'/realtime/':('realtime.html','text/html'),'/live.js':('live.js','text/javascript'),'/live.css':('live.css','text/css'),'/live-model.js':('live-model.js','text/javascript')})

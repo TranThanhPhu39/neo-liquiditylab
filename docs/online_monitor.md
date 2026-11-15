@@ -2,10 +2,13 @@
 
 ## Truy cập bản đã triển khai ngày 15/11/2026
 
-- Lịch sử, heatmap, replay và rà soát: **https://neo-liquiditylab-monitor.onrender.com/**.
+- Trang giới thiệu công khai, không cần đăng nhập: **https://neo-liquiditylab-monitor.onrender.com/**.
+- Lịch sử, heatmap, replay và rà soát có mật khẩu: **https://neo-liquiditylab-monitor.onrender.com/dashboard**.
 - SSI live và phát lại capture SSI: **https://neo-liquiditylab-monitor.onrender.com/realtime**.
 - Tên đăng nhập: `liquiditylab`. Mật khẩu tự sinh được lưu trên máy trong `.env` ở `MONITOR_WEB_PASSWORD`. Có thể tìm tên biến bằng Ctrl+F trong IDE; không chia sẻ `.env` hoặc gửi mật khẩu vào chat. Không cần tài khoản ChatGPT.
 - Pages cũ vẫn ở `https://tranthanhphu39.github.io/neo-liquiditylab/`; link Render là bản giám sát sổ lệnh mới.
+
+Trang giới thiệu có hình heatmap/bubbles minh họa bằng dữ liệu giả lập và nhãn rõ ràng; không gọi API dữ liệu thị trường. Bạn có thể chia sẻ URL chính công khai. Các đường `/dashboard`, `/index.html`, `/realtime`, API và tài nguyên của ứng dụng phân tích vẫn yêu cầu xác thực; mật khẩu và ghi chú không được đưa vào trang công khai.
 
 Gói lịch sử được người sở hữu cho phép gồm 34 replay gốc, 11 ngày ACB/FPT/HPG đến 11/11/2026 và 694.905 quan sát, không phải database toàn thị trường. Đã upload ciphertext 156 MB lên Releases, tải lại, giải mã và kiểm tra checksum. Có thể có thêm phiên bản phân tích được lưu trên web. Bộ phục hồi dùng đường tải public CDN và feed Atom của Releases; không phụ thuộc quota REST anonymous dùng chung trên Render. Giải mã AES-GCM và kiểm tra checksum vẫn bắt buộc trước khi cài dữ liệu.
 

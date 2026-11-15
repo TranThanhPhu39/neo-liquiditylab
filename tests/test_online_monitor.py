@@ -63,7 +63,15 @@ def test_hosted_http_is_private_and_ingest_does_not_grant_browser_or_collection_
     basic='Basic '+base64.b64encode(('liquiditylab:'+password).encode()).decode()
     try:
         assert request('GET','/healthz')[0]==200
-        assert request('GET','/')[0]==401
+        code,headers,body=request('GET','/')
+        assert code==200 and 'WWW-Authenticate' not in headers and b'/dashboard' in body
+        assert password.encode() not in body and token.encode() not in body and b'/api/' not in body
+        assert request('GET','/dashboard')[0]==401
+        assert request('GET','/index.html')[0]==401
+        assert request('GET','/api/datasets')[0]==401
+        assert request('GET','/style.css')[0]==401
+        assert request('GET','/dashboard',headers={'Authorization':basic})[0]==200
+        assert request('GET','/',headers={'Host':'evil.example'})[0]==403
         assert request('GET','/api/live/status',headers={'Authorization':'Bearer '+token})[0]==401
         assert request('GET','/realtime',headers={'Authorization':basic})[0]==200
         raw=gzip.compress(json.dumps(packet()).encode())

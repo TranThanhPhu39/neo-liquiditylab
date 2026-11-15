@@ -8,6 +8,8 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - 'scripts/serve_monitor_cloud.py'
+      - 'scripts/serve_orderbook_monitor.py'
+      - 'web/monitor/**'
       - 'scripts/check_monitor_cloud.py'
       - 'src/monitoring/web_*.py'
       - 'tests/test_online_monitor.py'

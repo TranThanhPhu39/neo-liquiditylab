@@ -21,11 +21,15 @@ def check(origin,password):
         except OSError:pass
         time.sleep(1)
     else:raise RuntimeError('CLOUD_HEALTHCHECK_TIMEOUT')
-    assert get('/')[0]==401
+    code,body=get('/')
+    assert code==200 and b'LiquidityLab' in body and b'/dashboard' in body
+    assert get('/dashboard')[0]==401
+    assert get('/api/datasets')[0]==401
+    assert get('/dashboard',True)[0]==200
     assert get('/realtime',True)[0]==200
     code,body=get('/api/live/status',True);state=json.loads(body)
     assert code==200 and state['hosted'] and password not in body.decode()
-    return dict(state='HEALTH_AUTH_AND_HOSTED_API_VERIFIED',public_data_exposed=False)
+    return dict(state='HEALTH_AUTH_AND_HOSTED_API_VERIFIED',public_introduction=True,public_data_exposed=False)
 
 
 if __name__=='__main__':
