@@ -34,7 +34,7 @@ def sources(root=ROOT):
                 if not (root/path).is_file():path=module.replace('.','/')+'/__init__.py'
                 if not (root/path).is_file():raise ValueError('MISSING_PUBLIC_SOURCE_DEPENDENCY')
                 todo.append(path)
-    seen.update(('render.yaml','.dockerignore','deploy/render/Dockerfile','deploy/render/requirements.txt',
+    seen.update(('render.yaml','.dockerignore','Dockerfile','deploy/render/requirements.txt',
         '.github/workflows/ssi-realtime.yml','.github/workflows/monitor-web-checks.yml','docs/online_monitor.md',
         'scripts/check_monitor_cloud.py','scripts/publish_online_monitor.py','tests/test_online_monitor.py'))
     seen.update(p.relative_to(root).as_posix() for p in (root/'web/monitor').iterdir() if p.is_file() and p.suffix in ('.html','.css','.js'))

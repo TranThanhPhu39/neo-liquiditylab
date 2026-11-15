@@ -143,7 +143,7 @@ class CloudHandler(Handler):
                     if not decompressor.eof or decompressor.unused_data or len(raw)>MAX_BODY:raise ValueError('INVALID_GZIP')
                 elif self.headers.get('Content-Encoding'):raise ValueError('INVALID_ENCODING')
                 result=self.server.live.apply(json.loads(raw));return self.send_json(result)
-            except (ValueError,KeyError,TypeError,OSError,EOFError):return self.send_json({'error':'RELAY_PACKET_REJECTED'},400)
+            except (ValueError,KeyError,TypeError,OSError,EOFError,zlib.error):return self.send_json({'error':'RELAY_PACKET_REJECTED'},400)
         if not self.authenticated():return
         if self.path in ('/api/live/start','/api/live/stop'):
             return self.send_json({'error':'COLLECTION_MANAGED_BY_GITHUB_SCHEDULE'},403)
@@ -155,7 +155,18 @@ class CloudHandler(Handler):
             if self.path=='/api/analyze':self.server.heavy.release()
 
 
+def load_secret_file(secret_file):
+    from dotenv import dotenv_values
+    path=Path(secret_file)
+    if not path.is_file() or path.stat().st_size>16384:raise ValueError('MONITOR_CONFIG_FILE_INVALID')
+    values=dotenv_values(path,interpolate=False);loaded=[]
+    for name in ('MONITOR_WEB_PASSWORD','MONITOR_INGEST_TOKEN','MONITOR_DATABASE_URL','LIQUIDITYLAB_STATE_KEY','MONITOR_SEED_TAG'):
+        if not os.getenv(name) and values.get(name):os.environ[name]=values[name];loaded.append(name)
+    return loaded
+
+
 def main():
+    if os.getenv('MONITOR_CONFIG_FILE'):load_secret_file(os.environ['MONITOR_CONFIG_FILE'])
     root=Path(os.getenv('MONITOR_DATA_ROOT','/tmp/liquiditylab')).resolve();root.mkdir(parents=True,exist_ok=True)
     origin=os.getenv('MONITOR_PUBLIC_ORIGIN') or os.getenv('RENDER_EXTERNAL_URL','')
     server=CloudServer(root,port=int(os.getenv('PORT','10000')),origin=origin,

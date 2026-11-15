@@ -5,6 +5,7 @@ on:
     paths:
       - 'deploy/render/**'
       - 'render.yaml'
+      - 'Dockerfile'
       - '.dockerignore'
       - 'scripts/serve_monitor_cloud.py'
       - 'scripts/check_monitor_cloud.py'
@@ -40,7 +41,7 @@ jobs:
           PY
       - run: python -m pytest tests/test_online_monitor.py -q --basetemp=.pytest_online --tb=short
       - name: Build Linux production image
-        run: docker build -f deploy/render/Dockerfile -t liquiditylab-monitor:check .
+        run: docker build -f Dockerfile -t liquiditylab-monitor:check .
       - name: Verify image health and access controls without SSI keys
         env:
           MONITOR_WEB_PASSWORD: fixture-web-password-32-characters

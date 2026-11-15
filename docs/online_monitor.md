@@ -29,6 +29,8 @@ PostgreSQL Free hết hạn sau 30 ngày theo tài liệu Render; cần xuất g
 
 Khóa và mật khẩu không gửi vào chat, không commit vào Git và không log. Giao diện public Pages cũ vẫn được giữ nguyên; có thể thêm link sang dashboard mới sau khi URL đã xác minh.
 
+Khi dùng CLI thay cho Blueprint, tạo cùng hai tài nguyên Free/tên/region như cấu hình. `Dockerfile` ở root hỗ trợ default của CLI. Các giá trị riêng có thể nạp bằng secret file `monitor.env` và env công khai `MONITOR_CONFIG_FILE=/etc/secrets/monitor.env`; app chỉ đọc năm khóa cấu hình đã cho phép, không nạp khóa SSI. Không truyền giá trị bí mật qua tham số `--env-var` trên command line. Trong cách này cấu hình live được CLI quản lý, chưa có Blueprint sync tự động.
+
 ## Chạy thử trên máy
 
 Giữ server local cũ bằng `scripts.serve_orderbook_monitor`; cloud server là entry point riêng `scripts.serve_monitor_cloud`. Cloud mode cần `MONITOR_PUBLIC_ORIGIN` (HTTPS; localhost HTTP chỉ phục vụ thử), `MONITOR_WEB_PASSWORD` dài ít nhất 24 ký tự, `MONITOR_INGEST_TOKEN` dài ít nhất 32 ký tự và tùy chọn `MONITOR_DATABASE_URL`. Health check không chứa dữ liệu nhạy cảm.

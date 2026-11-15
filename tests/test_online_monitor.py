@@ -73,6 +73,7 @@ def test_hosted_http_is_private_and_ingest_does_not_grant_browser_or_collection_
         browser={'Authorization':basic,'Content-Type':'application/json','Origin':server.public_origin,'X-Monitor-CSRF':status['csrf']}
         assert request('POST','/api/live/start','{}',browser)[0]==403
         assert request('POST','/api/live/reviews','{}',browser)[0]==503  # Never fake persistence.
+        assert request('POST','/api/relay',b'not-a-gzip',headers)[0]==400
         assert request('GET','/.env',headers={'Authorization':basic})[0]==404
         assert request('GET','/api/live/status',headers={'Authorization':basic,'Host':'evil.example'})[0]==403
         code,_,body=request('GET','/api/live/view?run_id='+'a'*32+'&symbol=ACB',headers={'Authorization':basic})
@@ -150,3 +151,14 @@ def test_hosted_history_streams_parquet_as_gzip_without_loading_all_frames(tmp_p
         response=conn.getresponse();assert response.status==200 and response.getheader('Content-Encoding')=='gzip'
         assert json.loads(gzip.decompress(response.read()))==package;conn.close()
     finally:server.shutdown();server.server_close();thread.join(timeout=5)
+
+
+def test_runtime_secret_file_does_not_load_broker_keys_or_override_platform_values(tmp_path,monkeypatch):
+    from scripts.serve_monitor_cloud import load_secret_file
+    monkeypatch.delenv('MONITOR_WEB_PASSWORD',raising=False);monkeypatch.delenv('SSI_API_KEY',raising=False)
+    monkeypatch.setenv('MONITOR_INGEST_TOKEN','platform-value')
+    file=tmp_path/'monitor.env';file.write_text('MONITOR_WEB_PASSWORD=fixture-web-password\nMONITOR_INGEST_TOKEN=file-value\nSSI_API_KEY=must-not-load\n')
+    assert 'MONITOR_WEB_PASSWORD' in load_secret_file(file)
+    import os
+    assert os.environ['MONITOR_WEB_PASSWORD']=='fixture-web-password' and os.environ['MONITOR_INGEST_TOKEN']=='platform-value'
+    assert 'SSI_API_KEY' not in os.environ

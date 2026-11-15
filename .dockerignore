@@ -1,7 +1,7 @@
 **
+!Dockerfile
 !deploy/
 !deploy/render/
-!deploy/render/Dockerfile
 !deploy/render/requirements.txt
 !src/
 !src/**

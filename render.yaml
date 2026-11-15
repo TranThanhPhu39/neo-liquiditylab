@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     branch: main
-    dockerfilePath: ./deploy/render/Dockerfile
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
     autoDeployTrigger: 'off'
     envVars:
