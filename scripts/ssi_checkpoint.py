@@ -10,7 +10,7 @@ import tarfile
 from urllib.parse import quote
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from scripts.github_api import GitHubAPI,repository_path
+from scripts.github_api import GitHubAPI,repository_path,release_asset_bytes
 
 CHUNK=16*1024*1024
 
@@ -44,7 +44,7 @@ def pack(run_folder,manifest,status,key,context):
     return assets
 
 
-def unpack(assets,key,context):
+def unpack(assets,key,context,*,max_bytes=512*1024*1024):
     outer=json.loads(assets['manifest.json'])
     if outer.get('format')!='ssi-encrypted-parquet-v1' or outer.get('context')!=context or not outer.get('parts'):
         raise ValueError('SSI_CHECKPOINT_CONTEXT_INVALID')
@@ -55,14 +55,14 @@ def unpack(assets,key,context):
         data=assets[p['name']]
         if len(data)!=p['bytes'] or sha(data)!=p['sha256']:raise ValueError('SSI_CHECKPOINT_HASH_MISMATCH')
         raw.extend(AESGCM(key).decrypt(data[:12],data[12:],(context+':'+str(i)).encode()))
-        if len(raw)>512*1024*1024:raise ValueError('SSI_CHECKPOINT_SIZE_LIMIT')
+        if len(raw)>max_bytes:raise ValueError('SSI_CHECKPOINT_SIZE_LIMIT')
     if sha(raw)!=outer['archive_sha256']:raise ValueError('SSI_CHECKPOINT_ARCHIVE_CHANGED')
     files={};size=0
     with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as archive:
         for m in archive:
             allowed=m.name in ('run/manifest.json','status.json') or re.fullmatch(r'run/part-\d{8}\.parquet',m.name)
             size+=m.size
-            if not allowed or not m.isfile() or m.name in files or m.size<0 or size>512*1024*1024:
+            if not allowed or not m.isfile() or m.name in files or m.size<0 or size>max_bytes:
                 raise ValueError('SSI_UNSAFE_CHECKPOINT_ARCHIVE')
             files[m.name]=archive.extractfile(m).read()
     manifest=json.loads(files['run/manifest.json']);status=json.loads(files['status.json'])
@@ -89,15 +89,17 @@ class SSICheckpoints:
         self.repository=repository;self.base=repository_path(repository);self.key=key;self.api=api or GitHubAPI()
         self.created=[]
 
-    def restore(self,tag):
+    def restore(self,tag,*,max_bytes=512*1024*1024):
         if not re.fullmatch(r'ssi-ws-[a-z0-9-]{10,150}',tag):raise ValueError('SSI_CHECKPOINT_TAG_INVALID')
         release=self.api.request('GET',self.base+'/releases/tags/'+quote(tag,safe=''))
-        assets={}
+        assets={};total=0
         for a in release['assets']:
             if a['name']!='manifest.json' and not re.fullmatch(r'part-\d{4}\.enc',a['name']):raise ValueError('SSI_UNEXPECTED_RELEASE_ASSET')
             if a['size']>CHUNK+4096:raise ValueError('SSI_OVERSIZED_RELEASE_ASSET')
-            assets[a['name']]=self.api.request('GET',self.base+'/releases/assets/'+str(a['id']),binary=True,accept='application/octet-stream')
-        return unpack(assets,self.key,self.repository+':'+tag)
+            total+=a['size']
+            if total>max_bytes:raise ValueError('SSI_CHECKPOINT_SIZE_LIMIT')
+            assets[a['name']]=release_asset_bytes(self.api,self.repository,a,limit=CHUNK+4096)
+        return unpack(assets,self.key,self.repository+':'+tag,max_bytes=max_bytes)
 
     def publish(self,service,session,run_id,attempt,*,final=False):
         if not re.fullmatch(r'[0-9]{1,24}',str(run_id)) or not re.fullmatch(r'[0-9]{1,8}',str(attempt)):

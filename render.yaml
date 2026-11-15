@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: neo-liquiditylab-monitor
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./deploy/render/Dockerfile
+    healthCheckPath: /healthz
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: PORT
+        value: '10000'
+      - key: MONITOR_DATA_ROOT
+        value: /tmp/liquiditylab
+      - key: MONITOR_WEB_PASSWORD
+        generateValue: true
+      - key: MONITOR_INGEST_TOKEN
+        generateValue: true
+      - key: MONITOR_DATABASE_URL
+        fromDatabase:
+          name: neo-liquiditylab-reviews
+          property: connectionString
+      - key: LIQUIDITYLAB_STATE_KEY
+        sync: false
+      - key: MONITOR_SEED_TAG
+        sync: false
+databases:
+  - name: neo-liquiditylab-reviews
+    plan: free
+    region: singapore
+    databaseName: liquiditylab
+    user: liquiditylab

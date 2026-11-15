@@ -1,0 +1,175 @@
+"""Password-protected hosted monitor; SSI secrets remain on the GitHub collector."""
+import base64
+from datetime import datetime,timezone
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import secrets
+import threading
+from urllib.parse import urlsplit,parse_qs
+import zlib
+
+from config.settings import ROOT
+from scripts.serve_orderbook_monitor import MonitorServer,Handler,APPLICATION_VERSION,ASSETS
+from src.data_pipeline.parquet_history import confined
+from src.monitoring.web_relay import RelayLive,MAX_BODY
+from src.monitoring.web_archive import CloudRecovery
+from src.monitoring.web_reviews import PostgresReviews,UnconfiguredReviews
+
+
+class CloudServer(MonitorServer):
+    def __init__(self,root,*,port=10000,origin,read_password,ingest_token,database_url=None,bind_host='0.0.0.0'):
+        parts=urlsplit(origin)
+        if parts.scheme not in ('https','http') or not parts.netloc or parts.path not in ('','/') or parts.query or parts.fragment or parts.username:
+            raise ValueError('MONITOR_PUBLIC_ORIGIN_INVALID')
+        if parts.scheme=='http' and parts.hostname!='127.0.0.1':raise ValueError('MONITOR_HTTPS_REQUIRED')
+        if len(read_password)<24 or len(ingest_token)<32:raise ValueError('MONITOR_STRONG_CREDENTIALS_REQUIRED')
+        self.public_origin=origin.rstrip('/');self.read_password=read_password;self.ingest_token=ingest_token
+        self.heavy=threading.BoundedSemaphore(1);self.recovery=None
+        reviews=PostgresReviews(database_url) if database_url else UnconfiguredReviews()
+        super().__init__(root,port,bind_host=bind_host,handler_class=CloudHandler,assets_root=ROOT,reviews=reviews)
+        self.live=RelayLive(self.root)
+
+    def index(self):
+        if not (self.data/'index.json').exists():return []
+        return super().index()
+
+    def metadata(self,dataset_id):
+        entry=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
+        if not entry:raise ValueError('UNKNOWN_DATASET')
+        if entry.get('compact_folder'):
+            self.dataset(dataset_id)  # Apply the existing confined-path checks.
+            result=json.loads((confined(self.root,entry['compact_folder'])/'metadata.json').read_bytes())
+        else:result=json.loads(self.dataset(dataset_id).read_bytes())
+        if result['dataset_id']!=dataset_id:raise ValueError('DATASET_IDENTITY_MISMATCH')
+        return result
+
+    def summary(self,dataset_id):
+        e=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
+        if e and e.get('events_file'):return super().summary(dataset_id)
+        m=self.metadata(dataset_id);events={p['event']['id']:p['event'] for p in m['event_patches']}
+        return dict(dataset_id=dataset_id,symbol=m['symbol'],day=m['day'],events=list(events.values()),quality=m.get('quality_summary',{}))
+
+    def analyze(self,day,symbol,config,event_config):
+        if isinstance(self.reviews,UnconfiguredReviews):raise RuntimeError('PERSISTENT_ANALYSES_NOT_CONFIGURED')
+        result=super().analyze(day,symbol,config,event_config);self.reviews.record_analysis(result['dataset']);return result
+
+    def restore_analyses(self):
+        from src.monitoring.events import configs_from_parameters
+        for row in self.reviews.analyses():
+            if any(e['dataset_id']==row['dataset_id'] for e in self.index()):continue
+            cfg,events=configs_from_parameters(row['parameters'])
+            result=super().analyze(row['day'],row['symbol'],cfg,events)
+            if result['dataset']['dataset_id']!=row['dataset_id']:raise ValueError('CLOUD_ANALYSIS_IDENTITY_CHANGED')
+
+    def server_close(self):
+        if self.recovery:self.recovery.close()
+        super().server_close()
+
+
+class CloudHandler(Handler):
+    def valid_host(self):return self.headers.get('Host')==urlsplit(self.server.public_origin).netloc
+    def expected_origin(self):return self.server.public_origin
+
+    def authenticated(self):
+        expected='Basic '+base64.b64encode(('liquiditylab:'+self.server.read_password).encode()).decode()
+        actual=self.headers.get('Authorization','')
+        if len(actual)<=1024 and actual.isascii() and secrets.compare_digest(actual,expected):return True
+        self.send_response(401);self.send_header('WWW-Authenticate','Basic realm="LiquidityLab", charset="UTF-8"')
+        self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return False
+
+    def do_GET(self):
+        route=urlsplit(self.path)
+        if route.path=='/healthz':return self.send_json(dict(status='ok',application=APPLICATION_VERSION))
+        if not self.valid_host():return self.send_json({'error':'INVALID_HOST'},403)
+        if not self.authenticated():return
+        if route.path=='/api/hosting':
+            r=self.server.recovery
+            return self.send_json(dict(hosted=True,collection_control='GITHUB_SCHEDULE',
+                recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
+                persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews)))
+        if route.path=='/api/review-history':
+            try:return self.send_json(dict(reviews=self.server.reviews.all(),analyses=self.server.reviews.analyses()))
+            except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)
+        if route.path=='/api/dataset':
+            if not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
+            try:return self.stream_dataset(parse_qs(route.query).get('dataset_id',[''])[0])
+            except (ValueError,KeyError,OSError):return self.send_json({'error':'DATA_NOT_READY_OR_INVALID'},404)
+            finally:self.server.heavy.release()
+        # Serialize expensive history/analysis requests on small free instances.
+        heavy=route.path in ('/api/watchlist','/api/library','/api/export','/api/trades')
+        if heavy and not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
+        try:return super().do_GET()
+        except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)
+        finally:
+            if heavy:self.server.heavy.release()
+
+    def stream_dataset(self,dataset_id):
+        import pyarrow.parquet as pq
+        entry=next((e for e in self.server.index() if e['dataset_id']==dataset_id),None)
+        if not entry:raise ValueError('UNKNOWN_DATASET')
+        self.server.dataset(dataset_id)
+        if not entry.get('compact_folder'):return self.send_bytes(self.server.dataset(dataset_id).read_bytes())
+        folder=confined(self.server.root,entry['compact_folder']);meta=self.server.metadata(dataset_id)
+        parquet=pq.ParquetFile(folder/'frames.parquet')
+        manifest=json.loads((folder/'manifest.json').read_bytes())
+        if parquet.metadata.num_rows!=manifest['frames'] or parquet.metadata.num_rows>50000:raise ValueError('INVALID_REPLAY_ROWS')
+        self.send_response(200)
+        for k,v in {'Content-Type':'application/json; charset=utf-8','Content-Encoding':'gzip','Connection':'close',
+                    'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}.items():self.send_header(k,v)
+        self.end_headers();self.close_connection=True
+        with gzip.GzipFile(fileobj=self.wfile,mode='wb',compresslevel=1) as output:
+            output.write(json.dumps(meta,ensure_ascii=False,separators=(',',':')).encode()[:-1]+b',"frames":[')
+            first=True
+            for batch in parquet.iter_batches(batch_size=256,columns=['frame_json']):
+                for row in batch.to_pylist():
+                    if not first:output.write(b',')
+                    output.write(row['frame_json']);first=False
+            output.write(b']}')
+
+    def do_POST(self):
+        if not self.valid_host():return self.send_json({'error':'INVALID_HOST'},403)
+        if self.path=='/api/relay':
+            expected='Bearer '+self.server.ingest_token;actual=self.headers.get('Authorization','')
+            if len(actual)>1024 or not actual.isascii() or not secrets.compare_digest(actual,expected):return self.send_json({'error':'UNAUTHORIZED'},401)
+            try:
+                size=int(self.headers.get('Content-Length','0'))
+                if not 0<size<=MAX_BODY or self.headers.get_content_type()!='application/json':raise ValueError('INVALID_BODY')
+                raw=self.rfile.read(size)
+                if self.headers.get('Content-Encoding')=='gzip':
+                    decompressor=zlib.decompressobj(16+zlib.MAX_WBITS);raw=decompressor.decompress(raw,MAX_BODY+1)
+                    if not decompressor.eof or decompressor.unused_data or len(raw)>MAX_BODY:raise ValueError('INVALID_GZIP')
+                elif self.headers.get('Content-Encoding'):raise ValueError('INVALID_ENCODING')
+                result=self.server.live.apply(json.loads(raw));return self.send_json(result)
+            except (ValueError,KeyError,TypeError,OSError,EOFError):return self.send_json({'error':'RELAY_PACKET_REJECTED'},400)
+        if not self.authenticated():return
+        if self.path in ('/api/live/start','/api/live/stop'):
+            return self.send_json({'error':'COLLECTION_MANAGED_BY_GITHUB_SCHEDULE'},403)
+        if self.path in ('/api/reviews','/api/live/reviews','/api/analyze') and isinstance(self.server.reviews,UnconfiguredReviews):
+            return self.send_json({'error':'PERSISTENT_REVIEWS_NOT_CONFIGURED'},503)
+        if self.path=='/api/analyze' and not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
+        try:return super().do_POST()
+        finally:
+            if self.path=='/api/analyze':self.server.heavy.release()
+
+
+def main():
+    root=Path(os.getenv('MONITOR_DATA_ROOT','/tmp/liquiditylab')).resolve();root.mkdir(parents=True,exist_ok=True)
+    origin=os.getenv('MONITOR_PUBLIC_ORIGIN') or os.getenv('RENDER_EXTERNAL_URL','')
+    server=CloudServer(root,port=int(os.getenv('PORT','10000')),origin=origin,
+        read_password=os.environ['MONITOR_WEB_PASSWORD'],ingest_token=os.environ['MONITOR_INGEST_TOKEN'],
+        database_url=os.getenv('MONITOR_DATABASE_URL'))
+    encoded=os.getenv('LIQUIDITYLAB_STATE_KEY')
+    if encoded:
+        key=base64.b64decode(encoded,validate=True)
+        if len(key)!=32:raise ValueError('INVALID_RECOVERY_KEY')
+        server.recovery=CloudRecovery(root,key,os.getenv('MONITOR_SEED_TAG'),live=server.live,on_seed=server.restore_analyses);server.recovery.start()
+    print(json.dumps(dict(state='CLOUD_MONITOR_READY',origin=origin,ssi_keys_on_host=False)),flush=True)
+    try:server.serve_forever()
+    except KeyboardInterrupt:pass
+    finally:server.server_close()
+
+
+if __name__=='__main__':main()

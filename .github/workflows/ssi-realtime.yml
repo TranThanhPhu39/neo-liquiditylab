@@ -71,6 +71,8 @@ jobs:
           SSI_REALTIME_STORAGE_APPROVED: ${{ vars.SSI_REALTIME_STORAGE_APPROVED }}
           SSI_REALTIME_ENABLED: ${{ vars.SSI_REALTIME_ENABLED }}
           SSI_SCHEDULE_CRON: ${{ github.event.schedule }}
+          SSI_MONITOR_URL: ${{ vars.SSI_MONITOR_URL }}
+          SSI_MONITOR_INGEST_TOKEN: ${{ secrets.SSI_MONITOR_INGEST_TOKEN }}
           MODE: ${{ inputs.mode || 'collect' }}
           SESSION: ${{ inputs.session || 'morning' }}
           SMOKE_SECONDS: ${{ inputs.seconds || '60' }}

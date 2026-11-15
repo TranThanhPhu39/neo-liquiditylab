@@ -32,7 +32,7 @@ def credential():
 
 class GitHubAPI:
     def __init__(self,token=None):
-        self._token=token or credential()
+        self._token=credential() if token is None else token
         if os.name=="nt":
             import truststore
             self._tls=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -45,7 +45,7 @@ class GitHubAPI:
         if urlparse(url).hostname not in ("api.github.com","uploads.github.com"):
             raise ValueError("Unapproved GitHub API host")
         body=json.dumps(payload).encode() if payload is not None else data
-        request=Request(url,data=body,method=method,headers={"Authorization":"Bearer "+self._token,
+        request=Request(url,data=body,method=method,headers={**({"Authorization":"Bearer "+self._token} if self._token else {}),
             "Accept":accept,"X-GitHub-Api-Version":"2022-11-28",
             "User-Agent":"NEO-LiquidityLab","Content-Type":content_type})
         try:
@@ -70,6 +70,22 @@ def repository_path(repository):
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",repository):
         raise ValueError("Invalid owner/repository")
     return "/repos/"+repository
+
+
+def release_asset_bytes(api,repository,asset,*,limit):
+    """Public ciphertext CDN downloads do not spend a REST request per chunk."""
+    repository_path(repository)
+    if asset['size']>limit:raise ValueError('RELEASE_ASSET_TOO_LARGE')
+    url=asset.get('browser_download_url')
+    if getattr(api,'_token',None)=='' and url:
+        prefix='https://github.com/'+repository+'/releases/download/'
+        if not url.startswith(prefix):raise ValueError('UNAPPROVED_RELEASE_ASSET_URL')
+        request=Request(url,headers={'User-Agent':'NEO-LiquidityLab-Recovery'})
+        with api._opener.open(request,timeout=90) as response:data=response.read(limit+1)
+    else:
+        data=api.request('GET',repository_path(repository)+'/releases/assets/'+str(asset['id']),binary=True,accept='application/octet-stream')
+    if len(data)>limit:raise ValueError('RELEASE_ASSET_TOO_LARGE')
+    return data
 
 
 if __name__=="__main__":

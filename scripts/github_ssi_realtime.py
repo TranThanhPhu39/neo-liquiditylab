@@ -15,6 +15,7 @@ from config.settings import ROOT
 from src.data_pipeline.ssi_live_store import atomic
 from src.monitoring.ssi_live import SSILive
 from scripts.ssi_checkpoint import SSICheckpoints
+from src.monitoring.web_relay import RelayPublisher
 
 REPOSITORY='TranThanhPhu39/neo-liquiditylab'
 LOCAL=ZoneInfo('Asia/Ho_Chi_Minh')
@@ -100,7 +101,13 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         stopped=True;service.stop()
     if __import__('threading').current_thread() is __import__('threading').main_thread():
         signal.signal(signal.SIGTERM,terminate);signal.signal(signal.SIGINT,terminate)
+    relay=None
+    relay_url=os.getenv('SSI_MONITOR_URL');relay_token=os.getenv('SSI_MONITOR_INGEST_TOKEN')
+    if relay_url or relay_token:
+        if not relay_url or not relay_token:raise ValueError('SSI_MONITOR_RELAY_CONFIGURATION_INCOMPLETE')
+        relay=RelayPublisher(service,relay_url,relay_token)
     service.start(p['symbols'],seconds)
+    if relay:relay.start()
     result=dict(state='COLLECTING',mode=mode,session=session,plan=window,realtime_backfill_available=False,
         capture_run_id=service.journal.run_id,checkpoint_seconds=p['checkpoint_seconds'])
     next_checkpoint=time.monotonic()+p['checkpoint_seconds'];last_log=0
@@ -115,6 +122,10 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
             except Exception as error:storage_errors.append(type(error).__name__)
             next_checkpoint=time.monotonic()+p['checkpoint_seconds']
     status=service.status();result.update(state=outcome(status,window,stopped),capture=status,checkpoint_errors=storage_errors)
+    if relay:
+        relay_result=relay.close();result['web_relay']=relay_result
+        if relay_result['pending']:
+            result['collection_state']=result['state'];result['state']='PARTIAL_WEB_RELAY_FAILED'
     try:
         final=store.publish(service,session,run_id,attempt,final=True)
         result.update(final_checkpoint=final,temporary_checkpoints_superseded=len(checkpoints))

@@ -22,7 +22,16 @@ def utc_text(at):
 
 
 class DNSEHistory:
-    def __init__(self, path):
+    def __new__(cls, path, *, prefer_parquet=True):
+        path = Path(path).resolve()
+        catalog = path if path.name == 'catalog.json' else (
+            path.parents[2] / 'compact/catalog.json' if path.parts[-4:] == ('data','processed','dnse','normalized.db') else None)
+        if prefer_parquet and catalog and catalog.exists():
+            from src.data_pipeline.parquet_history import ParquetHistory
+            return ParquetHistory(catalog)
+        return super().__new__(cls)
+
+    def __init__(self, path, *, prefer_parquet=True):
         self.path = Path(path).resolve()
 
     def connect(self):
@@ -30,6 +39,13 @@ class DNSEHistory:
         db.row_factory = sqlite3.Row
         db.execute('PRAGMA query_only=ON')
         return db
+
+    def records(self, symbol, day):
+        start, end = day_bounds(day)
+        with closing(self.connect()) as db:
+            return [json.loads(zlib.decompress(r[0])) for r in db.execute(
+                'SELECT payload_zlib FROM snapshots WHERE symbol=? AND source_time>=? AND source_time<? ORDER BY source_time,id',
+                (symbol, utc_text(start), utc_text(end)))]
 
     def dates(self):
         with closing(self.connect()) as db:
