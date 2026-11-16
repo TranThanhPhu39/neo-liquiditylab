@@ -25,4 +25,6 @@ jobs:
       - name: Check and recover a missing session start
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          SSI_REALTIME_ENABLED: ${{ vars.SSI_REALTIME_ENABLED }}
+          SSI_REALTIME_STORAGE_APPROVED: ${{ vars.SSI_REALTIME_STORAGE_APPROVED }}
         run: python -m scripts.ssi_schedule_guard

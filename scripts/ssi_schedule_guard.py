@@ -7,7 +7,7 @@ from scripts.github_api import GitHubAPI,repository_path
 from scripts.github_ssi_realtime import LOCAL,REPOSITORY,policy,plan
 
 
-def guard(now,api,root=None):
+def guard(now,api,root=None,flags=None):
     from config.settings import ROOT
     if now.tzinfo is None:raise ValueError('SSI_GUARD_AWARE_CLOCK_REQUIRED')
     now=now.astimezone(LOCAL);p=policy(root or ROOT);base=repository_path(REPOSITORY)
@@ -15,7 +15,8 @@ def guard(now,api,root=None):
     session=next((s for s in p['sessions'] if datetime.fromisoformat(plan(now,s,p)['capture_from'])-timedelta(minutes=15)<=now<datetime.fromisoformat(plan(now,s,p)['close'])),None)
     if not session:return dict(state='OUTSIDE_COLLECTION_WINDOW')
     for name in ('SSI_REALTIME_ENABLED','SSI_REALTIME_STORAGE_APPROVED'):
-        if api.request('GET',base+'/actions/variables/'+name)['value']!='true':return dict(state='COLLECTION_DISABLED')
+        value=flags.get(name) if flags is not None else api.request('GET',base+'/actions/variables/'+name)['value']
+        if value!='true':return dict(state='COLLECTION_DISABLED')
     runs=api.request('GET',base+'/actions/workflows/ssi-realtime.yml/runs?per_page=30')['workflow_runs']
     # Treat a queued run as active too; repeated guard ticks must not queue copies.
     active=[r for r in runs if r['status'] in ('queued','in_progress','waiting','pending','requested')]
@@ -33,4 +34,4 @@ def guard(now,api,root=None):
 
 if __name__=='__main__':
     if os.getenv('GITHUB_REPOSITORY')!=REPOSITORY or os.getenv('GITHUB_REF')!='refs/heads/main':raise ValueError('SSI_GUARD_REPOSITORY_REQUIRED')
-    print(json.dumps(guard(datetime.now(LOCAL),GitHubAPI())))
+    print(json.dumps(guard(datetime.now(LOCAL),GitHubAPI(),flags={name:os.getenv(name) for name in ('SSI_REALTIME_ENABLED','SSI_REALTIME_STORAGE_APPROVED')})))

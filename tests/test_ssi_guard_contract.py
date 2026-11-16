@@ -34,6 +34,16 @@ def test_guard_caps_retries_and_cools_down_failures():
     assert guard(now,API([dict(run,conclusion='success')]))['state']=='SESSION_ALREADY_COMPLETED'
 
 
+def test_runner_guard_uses_workflow_flags_without_requesting_repository_variable_api():
+    class RunnerAPI(API):
+        def request(self,method,path,payload=None):
+            assert '/variables/' not in path
+            return super().request(method,path,payload)
+    flags={'SSI_REALTIME_ENABLED':'true','SSI_REALTIME_STORAGE_APPROVED':'true'}
+    assert guard(datetime.fromisoformat('2026-11-16T13:50:00+07:00'),RunnerAPI(),flags=flags)['state']=='MISSED_SESSION_START_DISPATCHED'
+    assert guard(datetime.fromisoformat('2026-11-16T13:50:00+07:00'),RunnerAPI(),flags={})['state']=='COLLECTION_DISABLED'
+
+
 def test_contract_bundle_validates_evidence_before_changing_live_contract(tmp_path):
     name='data/raw/ssi/unit_certificate_fixture.json';value={'fixture':'unit-proof'}
     contract=dict(status='EMPIRICALLY_VERIFIED',symbols=['ACB'],quote_semantics='FULL_SNAPSHOT',
