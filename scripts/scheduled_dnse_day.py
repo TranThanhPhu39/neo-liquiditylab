@@ -29,7 +29,9 @@ def plan(root=ROOT,now=None):
         raise ValueError('LOCAL_DNSE_TIMEZONE_REQUIRED')
     now=now.astimezone(LOCAL_TZ);config=policy(root)
     first=max(date.fromisoformat(config['start_date']),now.date()-timedelta(days=config['lookback_days']-1))
-    days=[];completed=[]
+    days=[];completed=[];pages_pending=False
+    prior_path=root/'report/automation/dnse_local_schedule_result.json'
+    if prior_path.exists():pages_pending=bool(json.loads(prior_path.read_bytes()).get('pages_publication_pending'))
     if config['enabled']:
         day=first
         while day<=now.date():
@@ -46,11 +48,12 @@ def plan(root=ROOT,now=None):
                 if is_complete and config['publish_web']:
                     index_path=root/'web/data/index.json'
                     index=json.loads(index_path.read_text(encoding='utf-8')) if index_path.exists() else {}
-                    is_complete=any(d.get('date')==selected for d in index.get('days',[]))
+                    pages_pending=pages_pending or not any(d.get('date')==selected for d in index.get('days',[]))
                 (completed if is_complete else days).append(selected)
             day+=timedelta(days=1)
     return dict(state='READY' if config['enabled'] else 'DISABLED',now_local=now.isoformat(),
                 due_dates=days,already_completed=completed,publish_web=config['publish_web'],
+                pages_publication_pending=pages_pending,
                 lookback_days=config['lookback_days'],start_date=config['start_date'],
                 note='Weekdays only; configure excluded_dates for exchange holidays. Lookback is a local recovery policy, not a provider retention guarantee.')
 
@@ -62,12 +65,28 @@ def run(root=ROOT,now=None):
         for day in result['due_dates']:
             if (root/'data/control/STOP_DNSE_HISTORY').exists():
                 result.update(state='FAILED_RESUMABLE',error_code='REST_STOP_REQUESTED');break
-            outcome=update_dnse_day.run(day,root=root,session='day',export=False,publish_web=result['publish_web'],now=now)
+            # Collection must not wait behind a failed upload for an older date.
+            outcome=update_dnse_day.run(day,root=root,session='day',export=False,publish_web=False,now=now)
             result['runs'].append(dict(date=day,state=outcome['state'],error_code=outcome.get('error_code')))
             if outcome['state']!='COMPLETED':
                 result['state']='FAILED_RESUMABLE';break
         else:
             result['state']='COMPLETED' if result['state']!='DISABLED' else 'DISABLED'
+        if result['state']=='COMPLETED':
+            try:
+                if result['publish_web'] and (result['due_dates'] or result['pages_publication_pending']):
+                    result['pages_publication_pending']=True
+                    write_json(root/'report/automation/dnse_local_schedule_result.json',result)
+                    from scripts.publish_dnse_web import publish_samples
+                    result['pages_publication']=publish_samples(root)
+                    result['pages_publication_pending']=False
+                from scripts.publish_daily_monitor import run as publish_monitor
+                result['monitor_publication']=publish_monitor(root)
+                if result['monitor_publication']['state'] not in ('COMPLETED','DISABLED'):
+                    result.update(state='FAILED_RESUMABLE',error_code='MONITOR_PUBLICATION_PENDING')
+            except Exception as error:
+                code=str(error)
+                result.update(state='FAILED_RESUMABLE',error_code=code if re.fullmatch('[A-Z0-9_]{1,90}',code) else type(error).__name__)
         write_json(root/'report/automation/dnse_local_schedule_result.json',result)
         return result
 

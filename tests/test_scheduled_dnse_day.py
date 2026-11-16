@@ -29,7 +29,8 @@ def test_completed_archive_with_public_day_is_not_repeated(local_root):
     (local_root/'report').mkdir()
     (local_root/'report/dnse_update_2026-11-05_day.json').write_text(json.dumps(dict(
         state='COMPLETED',completed_steps=scheduled.update_dnse_day.STEPS)))
-    assert scheduled.plan(local_root,clock('2026-11-06T08:00:00'))['due_dates']==['2026-11-05']
+    p=scheduled.plan(local_root,clock('2026-11-06T08:00:00'))
+    assert p['due_dates']==[] and p['pages_publication_pending']
     (local_root/'web/data').mkdir(parents=True)
     (local_root/'web/data/index.json').write_text(json.dumps(dict(days=[dict(date='2026-11-05')])))
     assert scheduled.plan(local_root,clock('2026-11-06T08:00:00'))['already_completed']==['2026-11-05']
@@ -42,7 +43,7 @@ def test_failed_day_is_resumed_and_failure_is_not_success(local_root,monkeypatch
     monkeypatch.setattr(scheduled.update_dnse_day,'run',fail)
     result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
     assert result['state']=='FAILED_RESUMABLE' and len(calls)==1
-    assert calls[0][0]=='2026-11-05' and calls[0][1]['publish_web'] is True and calls[0][1]['export'] is False
+    assert calls[0][0]=='2026-11-05' and calls[0][1]['publish_web'] is False and calls[0][1]['export'] is False
     assert (local_root/'report/automation/dnse_local_schedule_result.json').exists()
 
 
@@ -63,3 +64,20 @@ def test_disabled_policy_and_explicit_exchange_holiday(local_root):
     assert scheduled.plan(local_root,clock('2026-11-06T16:00:00'))['state']=='DISABLED'
     with pytest.raises(ValueError,match='TIMEZONE'):
         scheduled.plan(local_root,datetime(2026,11,5,16))
+
+
+def test_publication_failure_does_not_prevent_collecting_newer_due_day(local_root,monkeypatch):
+    from scripts import publish_dnse_web
+    calls=[]
+    def collect(day,**kwargs):
+        calls.append(day)
+        path=local_root/'report'/f'dnse_update_{day}_day.json';path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps(dict(state='COMPLETED',completed_steps=scheduled.update_dnse_day.STEPS)))
+        return dict(state='COMPLETED')
+    monkeypatch.setattr(scheduled.update_dnse_day,'run',collect)
+    monkeypatch.setattr(publish_dnse_web,'publish_samples',lambda root:(_ for _ in ()).throw(ValueError('UPLOAD_RETRY')))
+    result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
+    assert calls==['2026-11-05','2026-11-06']
+    assert result['state']=='FAILED_RESUMABLE' and result['pages_publication_pending']
+    next_plan=scheduled.plan(local_root,clock('2026-11-06T16:01:00'))
+    assert next_plan['due_dates']==[] and next_plan['pages_publication_pending']

@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "symbols": ["ACB", "FPT", "HPG"],
+  "storage": "ENCRYPTED_GITHUB_RELEASES",
+  "hosting": "EXISTING_FREE_RENDER_MONITOR",
+  "retain_auto_stages": 2,
+  "verify_timeout_seconds": 360
+}

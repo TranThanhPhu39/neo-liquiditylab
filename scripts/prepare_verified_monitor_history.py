@@ -141,10 +141,14 @@ def prepare(root=ROOT):
         observation_fields_unchanged=True,days=proof,source_root_unchanged=True,
         raw_reconciliation='Original raw audits retained; this run independently checks every revised canonical observation.')
     atomic(stage/'report/unit_revision_proof.json',revision)
-    old_audit=json.loads((root/'report/dnse_normalization_audit.json').read_bytes())
+    archives={a['path']:a for day in source.dates() for a in source.metadata(day)['archives']}
+    checked_archives=[]
+    for path,a in sorted(archives.items()):
+        if digest(confined(root,path))!=a['sha256']:raise ValueError('REVISION_RAW_ARCHIVE_CHANGED')
+        checked_archives.append(dict(path=path,sha256=a['sha256']))
     audit=dict(state='UNIT_REVISION_VERIFIED',checked_at_utc=datetime.now(timezone.utc).isoformat(),revised_rows=total,
-        source_archives_unchanged=old_audit['source_archives_unchanged'],
-        source_archive_claim_basis='Prior raw audit; no new raw audit is claimed',
+        source_archives_unchanged=checked_archives,
+        source_archive_claim_basis='Current raw file hashes plus prior per-day raw audits; no new raw row reconciliation is claimed',
         revision_proof=dict(path='report/unit_revision_proof.json',sha256=digest(stage/'report/unit_revision_proof.json')))
     atomic(stage/'report/dnse_normalization_audit.json',audit)
     atomic(stage/'data/processed/dnse/manifest.json',dict(state='UNIT_REVISION_AUDITED',quarantined=0,rule_hash=rules.rule_hash,revised_rows=total))

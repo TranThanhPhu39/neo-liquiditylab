@@ -110,7 +110,8 @@ class CloudHandler(Handler):
         if not self.authenticated():return
         if route.path=='/api/hosting':
             r=self.server.recovery
-            return self.send_json(dict(hosted=True,collection_control='GITHUB_SCHEDULE',
+            return self.send_json(dict(hosted=True,collection_control='SSI_GITHUB_AND_WINDOWS_DNSE_DAILY',
+                latest_history_day=max((e['day'] for e in self.server.index()),default=None),
                 recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
                 persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews)))
         if route.path=='/api/review-history':

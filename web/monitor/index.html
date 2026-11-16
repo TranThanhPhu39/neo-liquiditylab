@@ -5,14 +5,13 @@
 <script src="/model.js" defer></script><script src="/heatmap.js" defer></script><script src="/app.js" defer></script></head>
 <body><aside class="sidebar">
   <a class="brand" href="/" aria-label="LiquidityLab"><span class="logo">▥</span><span>LiquidityLab<small>ORDER BOOK OBSERVATORY</small></span></a>
-  <a class="nav-item" href="/realtime">● Realtime SSI ↗</a>
-  <span class="eyebrow">KHÔNG GIAN OFFLINE</span>
-  <nav><button class="nav-item" data-page="watch">▤ <span>Theo dõi</span></button><button class="nav-item active" data-page="analysis">◷ <span>Phân tích mã</span></button><button class="nav-item" data-page="review">▧ <span>Rà soát & ghi chú</span></button></nav>
+  <span class="eyebrow">KHÔNG GIAN QUAN SÁT</span>
+  <nav><button class="nav-item" data-page="watch">▤ <span>Theo dõi</span></button><button class="nav-item active" data-page="analysis">◷ <span>Phân tích mã</span></button><button class="nav-item" data-page="review">▧ <span>Rà soát & ghi chú</span></button><a class="nav-item" href="/realtime">● SSI ↗</a></nav>
   <div class="section-label">DANH SÁCH THEO DÕI</div><div id="sideWatch"></div>
   <div class="side-note"><span class="eyebrow">DỮ LIỆU ĐÃ LƯU</span><p>DNSE · Ba mức mỗi phía.<br>Replay theo thời gian nguồn.</p><p>Phát hiện theo quy tắc thử nghiệm. Không suy luận người đặt lệnh hoặc hành vi thao túng.</p><button id="showMethod" class="link-button">Cách đọc & giới hạn ↗</button></div>
   <div class="side-foot"><span id="datasetInventory">Đang kiểm kê…</span><br><span id="connection">Đang kết nối…</span></div>
 </aside>
-<main><header><span>Quan sát thị trường <span class="slash">/</span> <span id="pageLabel">Phân tích mã</span></span><span class="pill">OFFLINE · KHÔNG GỌI API</span></header>
+<main><header><span>Quan sát thị trường <span class="slash">/</span> <span id="pageLabel">Phân tích mã</span></span><span class="pill">REPLAY · DỮ LIỆU ĐÃ LƯU</span></header>
   <div class="title-row"><div><div class="eyebrow">QUAN SÁT · PHÁT LẠI · GIẢI THÍCH</div><h1 id="title">Phân tích sổ lệnh</h1><p id="pageDescription">Xem diễn biến đã lưu và bằng chứng của từng sự kiện.</p></div><div class="dataset-controls"><label>Ngày<select id="daySelect" disabled></select></label><label>Mã<select id="symbolSelect" disabled><option>—</option></select></label><label class="sr-only" for="dataset">Bộ dữ liệu</label><select id="dataset" hidden></select></div></div>
   <div id="error" role="alert" hidden></div>
   <div class="context"><span class="context-dot"></span><span id="provenance">Đang đọc bộ dữ liệu…</span><button id="openConfig" class="link-button">Quy tắc & ngưỡng ↗</button></div>

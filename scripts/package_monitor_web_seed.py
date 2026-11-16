@@ -53,6 +53,7 @@ def package(stage,report_path=None):
     if any(tar.resolve().is_relative_to(base) for base in permitted) and tar.is_file():tar.unlink()
     result=dict(state='ENCRYPTED_AND_RESTORE_VERIFIED',tag=tag,folder=str(output),
         datasets=manifest['datasets'],days=len(manifest['days']),canonical_rows=manifest['canonical_quote_rows'],
+        latest_day=max(manifest['days']),symbols=manifest['symbols'],
         encrypted_bytes=sum((output/n).stat().st_size for n in names),assets=names,proof=proof,
         uploaded=False,hosting_deployed=False)
     (Path(report_path) if report_path else ROOT/'report/online_monitor_preparation_2026-11-15.json').write_text(json.dumps(result,indent=2),encoding='utf-8')

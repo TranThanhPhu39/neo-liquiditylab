@@ -16,7 +16,7 @@
   const text=(tag,value='',cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;};
   const button=(label,fn,cls='outline')=>{const b=text('button',label,cls);b.type='button';b.addEventListener('click',fn);return b;};
   function showError(message){$('error').textContent=message;$('error').hidden=false;}
-  async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options});if(!r.ok)throw Error(`Không đọc/lưu được dữ liệu (${r.status}). Vui lòng thử lại sau.`);return r.json();}
+  async function api(path,options={}){const readOnly=!options.method||options.method==='GET';for(let attempt=0;;attempt++){const r=await fetch(path,{cache:'no-store',...options});if(r.ok)return r.json();if(readOnly&&attempt<2&&[429,502,503,504].includes(r.status)){await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));continue;}throw Error(`Không đọc/lưu được dữ liệu (${r.status}). Vui lòng thử lại sau.`);}}
   function stop(){playing=false;$('play').textContent='▶ Phát lại';}
   function table(headers,rows){const t=document.createElement('table'),h=document.createElement('thead'),tr=document.createElement('tr');for(const v of headers)tr.append(text('th',v));h.append(tr);t.append(h);const body=document.createElement('tbody');for(const values of rows){const r=document.createElement('tr');for(const v of values){const td=document.createElement('td');if(typeof v==='object'&&v!==null)td.append(v);else td.textContent=v;r.append(td);}body.append(r);}t.append(body);return t;}
   function detail(box,label,value){const r=text('div','','detail-row');r.append(text('span',label),text('strong',String(value)));box.append(r);}
@@ -36,7 +36,7 @@
     $('datasetInventory').textContent=`${days.length} ngày · ${new Set(currentEntries().map(e=>e.symbol)).size} mã · lịch sử đã lưu`;
     $('daySelect').disabled=false;$('symbolSelect').disabled=false;renderSide();renderInventory();
   }
-  function renderSide(){const box=$('sideWatch');box.replaceChildren();for(const symbol of ['ACB','FPT','HPG']){const b=button('',async()=>{const e=currentEntries().find(x=>x.day===$('daySelect').value&&x.symbol===symbol);if(e)await load(e.dataset_id,{page:'analysis'});},'watch'+(data?.symbol===symbol?' active':''));b.append(text('strong',symbol),text('small',symbol==='ACB'?'Có bằng chứng đơn vị':'Chỉ xem · detector bị chặn'));box.append(b);}}
+  function renderSide(){const box=$('sideWatch');box.replaceChildren();for(const symbol of ['ACB','FPT','HPG']){const e=currentEntries().find(x=>x.day===$('daySelect').value&&x.symbol===symbol),units=Object.keys(e?.quality?.unit_counts||{}),verified=units.length>0&&units.every(u=>['EMPIRICALLY_VERIFIED','OFFICIALLY_VERIFIED'].includes(u));const b=button('',async()=>{if(e)await load(e.dataset_id,{page:'analysis'});},'watch'+(data?.symbol===symbol?' active':''));b.disabled=!e;b.append(text('strong',symbol),text('small',!e?'Chưa có dữ liệu':verified?'Đơn vị đã xác minh':'Đọc cùng nhãn chất lượng'));box.append(b);}}
   function renderInventory(){const entries=currentEntries().filter(e=>!$('daySelect').value||e.day===$('daySelect').value);$('inventory').replaceChildren(table(['Ngày','Mã','Quan sát','Sự kiện cả phiên','Phạm vi',''],entries.map(e=>[dayLabel(e.day),e.symbol,fmt(e.observations),fmt(Object.values(e.event_counts||{}).reduce((a,b)=>a+b,0)),e.quality?.eligible_spread_observations?'Có đầu vào xác minh':'Chưa xác minh / chưa đánh giá',button('Mở',()=>load(e.dataset_id,{page:'analysis'}))])));}
   async function choose(){const day=$('daySelect').value,symbol=$('symbolSelect').value||data?.symbol||'ACB';const candidates=currentEntries().filter(e=>e.day===day);setOptions('symbolSelect',candidates.map(e=>[e.symbol,e.symbol]),candidates.some(e=>e.symbol===symbol)?symbol:candidates[0]?.symbol);const entry=candidates.find(e=>e.symbol===$('symbolSelect').value);if(entry)await load(entry.dataset_id);}
   async function load(id,options={}){const token=++generation;stop();data=null;tradePack=null;tradeError='';chartLayout=null;selected=options.eventId||null;$('error').hidden=true;$('play').disabled=true;$('cursor').disabled=true;$('reviewForm').hidden=true;$('connection').textContent='Đang đọc dữ liệu…';$('bubbleStatus').textContent='Đang đọc dữ liệu khớp…';
@@ -51,7 +51,7 @@
       const verified=data.frames.some(f=>['EMPIRICALLY_VERIFIED','OFFICIALLY_VERIFIED'].includes(f.units));$('unitWarning').hidden=verified;$('unitWarning').textContent='Mã này mới quy đổi theo schema DNSE, chưa xác minh độc lập đơn vị. Có thể xem các quan sát; mọi detector bị chặn. Không có sự kiện không đồng nghĩa thị trường bình thường.';
       const p=data.analysis_parameters||{spread_multiplier:'1.5',min_increase_bps:'2',depth_drop:'.5',imbalance_threshold:'.8',duration_seconds:3};$('cfgMultiplier').value=p.spread_multiplier;$('cfgIncrease').value=p.min_increase_bps;$('cfgDepth').value=Number(p.depth_drop)*100;$('cfgImbalance').value=Number(p.imbalance_threshold)*100;$('cfgDuration').value=p.duration_seconds;
       $('configDetails').replaceChildren(text('pre',JSON.stringify({version:data.detector_version,hash:data.config_hash,parameters:p,config:data.detector_configs||data.config},null,2)));
-      $('connection').textContent='Offline · Dữ liệu trên máy';renderSide();renderInventory();setPage(options.page||page);setIndex(index);
+      $('connection').textContent=hosted?'Replay · Dữ liệu đã lưu trên web':'Replay · Dữ liệu trên máy';renderSide();renderInventory();setPage(options.page||page);setIndex(index);
     }catch(error){if(token===generation){showError(error.message);$('connection').textContent='Chưa tải được dữ liệu';}}
   }
   function setIndex(value){if(!data)return;index=Math.max(0,Math.min(data.frames.length-1,Math.trunc(Number(value))));$('cursor').value=index;render();}
@@ -123,10 +123,11 @@
     if(hit){const b=hit.bubble;$('hover').textContent=`KHỚP LỆNH · ${b.side==='BUY'?'Mua chủ động':b.side==='SELL'?'Bán chủ động':'Chưa rõ phía'} (nhãn DNSE)\nGiá ${fmt(b.price)} VND · ${fmt(b.qty)} CP\n${fmt(b.count)} giao dịch · ${clock(new Date(b.first).toISOString())} – ${clock(new Date(b.last).toISOString())}\n${tradePack?.unit_status==='EMPIRICALLY_VERIFIED_FOR_ACB_TRADES'?'Đã đối chiếu mẫu ACB và bộ đếm lũy kế.':'Đơn vị chưa xác minh đầy đủ; đọc cùng cảnh báo.'}`;return;}
     const g=M.windowAt(data,index,Number($('window').value)),fraction=Math.max(0,Math.min(1,(e.clientX-rect.left-65)/(rect.width-77))),target=g.start+fraction*(g.stop-g.start),f=data.frames[Math.min(index,M.indexAt(data,target))],age=(target-M.time(f.time))/1000;$('hover').textContent=age<0||age>data.config.max_observation_gap_seconds?'Chưa có quan sát gần. Không suy ra lượng bằng 0.':`${clock(f.time)}\nBid1 ${fmt(f.bids[0][0])} · ${fmt(f.bids[0][1])}\nAsk1 ${fmt(f.asks[0][0])} · ${fmt(f.asks[0][1])}\nSpread ${fmt(f.features.spread_bps,2)} bps`;});$('heatmap').addEventListener('mouseleave',()=>{$('hover').hidden=true;});
   new ResizeObserver(paint).observe($('heatmap').parentElement);requestAnimationFrame(tick);
+  let bootRetries=0;
   async function boot(){try{
     const response=await fetch('/api/hosting',{cache:'no-store'});
     if(response.ok){const info=await response.json();hosted=Boolean(info.hosted);if(hosted&&!info.seed_ready){$('connection').textContent='Đang khôi phục dữ liệu đã lưu…';$('provenance').textContent='Máy chủ đang chuẩn bị dữ liệu. Trang sẽ tự cập nhật.';setTimeout(boot,3000);return;}}
     await refreshCatalog();const entry=currentEntries().find(e=>e.symbol==='ACB')||currentEntries()[0];await load(entry.dataset_id);
-  }catch(e){showError(e.message);$('connection').textContent='Chưa sẵn sàng';}}
+  }catch(e){showError(e.message);$('connection').textContent='Chưa sẵn sàng';if(!data&&bootRetries++<12)setTimeout(boot,5000);}}
   boot();
 })();
