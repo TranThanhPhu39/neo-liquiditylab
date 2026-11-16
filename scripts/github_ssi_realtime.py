@@ -133,7 +133,6 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         result.update(final_checkpoint=final,temporary_checkpoints_superseded=len(checkpoints))
     except Exception as error:result.update(state='FAILED_ENCRYPTED_STORAGE',error_code=type(error).__name__)
     atomic(report,result)
-    print(json.dumps(result),flush=True)
     return result
 
 
@@ -148,7 +147,7 @@ def main():
         import re
         r=dict(state='FAILED_SSI_CLOUD_WORKER',error_code=message if re.fullmatch('[A-Z0-9_]{1,90}',message) else type(error).__name__)
         path=ROOT/'report/github/ssi_realtime_result.json';path.parent.mkdir(parents=True,exist_ok=True);atomic(path,r)
-        print(json.dumps(r),flush=True)
+    print(json.dumps(r),flush=True)
     return 0 if r['state'] in ('NETWORK_PREFLIGHT_PASSED','NOT_SCHEDULED_NON_TRADING_DATE','COLLECTED_ENCRYPTED_AND_RESTORE_VERIFIED','SMOKE_ENCRYPTED_AND_RESTORE_VERIFIED') else 1
 
 

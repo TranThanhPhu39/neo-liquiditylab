@@ -1,17 +1,19 @@
 # Cập nhật xử lý sau nghiệm thu — 16/11/2026
 
-**Đã sửa bộ thu SSI và dựng xong lịch sử đã xác minh đơn vị cho cả ACB/FPT/HPG trên máy. Chưa nghiệm thu toàn bộ luồng tự động và chưa cập nhật gói lịch sử mới lên web.** Báo cáo nghiệm thu ban đầu được giữ nguyên để truy vết.
+**Đã sửa bộ thu SSI và cập nhật web với lịch sử quote đã xác minh đơn vị cho ACB/FPT/HPG: 13 ngày, 39 replay chính. Luồng Windows đã tự thu raw hôm nay; GitHub phát lịch quá muộn. Chưa nghiệm thu realtime cả phiên.** Báo cáo nghiệm thu ban đầu được giữ nguyên để truy vết.
 
 ## Dữ liệu hôm nay có tự thu không?
 
 Tại lần kiểm tra khoảng 15:00 giờ Việt Nam, GitHub có workflow đang bật và Actions được cho phép, nhưng API trả về **0 lượt `event=schedule` trong ngày 16/11**. Những lượt hôm nay là `workflow_dispatch` do mình khởi chạy để kiểm tra và thu bù. Vì vậy chưa được gọi là đã tự thu theo cron.
+
+**Cập nhật 15:32:** GitHub tạo lượt schedule [43832096296](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/43832096296) cho cron `37 1 * * 1-5` (08:37 Việt Nam) lúc **15:32:48**, trễ khoảng 6 giờ 56 phút. Job kết thúc Failure sau khi phiên sáng đã đóng. Guard theo phiên trong mã nguồn trả `FAILED_SESSION_WINDOW_ALREADY_CLOSED`; chưa có dữ liệu SSI nào được thu từ lịch sáng đó. CLI đã được bổ sung in JSON cho cả đường trả về sớm, để lượt sau không chỉ có exit 1 mà thiếu lý do trong log. Chưa đủ bằng chứng về nguyên nhân nội bộ khiến GitHub phát sự kiện muộn.
 
 - Lượt [43823435962](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/43823435962) thu từ khoảng 14:23 đến 14:30: **1.953 quote, 1.689 trade**. Dừng vì lỗi topic chuyển phiên. Checkpoint cuối được tải lại, giải mã và kiểm tra Parquet thành công, rồi nhập vào kho SSI local.
 - Lượt phục hồi [43824990785](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/43824990785) bắt đầu khoảng 14:36, dự kiến dừng 15:10. Đã qua mốc 14:45 mà không lỗi phạm vi. Checkpoint 14:51 được tải lại và kiểm tra độc lập: **716 quote, 930 trade; 1.838 bản ghi gồm metadata**. Đây là checkpoint giữa phiên, không phải kết quả cuối cùng.
 - Kiểm tra 15:04: collector còn active, đã kết nối lần thứ hai và ghi một gap. Chưa có quote mới sau ATC để nghiệm thu nhận quote qua reconnect; không gọi đây là luồng cả phiên không mất dữ liệu.
 - **Chốt lúc 15:10:** lượt phục hồi dừng đúng giới hạn thời gian, không lỗi parser; kết quả `PARTIAL_LATE_START`, 716 quote, 930 trade, **2 gap**, không quarantine. Checkpoint cuối **2.065 bản ghi** đã tải lại, giải mã, kiểm tra Parquet và nhập vào kho SSI local. Relay gửi hết, pending 0, errors 0. GitHub hiện **Failure** vì thu thiếu đầu phiên, không phải thất bại lưu dữ liệu. Hai lượt cloud cộng lại có 2.669 quote và 2.619 trade, vẫn không đủ cả ngày.
 - Hai khoảng thu này không bao phủ cả ngày. SSI chưa có đường backfill lịch sử sổ lệnh được xác minh; không điền khoảng thiếu bằng 0.
-- Task Windows `LiquidityLab - DNSE Daily Fallback` đang **Ready**, lịch kế tiếp **15:15 ngày 16/11**. Lần chạy gần nhất là 15/11, mã kết quả 0. Chưa tuyên bố task 15:15 hôm nay đã chạy khi giờ đó chưa đến.
+- Task Windows `LiquidityLab - DNSE Daily Fallback` đã **tự chạy lúc 15:15:01 ngày 16/11**, không được khởi chạy thủ công trong đợt kiểm tra này. Lúc 15:42, database hôm nay có **2.077 trang, 729.742 raw quote**, 1.300 mã `COMPLETE`, 217 mã `NO_DATA_RETURNED`, không còn `PARTIAL/PENDING`. Luồng đã qua `collect`, `audit_raw`, `report_missing` và đang tiếp tục các bước chuẩn hóa/audit. Số `NO_DATA_RETURNED` không được tự đổi thành khối lượng 0.
 
 ## Những phần đã sửa
 
@@ -24,11 +26,12 @@ Tại lần kiểm tra khoảng 15:00 giờ Việt Nam, GitHub có workflow đan
 
 ## Kết quả và giới hạn còn lại
 
-- Bộ kiểm thử sau các thay đổi parser, revision và stream: **498 passed**. Thêm tùy chọn CLI chọn kho dữ liệu riêng sau lượt kiểm thử này.
+- Bộ kiểm thử cuối sau các thay đổi parser, revision, stream, phục hồi tham số và CLI: **500 passed trong 43,83 giây**. Tùy chọn CLI chọn kho dữ liệu riêng đã được kiểm tra `--help` và API dữ liệu thật.
 - Gói lịch sử mới: **216.019.466 byte sau khôi phục, 200.261.346 byte ciphertext**, 366 tệp, 39 replay; đã thử khôi phục và chạy lại phân tích ACB ngày 13/11. Các gói giao dịch cũ được giữ nguyên; ngày 12–13/11 chưa có trade package trong kho cũ, nên không có bubbles giao dịch cho hai ngày đó.
 - Đã chạy API HTTP/gzip thật trên localhost với ngày 13/11: ACB 10.931 frame / 7.601 quan sát đủ điều kiện, FPT 38.034 / 35.385, HPG 13.150 / 10.866. Đọc đủ toàn bộ event patches, không cắt lấy mẫu. Đây là kiểm tra backend bằng dữ liệu thật, chưa phải nghiệm thu trực quan trên trình duyệt.
-- Gói mới **chưa upload, chưa deploy**. Web lịch sử vẫn đến 11/11 cho đến khi có chấp thuận gói mở rộng và hoàn tất cập nhật.
-- Gói chứng nhận SSI **13 KB chưa được gửi lên Actions Secret**. Runner hiện tại vẫn ghi đơn vị `UNVERIFIED`; không được coi trạng thái local đã tự áp dụng lên cloud.
+- Gói mới đã được chấp thuận, **upload ciphertext lên GitHub Releases, tải lại/giải mã kiểm tra, deploy Render và phục hồi READY**. Web có 39 replay chính, thêm một phiên bản phân tích đã lưu, tổng 40 mục. Bộ tham số cũ được tính lại với ID mới và lưu ánh xạ phiên bản; không tự chuyển ghi chú giữa các ID.
+- Chứng nhận SSI **13.206 byte đã lưu thành Actions Secret**. Lượt kiểm tra [43831303824](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/43831303824) đạt trên runner mới, xác minh quote/trade cả ba mã mà không cấp khóa môi giới cho job kiểm tra. Các capture cũ giữ nguyên contract/nhãn tại thời điểm thu; không tự nâng nhãn hồi tố.
+- Các gói giao dịch khớp DNSE cũ giữ nguyên bằng chứng/nhãn riêng. Ví dụ HPG còn `ASSUMED_SHARED_SCHEMA`; đợt revision lịch sử này cập nhật quote, không tự nâng nhãn các gói bubbles cũ. Ngày 12–13/11 chưa có trade package trong kho cũ.
 - Cờ nguồn `C` được giữ nguyên, **không đổi thành `LO`**. Detector realtime vẫn bị khóa khi đơn vị hoặc phiên liên tục chưa đủ bằng chứng. Việc thu và lưu quote/trade vẫn hoạt động.
 - Chưa kiểm chứng cả phiên sáng/chiều, reconnect trong điều kiện thật hoặc completeness của nhà cung cấp. Các detector vẫn mang tính thử nghiệm, chưa phải kết luận thao túng.
 
@@ -46,6 +49,10 @@ Các tệp JSON dưới đây nằm trên máy, không được đính kèm bả
 
 - [Bản lịch sử đã dựng](verified_monitor_history_latest.json)
 - [Kiểm tra API cả ba mã](revised_history_http_2026-11-16.json)
+- [Kiểm tra ba mã trên Render](hosted_acceptance_2026-11-16.json)
+- [Windows tự thu ngày 16/11](windows_auto_collection_2026-11-16.json)
+- [Lịch GitHub phát muộn](ssi_late_schedule_2026-11-16.json)
+- [Chứng nhận SSI đạt trên runner](ssi_contract_runner_check_2026-11-16.json)
 - [Gói mã hóa và kiểm tra khôi phục](online_monitor_preparation_2026-11-16.json)
 - [Chứng nhận SSI local](ssi_units_promotion_2026-11-16.json)
 - [Replay bản tin chuyển phiên](ssi_transition_replay_2026-11-16.json)
@@ -54,4 +61,4 @@ Các tệp JSON dưới đây nằm trên máy, không được đính kèm bả
 - [Checkpoint cuối 15:10](ssi_cloud_final_checkpoint_2026-11-16.json)
 - [Bản sao tăng dần](recovery_incremental_latest.json)
 
-Bộ duyệt tự động đã từ chối gửi gói chứng nhận SSI lên Actions Secret vì thiếu chấp thuận cụ thể cho chính payload và đích lưu đó. Đã gửi câu hỏi xác nhận riêng; chưa thực hiện lại thao tác bị từ chối.
+Các chấp thuận upload gói lịch sử và lưu chứng nhận đã được nhận, thực hiện và kiểm chứng. Trang giới thiệu vẫn công khai; API và các trang dữ liệu vẫn dùng mật khẩu hiện có. Chưa xóa dữ liệu gốc.
