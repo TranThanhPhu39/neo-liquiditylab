@@ -319,8 +319,9 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8877)
+    parser.add_argument('--data-root',type=Path,default=ROOT)
     args = parser.parse_args()
-    server = MonitorServer(port=args.port)
+    server = MonitorServer(root=args.data_root,port=args.port,assets_root=ROOT)
     print(f'Local event replay: http://127.0.0.1:{server.server_port}/', flush=True)
     try:
         server.serve_forever()
