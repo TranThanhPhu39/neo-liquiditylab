@@ -21,8 +21,9 @@ jobs:
           SSI_UNIT_CONTRACT_BUNDLE: ${{ secrets.SSI_UNIT_CONTRACT_BUNDLE }}
         shell: python
         run: |
-          import json, os
+          import json, os, sys
           from pathlib import Path
+          sys.path.insert(0, str(Path.cwd()))
           from src.data_pipeline.ssi_contract_bundle import install_contract_bundle
           scope = install_contract_bundle(Path.cwd(), os.environ['SSI_UNIT_CONTRACT_BUNDLE'])
           assert scope['status'] == 'EMPIRICALLY_VERIFIED'
