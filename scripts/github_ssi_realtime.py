@@ -16,6 +16,7 @@ from src.data_pipeline.ssi_live_store import atomic
 from src.monitoring.ssi_live import SSILive
 from scripts.ssi_checkpoint import SSICheckpoints
 from src.monitoring.web_relay import RelayPublisher
+from src.data_pipeline.ssi_contract_bundle import install_contract_bundle
 
 REPOSITORY='TranThanhPhu39/neo-liquiditylab'
 LOCAL=ZoneInfo('Asia/Ho_Chi_Minh')
@@ -79,6 +80,7 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
     key=base64.b64decode(os.environ['LIQUIDITYLAB_STATE_KEY'],validate=True)
     if len(key)!=32:raise ValueError('SSI_STATE_KEY_REQUIRES_32_BYTES')
     p=policy(root);window=None
+    install_contract_bundle(root,os.getenv('SSI_UNIT_CONTRACT_BUNDLE'))
     if mode=='collect':
         if os.getenv('GITHUB_EVENT_NAME')=='schedule':
             session=p['schedule_utc'].get(os.getenv('SSI_SCHEDULE_CRON'))

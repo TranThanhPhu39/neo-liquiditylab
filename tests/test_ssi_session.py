@@ -49,6 +49,26 @@ def test_broadcast_flags_for_other_boards_do_not_stop_or_enter_hose_collector(bo
     assert public_record(f,['ACB']) is None
 
 
+@pytest.mark.parametrize('board',['HNX','UPCOM','DER','DERIVATIVES'])
+def test_board_suffixed_session_broadcasts_do_not_become_security_scope_failures(board):
+    for suffix in (board,board.lower()):
+        frame=dict(channel='DATA',topic='market.'+suffix,data=dict(b=board,t='2026/11/16 13:00:00',f='LO'))
+        assert public_record(frame,['ACB']) is None
+        with pytest.raises(Exception,match='SCOPE'):
+            public_record(dict(frame,data=dict(frame['data'],s='OTHER')),['ACB'])
+
+
+def test_hose_board_alias_preserves_source_and_never_maps_c_or_mismatched_board_to_lo():
+    frame=dict(channel='DATA',topic='market.HOSE',data=dict(b='HOSE',t='2026/11/16 13:00:00',f='C'))
+    r=public_record(frame,['ACB'])
+    assert r['kind']=='MARKET' and r['topic']=='market.hose' and r['source_topic']=='market.HOSE'
+    assert r['payload']['f']=='C'
+    unresolved=public_record(dict(frame,data=dict(frame['data'],b='UNRECOGNIZED')),['ACB'])
+    assert unresolved['kind']=='SESSION_UNRESOLVED' and unresolved['payload']['b']=='UNRECOGNIZED'
+    with pytest.raises(Exception,match='SCOPE'):
+        public_record(dict(frame,topic='market.FPT'),['ACB'])
+
+
 def test_index_c_cannot_overwrite_direct_lo_and_newer_direct_halt_still_wins():
     selected,_=select_session_flag({},flag())
     old=deepcopy(selected)

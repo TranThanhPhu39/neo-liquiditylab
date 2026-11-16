@@ -11,6 +11,8 @@ Repo: `TranThanhPhu39/neo-liquiditylab`. Workflow: `.github/workflows/ssi-realti
 
 Runner có thời gian chuẩn bị trước phiên; không khẳng định cron luôn chạy đúng giờ. Thứ Bảy/Chủ nhật và ngày loại trừ cấu hình được ghi rõ không có phiên dự kiến. `excluded_dates` cần cập nhật khi có ngày nghỉ sở; weekday không tự chứng minh sở có giao dịch.
 
+Từ 16/11 có thêm `.github/workflows/ssi-schedule-guard.yml`, kiểm tra ở phút 07/17/27/47/57 trong giờ UTC 01–08 các ngày thứ Hai–thứ Sáu. Guard chỉ khởi chạy phiên còn trong cửa sổ khi không có collector đang chạy/đang xếp hàng. Có cooldown 10 phút và tối đa hai lượt trong cửa sổ để tránh tạo hàng đợi lặp. Guard dùng `GITHUB_TOKEN` quyền `actions: write`, không nhận khóa môi giới. Đây là lớp giảm bỏ lỡ; lịch guard vẫn dùng GitHub schedule nên không bảo đảm thời điểm chạy. Lần khởi chạy được yêu cầu thủ công không được gọi là đã chứng minh cron tự chạy.
+
 Hai biến `SSI_REALTIME_STORAGE_APPROVED=true` và `SSI_REALTIME_ENABLED=true` mới cho phép thu theo lịch. Khi đang kiểm tra, chỉ bật storage sau khi được chấp thuận, giữ enabled=false. Thử hai lượt `workflow_dispatch` mode `smoke` để kiểm chứng hai runner mới có quote/trade và checkpoint tải lại/giải mã được rồi mới bật enabled.
 
 ## Khóa và dữ liệu
@@ -20,6 +22,8 @@ Hai biến `SSI_REALTIME_STORAGE_APPROVED=true` và `SSI_REALTIME_ENABLED=true` 
 Mỗi 15 phút tạo checkpoint Parquet mã hóa; bản cuối được tải lại từ GitHub, giải mã và kiểm tra checksum/tổng số hàng. Chỉ khi bản cuối đã xác minh mới xóa các checkpoint tạm **do chính lần chạy đó tạo**, giữ bản cuối và các phiên trước nguyên vẹn. Nếu runner bị kết thúc đột ngột, phần chưa có checkpoint có thể mất; không khẳng định backfill sổ lệnh SSI đã hỗ trợ.
 
 Runner không có evidence đơn vị riêng của máy nên bắt đầu với nhãn chưa xác minh và detector khóa. Cờ C vẫn không được tự đổi sang LO. Điều này không chặn thu quote/trade và lưu raw/canonical nguồn.
+
+Có thể cấp gói chứng chỉ đơn vị đã rà soát qua Actions Secret `SSI_UNIT_CONTRACT_BUNDLE` sau khi được chấp thuận riêng. Loader giới hạn 60 KB, tên tệp bằng chứng, phạm vi mã và checksum; xác minh toàn bộ trước khi cài contract. Khi secret trống, giữ nhãn chưa xác minh. Chứng chỉ dùng nguồn tham chiếu cập nhật chậm chỉ xác minh đơn vị, không chứng nhận độ trễ, phiên LO hoặc completeness. Không commit chứng chỉ/dữ liệu đối chiếu vào repo public.
 
 Collector đăng ký `market.flag` theo SDK SSI, bên cạnh `market.hose` và `indexsummary.VNINDEX`. Chỉ giữ cờ HOSE; bỏ qua cờ các sàn khác trên kênh phát chung. Ưu tiên cờ trực tiếp hơn metadata chỉ số. Trong các cờ trực tiếp, bản tin mới hơn được dùng; xung đột cùng thời gian nguồn khóa detector. `LO` cần cùng ngày/kết nối và cùng khoảng liên tục sáng hoặc chiều với quote; không mang LO sáng qua giờ nghỉ trưa. Nguồn cờ, đồng hồ và lý do chọn/bỏ cờ được lưu để đối chiếu.
 

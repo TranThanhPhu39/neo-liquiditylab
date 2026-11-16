@@ -33,6 +33,24 @@ def public_record(frame,symbols,credentials=(),received_at=None):
     if kind not in FIELDS and kind!='indexsummary':raise ProviderError('SSI_UNREQUESTED_TOPIC')
     data=frame.get('data')
     if not isinstance(data,dict):raise ProviderError('SSI_INVALID_DATA_SCHEMA')
+    # Board broadcasts may use a board-specific topic, including an uppercase
+    # board suffix, rather than the literal subscription topic market.flag.
+    # Route only known public board names; security topics remain fail-closed.
+    board_topics={'market.hose':'HOSE','market.hnx':'HNX','market.upcom':'UPCOM',
+                  'market.der':'DER','market.derivatives':'DERIVATIVES'}
+    if kind=='market' and topic.lower() in board_topics:
+        if data.get('s') not in (None,''):raise ProviderError('SSI_SYMBOL_SCOPE_MISMATCH')
+        expected_board=board_topics[topic.lower()]
+        if expected_board!='HOSE' and data.get('b')==expected_board:return None
+        clean={k:data[k] for k in ('b','t','f') if k in data and type(data[k]) in (str,int,float,type(None))}
+        if any(isinstance(v,str) and len(v)>128 for v in clean.values()):raise ProviderError('SSI_INVALID_SESSION_SCHEMA')
+        if any(secret and secret in json.dumps(clean) for secret in credentials):raise ProviderError('SSI_AUTH_MATERIAL_IN_DATA')
+        valid=(expected_board=='HOSE' and data.get('b')=='HOSE' and
+               all(isinstance(clean.get(k),str) and 0<len(clean[k])<=64 for k in ('b','t','f')))
+        return dict(kind='MARKET' if valid else 'SESSION_UNRESOLVED',symbol='',
+                    topic='market.hose' if valid else topic,source_topic=topic,payload=clean,
+                    **({} if valid else dict(reason='SSI_SESSION_METADATA_UNRESOLVED')),
+                    received_at=received_at or datetime.now(timezone.utc).isoformat())
     if topic=='market.flag':
         # This topic broadcasts multiple boards. Keep only the requested HOSE scope.
         if data.get('b') in ('HNX','UPCOM','DER','DERIVATIVES'):return None
@@ -136,6 +154,8 @@ async def collect(client,symbols,seconds,stop,on_record,on_state,*,connect=None,
                             p=frame.get('data') if isinstance(frame.get('data'),dict) else {}
                             s=p.get('s');allowed={r['topics'][0] for r in requests(symbols)}
                             diagnostic=dict(topic=frame.get('topic') if frame.get('topic') in allowed else 'OUT_OF_SCOPE_TOPIC',
+                                public_board_topic=frame.get('topic') if isinstance(frame.get('topic'),str) and frame['topic'].lower() in
+                                    ('market.hose','market.hnx','market.upcom','market.der','market.derivatives','market.flag') else None,
                                 fields_present=[k for k in ('s','b','t','f','bids','asks','p','q') if k in p],
                                 symbol_status='ABSENT' if 's' not in p else 'NULL' if s is None else 'EMPTY' if s=='' else 'IN_SCOPE' if s in symbols else 'OUT_OF_SCOPE',
                                 board_status='HOSE' if p.get('b')=='HOSE' else 'OTHER_OR_ABSENT',

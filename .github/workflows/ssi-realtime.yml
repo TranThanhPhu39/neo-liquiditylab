@@ -1,4 +1,5 @@
 name: SSI realtime Parquet collector
+run-name: SSI ${{ inputs.mode || 'scheduled' }} ${{ inputs.session || github.event.schedule }}
 
 on:
   schedule:
@@ -66,6 +67,7 @@ jobs:
         env:
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          SSI_UNIT_CONTRACT_BUNDLE: ${{ secrets.SSI_UNIT_CONTRACT_BUNDLE }}
           LIQUIDITYLAB_STATE_KEY: ${{ secrets.LIQUIDITYLAB_STATE_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           SSI_REALTIME_STORAGE_APPROVED: ${{ vars.SSI_REALTIME_STORAGE_APPROVED }}
