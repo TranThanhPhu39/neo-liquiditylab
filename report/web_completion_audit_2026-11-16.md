@@ -38,4 +38,4 @@ Kiểm tra trình duyệt Edge thật trên localhost dùng cùng CloudServer/gi
 - Ngày 12, 13 và 16/11 chưa có gói trades DNSE; không có bubbles thật từ các gói quote này. Chất lượng giao dịch cũ giữ nguyên nhãn.
 - Detector là công cụ phát hiện/giải thích sự kiện theo ngưỡng thử nghiệm, không kết luận thao túng hoặc đưa tín hiệu mua bán.
 - Render Free ngủ/cold start; PostgreSQL Free hiện hết hạn 15/12/2026. Cần xuất ghi chú hoặc chuyển kho trước hạn; chưa tự động nâng phí.
-- Đã xóa JSON dẫn xuất trùng 798.541.156 byte. SQLite cũ 19.846.524.928 byte còn trên máy, đã chứng minh thay thế đủ 11.354.800 snapshot và 12.685.823 lineage; chờ duyệt xóa đúng tệp. Raw, Parquet, backup không thuộc bước xóa.
+- Đã xóa JSON dẫn xuất trùng 798.541.156 byte và SQLite cũ 19.846.524.928 byte cùng WAL/SHM theo chấp thuận ngày 16/11; tổng khoảng 20,65 GB bản dẫn xuất trùng. Trước khi xóa đã chứng minh thay thế đủ 11.354.800 snapshot và 12.685.823 lineage, metadata và bản sao khôi phục. Raw, Parquet, backup giữ nguyên. Báo cáo hậu kiểm: `report/legacy_sqlite_post_removal_check.json`.

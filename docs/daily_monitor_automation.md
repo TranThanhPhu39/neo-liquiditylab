@@ -56,6 +56,6 @@ Render Free có cold start/ngủ; giao diện thử lại GET hữu hạn và hi
 
 ## Dữ liệu cũ
 
-Dashboard đã đọc Parquet. Đã xóa các bản JSON dẫn xuất trùng khoảng **798,5 MB** ngày 12/11. SQLite dẫn xuất `data/processed/dnse/normalized.db` **19.846.524.928 byte** chưa xóa tại thời điểm kiểm tra 16/11.
+Dashboard đã đọc Parquet. Đã xóa các bản JSON dẫn xuất trùng khoảng **798,5 MB** ngày 12/11. SQLite dẫn xuất `data/processed/dnse/normalized.db` **19.846.524.928 byte** cùng WAL/SHM đã xóa ngày 16/11 sau khi người sở hữu chấp thuận; tổng hai đợt giải phóng khoảng **20,65 GB** bản dẫn xuất trùng.
 
-Đã đối chiếu toàn bộ **11.354.800 snapshot**, **12.685.823 liên kết nguồn** và metadata của đúng 12 ngày SQLite cũ với Parquet; kiểm tra bản sao gốc và khôi phục phần bổ sung ngày 12/11. Bằng chứng: `report/legacy_sqlite_removal_eligibility.json` và `report/legacy_delta_restore_check.json`. Catalog hiện có thêm ngày mới không còn khiến phép kiểm tra nhầm tổng 14 ngày với database 12 ngày. Đang chờ chấp thuận xóa đúng SQLite dẫn xuất và WAL/SHM rỗng; raw, Parquet và backup giữ nguyên. Không cần xóa file cũ để web tiếp tục hoạt động.
+Đã đối chiếu toàn bộ **11.354.800 snapshot**, **12.685.823 liên kết nguồn** và metadata của đúng 12 ngày SQLite cũ với Parquet; kiểm tra bản sao gốc và khôi phục phần bổ sung ngày 12/11. Bằng chứng: `report/legacy_sqlite_removal_eligibility.json` và `report/legacy_delta_restore_check.json`. Catalog hiện có thêm ngày mới không còn khiến phép kiểm tra nhầm tổng 14 ngày với database 12 ngày. Raw, Parquet và backup giữ nguyên. Kết quả kiểm tra đọc sau xóa nằm ở `report/legacy_sqlite_post_removal_check.json`.
