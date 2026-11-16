@@ -56,3 +56,6 @@ Lệnh tải ciphertext, giải mã bằng khóa khôi phục có sẵn trên m�
 Giới hạn 6 giờ hiện tại trong ứng dụng là giới hạn an toàn của collector, không phải SSI xác nhận. Mỗi job GitHub-hosted cũng có giới hạn 6 giờ; workflow SSI đặt timeout 220 phút, chia sáng/chiều để chừa thời gian lưu. [Giới hạn GitHub](https://docs.github.com/en/actions/reference/limits).
 
 Lịch GitHub có thể trễ hoặc bị bỏ khi quá tải. [GitHub schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Không tự thay lịch DNSE/Vnstock, không công khai SSI qua Pages và không gọi giao dịch/account APIs.
+
+
+Ng?y 16/11/2026, b?n tin chuy?n ATC th?c t? d?ng `market.FLAG` (ch? hoa), g?m HOSE/HNX/DER. Parser nh?n c? `market.flag` v? `market.FLAG`, chu?n h?a topic n?i b? v? gi? `source_topic` ?? truy v?t; ch? x? l? c? HOSE. C? ATC ???c gi? nguy?n, kh?ng ??i th?nh LO. ?? replay b?n b?n tin l?i th?c t? v? ki?m tra l?i ph?m vi/k?nh ri?ng t?.

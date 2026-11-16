@@ -51,7 +51,7 @@ def public_record(frame,symbols,credentials=(),received_at=None):
                     topic='market.hose' if valid else topic,source_topic=topic,payload=clean,
                     **({} if valid else dict(reason='SSI_SESSION_METADATA_UNRESOLVED')),
                     received_at=received_at or datetime.now(timezone.utc).isoformat())
-    if topic=='market.flag':
+    if topic.lower()=='market.flag':
         # This topic broadcasts multiple boards. Keep only the requested HOSE scope.
         if data.get('b') in ('HNX','UPCOM','DER','DERIVATIVES'):return None
         if data.get('b')!='HOSE' or data.get('s') not in (None,''):
@@ -61,7 +61,7 @@ def public_record(frame,symbols,credentials=(),received_at=None):
             raise ProviderError('SSI_INVALID_SESSION_SCHEMA')
         encoded=json.dumps(clean)
         if any(secret and secret in encoded for secret in credentials):raise ProviderError('SSI_AUTH_MATERIAL_IN_DATA')
-        return dict(kind='MARKET',symbol='',topic=topic,payload=clean,
+        return dict(kind='MARKET',symbol='',topic='market.flag',source_topic=topic,payload=clean,
                     received_at=received_at or datetime.now(timezone.utc).isoformat())
     if kind=='indexsummary':
         if topic!='indexsummary.VNINDEX' or data.get('s') not in ('VNINDEX','VNIND') or data.get('b')!='HOSE':

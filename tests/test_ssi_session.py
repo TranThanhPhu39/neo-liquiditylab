@@ -156,6 +156,20 @@ def test_empty_symbol_in_known_board_flag_is_not_a_security_scope_escape():
     assert public_record(dict(f,topic='market.flag'),['ACB'])['kind']=='MARKET'
 
 
+def test_observed_uppercase_flag_transition_is_board_scoped_and_preserves_atc():
+    # Actual SSI broadcast captured at 14:30 on 2026-11-16.
+    frame=dict(channel='DATA',topic='market.FLAG',data=dict(b='HOSE',f='ATC',t='2026/11/16 14:30:00'))
+    record=public_record(frame,['ACB','FPT','HPG'])
+    assert record['topic']=='market.flag' and record['source_topic']=='market.FLAG'
+    assert record['payload']['f']=='ATC' and record['symbol']==''
+    for board in ('HNX','DER','UPCOM'):
+        assert public_record(dict(frame,data=dict(frame['data'],b=board)),['ACB']) is None
+    with pytest.raises(Exception,match='SCOPE'):
+        public_record(dict(frame,data=dict(frame['data'],s='OTHER')),['ACB'])
+    with pytest.raises(Exception,match='PRIVATE'):
+        public_record(dict(frame,channel='TRADING'),['ACB'])
+
+
 def test_scope_diagnostic_does_not_persist_other_symbol_or_credentials():
     import asyncio,threading,time,json
     from src.data_providers.ssi_stream import collect
