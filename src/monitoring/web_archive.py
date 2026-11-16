@@ -123,10 +123,18 @@ def restore_seed(root,key,tag,api=None):
         return dict(state='DECRYPTED_AND_VERIFIED',files=len(manifest['files']),datasets=manifest.get('datasets'),bytes=total)
 
 
+def ssi_recovery_tags(releases,preferred=()):
+    if not isinstance(preferred,(list,tuple)) or len(preferred)>6 or any(not isinstance(t,str) or not re.fullmatch(r'ssi-ws-[a-z0-9-]{10,150}',t) for t in preferred):
+        raise ValueError('SSI_RECOVERY_TAGS_INVALID')
+    observed=[r['tag_name'] for r in releases if re.fullmatch(r'ssi-ws-[a-z0-9-]{10,150}',r['tag_name'])]
+    return list(dict.fromkeys(observed+list(preferred)))[:6]
+
+
 class CloudRecovery:
-    def __init__(self,root,key,seed_tag=None,*,api=None,live=None,on_seed=None):
+    def __init__(self,root,key,seed_tag=None,*,api=None,live=None,on_seed=None,preferred_tags=()):
         self.root=Path(root);self.key=key;self.seed_tag=seed_tag;self.api=api or PublicReleases(REPOSITORY);self.live=live
         self.state='NOT_STARTED';self.seed_ready=not bool(seed_tag);self.last_error=None;self.closed=threading.Event();self.thread=None;self.known_tags=set();self.on_seed=on_seed
+        self.preferred_tags=ssi_recovery_tags([],preferred_tags)
 
     def start(self):
         def worker():
@@ -138,7 +146,7 @@ class CloudRecovery:
                         if self.on_seed:self.on_seed()
                         self.seed_ready=True
                     releases=self.api.request('GET',repository_path(REPOSITORY)+'/releases?per_page=100')
-                    for r in [x for x in releases if x['tag_name'].startswith('ssi-ws-')][:6]:
+                    for r in [dict(tag_name=t) for t in ssi_recovery_tags(releases,self.preferred_tags)]:
                         if r['tag_name'] in self.known_tags:continue
                         with self.live.lock if self.live else threading.RLock():
                             active=self.live.journal.run_id if self.live and self.live.journal and self.live.status()['active'] else None

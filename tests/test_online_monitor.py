@@ -16,6 +16,21 @@ from scripts.serve_monitor_cloud import CloudServer
 from src.monitoring.web_relay import RelayLive,validate,RelayPublisher
 from src.monitoring.web_archive import encrypt_seed,restore_seed,safe_name,REPOSITORY
 from src.monitoring.public_releases import PublicReleases
+from src.monitoring.web_archive import ssi_recovery_tags
+
+
+def test_ssi_recovery_keeps_saved_captures_when_market_releases_fill_the_feed():
+    saved=['ssi-ws-20261116-fixture-'+str(i) for i in range(6)]
+    feed=[dict(tag_name='monitor-web-seed-market-20261116-'+str(i)) for i in range(10)]
+    assert ssi_recovery_tags(feed,saved)==saved
+    feed.insert(0,dict(tag_name='ssi-ws-20261117-new-fixture'))
+    assert ssi_recovery_tags(feed,saved)==['ssi-ws-20261117-new-fixture']+saved[:5]
+
+
+def test_ssi_recovery_rejects_arbitrary_release_paths_and_unbounded_lists():
+    import pytest
+    with pytest.raises(ValueError):ssi_recovery_tags([],['../../.env'])
+    with pytest.raises(ValueError):ssi_recovery_tags([],['ssi-ws-20261116-fixture']*7)
 
 
 def packet():

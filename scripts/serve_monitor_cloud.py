@@ -239,7 +239,8 @@ def main():
     if encoded:
         key=base64.b64decode(encoded,validate=True)
         if len(key)!=32:raise ValueError('INVALID_RECOVERY_KEY')
-        server.recovery=CloudRecovery(root,key,os.getenv('MONITOR_SEED_TAG'),live=server.live,on_seed=server.restore_analyses);server.recovery.start()
+        server.recovery=CloudRecovery(root,key,os.getenv('MONITOR_SEED_TAG'),live=server.live,on_seed=server.restore_analyses,
+            preferred_tags=json.loads(os.getenv('SSI_RECOVERY_TAGS_JSON','[]')));server.recovery.start()
     print(json.dumps(dict(state='CLOUD_MONITOR_READY',origin=origin,ssi_keys_on_host=False)),flush=True)
     try:server.serve_forever()
     except KeyboardInterrupt:pass

@@ -23,7 +23,9 @@ Task Windows 15:15 giữ luồng tải → chuẩn hóa → audit → Parquet �
 
 ## Kiểm tra
 
-**513/513 kiểm thử hồi quy đạt.** Browser Edge thật với CloudServer trên localhost đã chọn ACB/FPT/HPG/VNM/SHS/A32, mở trang theo dõi, tìm mã thực sự thiếu dữ liệu, desktop/mobile 390 px; không JavaScript exception hay tràn ngang toàn trang. Đã kiểm tra retry GET 503 và thứ tự tải dataset trước trades.
+**515/515 kiểm thử hồi quy đạt.** Browser Edge thật với CloudServer trên localhost đã chọn ACB/FPT/HPG/VNM/SHS/A32, mở trang theo dõi, tìm mã thực sự thiếu dữ liệu, desktop/mobile 390 px; không JavaScript exception hay tràn ngang toàn trang. Đã kiểm tra retry GET 503 và thứ tự tải dataset trước trades.
+
+Đã kiểm chứng feed Releases chỉ trả mười mục và bị các gói thị trường chiếm chỗ. Khi đổi seed, publisher cập nhật tham chiếu các checkpoint SSI đã có vào `SSI_RECOVERY_TAGS_JSON`; backend gộp chúng với feed thay vì làm mất lịch sử SSI sau cold start. Không đưa token GitHub hoặc khóa broker lên Render cho việc khám phá này.
 
 Đã mở **VIX ngày 06/11 với đủ 78.400 khung** trên browser, không lấy mẫu. Thử khôi phục bootstrap mỏng rồi tải các gói ngày độc lập: AAA/HOSE 1.511 quan sát, ADC/HNX 10, A32/UPCOM 3 và VIX 78.400; mọi detector của phạm vi quan sát vẫn bị chặn.
 

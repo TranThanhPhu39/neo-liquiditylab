@@ -43,13 +43,22 @@ def update(report_path=None,commit=None):
             with urlopen(request,timeout=45) as response:return json.load(response)
         except HTTPError as error:raise RuntimeError('RENDER_HTTP_'+str(error.code)) from None
     before={v['envVar']['key']:v['envVar']['value'] for v in api('GET',base)}
-    already_configured=before.get('MONITOR_SEED_TAG')==tag
-    if not already_configured:api('PUT',base+'/MONITOR_SEED_TAG',dict(value=tag))
+    from scripts.github_api import GitHubAPI,repository_path
+    from src.monitoring.web_archive import REPOSITORY,ssi_recovery_tags
+    previous=json.loads(before.get('SSI_RECOVERY_TAGS_JSON','[]'))
+    try:releases=GitHubAPI().request('GET',repository_path(REPOSITORY)+'/releases?per_page=100')
+    except (RuntimeError,OSError):releases=[]
+    preferred=ssi_recovery_tags(releases,previous)
+    updates=dict(MONITOR_SEED_TAG=tag)
+    if preferred:updates['SSI_RECOVERY_TAGS_JSON']=json.dumps(preferred,separators=(',',':'))
+    already_configured=all(before.get(k)==v for k,v in updates.items())
+    for k,v in updates.items():
+        if before.get(k)!=v:api('PUT',base+'/'+k,dict(value=v))
     after={v['envVar']['key']:v['envVar']['value'] for v in api('GET',base)}
-    if after.get('MONITOR_SEED_TAG')!=tag or any(after.get(k)!=v for k,v in before.items() if k!='MONITOR_SEED_TAG'):
+    if any(after.get(k)!=v for k,v in updates.items()) or any(after.get(k)!=v for k,v in before.items() if k not in updates):
         raise ValueError('RENDER_UNRELATED_CONFIGURATION_CHANGED')
     # The application loads the old secret file only for absent env keys.
-    # This single service variable intentionally becomes the seed source of truth.
+    # SSI tag references preserve discovery when market releases crowd the feed.
     deployments=call(['deploys','list',SERVICE])
     current=next(((d.get('deploy') or d) for d in deployments if (d.get('deploy') or d).get('status') in ('build_in_progress','update_in_progress','live')),None)
     if already_configured and current and current.get('commit',{}).get('id')==commit:deploy=current
