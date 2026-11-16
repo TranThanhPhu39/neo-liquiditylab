@@ -49,7 +49,15 @@ class CloudServer(MonitorServer):
     def summary(self,dataset_id):
         e=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
         if e and e.get('events_file'):return super().summary(dataset_id)
-        m=self.metadata(dataset_id);events={p['event']['id']:p['event'] for p in m['event_patches']}
+        m=self.metadata(dataset_id)
+        if 'event_patches' in m:patches=m['event_patches']
+        else:
+            import pyarrow.parquet as pq
+            folder=confined(self.root,e['compact_folder']);path=folder/'event-patches.parquet'
+            source=pq.ParquetFile(path)
+            if source.metadata.num_rows>200000 or path.stat().st_size>80_000_000:raise ValueError('INVALID_REPLAY_ROWS')
+            patches=(json.loads(r['patch_json']) for batch in source.iter_batches(batch_size=256,columns=['patch_json']) for r in batch.to_pylist())
+        events={p['event']['id']:p['event'] for p in patches}
         return dict(dataset_id=dataset_id,symbol=m['symbol'],day=m['day'],events=list(events.values()),quality=m.get('quality_summary',{}))
 
     def analyze(self,day,symbol,config,event_config):
@@ -122,6 +130,11 @@ class CloudHandler(Handler):
         parquet=pq.ParquetFile(folder/'frames.parquet')
         manifest=json.loads((folder/'manifest.json').read_bytes())
         if parquet.metadata.num_rows!=manifest['frames'] or parquet.metadata.num_rows>50000:raise ValueError('INVALID_REPLAY_ROWS')
+        patches=None
+        if manifest.get('event_patches_in_parquet'):
+            path=folder/'event-patches.parquet';patches=pq.ParquetFile(path)
+            if (patches.metadata.num_rows!=manifest['event_patch_rows'] or patches.metadata.num_rows>200000 or
+                path.stat().st_size>80_000_000):raise ValueError('INVALID_REPLAY_ROWS')
         self.send_response(200)
         for k,v in {'Content-Type':'application/json; charset=utf-8','Content-Encoding':'gzip','Connection':'close',
                     'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}.items():self.send_header(k,v)
@@ -133,7 +146,15 @@ class CloudHandler(Handler):
                 for row in batch.to_pylist():
                     if not first:output.write(b',')
                     output.write(row['frame_json']);first=False
-            output.write(b']}')
+            output.write(b']')
+            if patches is not None:
+                output.write(b',"event_patches":[');first=True
+                for batch in patches.iter_batches(batch_size=256,columns=['patch_json']):
+                    for row in batch.to_pylist():
+                        if not first:output.write(b',')
+                        output.write(row['patch_json']);first=False
+                output.write(b']')
+            output.write(b'}')
 
     def do_POST(self):
         if not self.valid_host():return self.send_json({'error':'INVALID_HOST'},403)

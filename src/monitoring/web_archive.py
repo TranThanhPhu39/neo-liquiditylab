@@ -32,7 +32,9 @@ def safe_name(name):
     return (not p.is_absolute() and '..' not in p.parts and '\\' not in name and
         (name=='seed-manifest.json' or
          (name.startswith(('data/compact/','data/exports/orderbook-monitor/')) and p.suffix in ('.json','.parquet')) or
-         name in ('data/processed/dnse/manifest.json','report/dnse_normalization_audit.json')))
+         name in ('data/processed/dnse/manifest.json','report/dnse_normalization_audit.json',
+                  'data/control/dnse_normalization_rules.json','report/unit_revision_proof.json',
+                  'report/dnse_reviewed_unit_chain.json')))
 
 
 def encrypt_seed(folder,key,tag,output):

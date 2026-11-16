@@ -57,9 +57,21 @@ def _build(day,root,cfg,event_cfg,symbol):
     manifest=json.loads((root/'data/processed/dnse/manifest.json').read_text(encoding='utf-8'))
     audit=json.loads((root/'report/dnse_normalization_audit.json').read_text(encoding='utf-8'))
     evidence=next((a for a in audit.get('source_archives_unchanged',[]) if a['path']==f'data/history/dnse/{day}/history.db'),None)
-    if manifest.get('state')!='NORMALIZED_AND_AUDITED' or manifest.get('quarantined')!=0:
+    revision=manifest.get('state')=='UNIT_REVISION_AUDITED'
+    if (manifest.get('state') not in ('NORMALIZED_AND_AUDITED','UNIT_REVISION_AUDITED') or manifest.get('quarantined')!=0):
         raise ValueError('MONITOR_AUDITED_ARCHIVE_REQUIRED')
-    if audit.get('state')!='VERIFIED' or not evidence or audit.get('raw_rows_reconciled')!=manifest.get('input_raw_records'):
+    if revision:
+        from src.data_pipeline.parquet_history import digest as file_digest,confined
+        proof=confined(root,audit['revision_proof']['path'])
+        if (audit.get('state')!='UNIT_REVISION_VERIFIED' or not evidence or
+            file_digest(proof)!=audit['revision_proof']['sha256'] or
+            audit.get('revised_rows')!=manifest.get('revised_rows')):
+            raise ValueError('MONITOR_UNIT_REVISION_NOT_AUDITED')
+        proof_value=json.loads(proof.read_bytes())
+        if (proof_value.get('rule_hash')!=manifest['rule_hash'] or proof_value.get('rows')!=audit['revised_rows'] or
+            proof_value.get('observation_fields_unchanged') is not True):
+            raise ValueError('MONITOR_UNIT_REVISION_PROOF_MISMATCH')
+    elif audit.get('state')!='VERIFIED' or not evidence or audit.get('raw_rows_reconciled')!=manifest.get('input_raw_records'):
         raise ValueError('MONITOR_SOURCE_DAY_NOT_IN_AUDIT')
     scope=f'dnse|{symbol}|HOSE|G1|top3|{day}|{manifest["rule_hash"]}'
     engine=OfflineEngine(scope,cfg,event_cfg)

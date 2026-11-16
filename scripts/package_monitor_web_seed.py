@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+from datetime import datetime,timezone
 
 from config.settings import ROOT
 from scripts.restore_ssi_checkpoint import recovery_key
@@ -18,11 +19,12 @@ class LocalAssets:
         return (self.folder/self.names[int(path.rsplit('/',1)[-1])]).read_bytes()
 
 
-def package(stage):
+def package(stage,report_path=None):
     stage=Path(stage).resolve();allowed=(ROOT/'data/control/web-seed').resolve()
-    if not stage.is_relative_to(allowed) or stage.parent!=allowed:raise ValueError('WEB_SEED_UNEXPECTED_STAGE')
+    permitted=[allowed,(ROOT/'data/control/verified-monitor-history').resolve()]
+    if stage.parent not in permitted or stage.is_symlink():raise ValueError('WEB_SEED_UNEXPECTED_STAGE')
     manifest=json.loads((stage/'seed-manifest.json').read_bytes())
-    tag='monitor-web-seed-20261115-'+hashlib.sha256((stage/'seed-manifest.json').read_bytes()).hexdigest()[:12]
+    tag='monitor-web-seed-'+datetime.now(timezone.utc).strftime('%Y%m%d')+'-'+hashlib.sha256((stage/'seed-manifest.json').read_bytes()).hexdigest()[:12]
     output=stage.parent/(stage.name+'-sealed');key=recovery_key()
     names=encrypt_seed(stage,key,tag,output)
     with tempfile.TemporaryDirectory(prefix='web-seed-verify-',dir=allowed) as tmp:
@@ -48,12 +50,12 @@ def package(stage):
         finally:server.server_close()
     # Remove only our redundant plaintext tar after successful encrypted restore.
     tar=output/'private-seed.tar.gz'
-    if tar.resolve().is_relative_to(allowed) and tar.is_file():tar.unlink()
+    if any(tar.resolve().is_relative_to(base) for base in permitted) and tar.is_file():tar.unlink()
     result=dict(state='ENCRYPTED_AND_RESTORE_VERIFIED',tag=tag,folder=str(output),
         datasets=manifest['datasets'],days=len(manifest['days']),canonical_rows=manifest['canonical_quote_rows'],
         encrypted_bytes=sum((output/n).stat().st_size for n in names),assets=names,proof=proof,
         uploaded=False,hosting_deployed=False)
-    (ROOT/'report/online_monitor_preparation_2026-11-15.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
+    (Path(report_path) if report_path else ROOT/'report/online_monitor_preparation_2026-11-15.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     return result
 
 

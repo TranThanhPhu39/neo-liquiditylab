@@ -149,7 +149,8 @@ def test_public_ciphertext_download_uses_no_credential_header_and_is_bounded():
 
 def test_hosted_history_streams_parquet_as_gzip_without_loading_all_frames(tmp_path):
     from src.data_pipeline.parquet_replay import write_pack
-    package=dict(dataset_id='b'*64,symbol='ACB',day='2026-11-13',frames=[packet()['records'][0]['frame']],event_patches=[])
+    package=dict(dataset_id='b'*64,symbol='ACB',day='2026-11-13',frames=[packet()['records'][0]['frame']],
+        event_patches=[dict(at_index=0,event=dict(id='c'*64,state='ACTIVE'))])
     relative=write_pack(tmp_path,package)
     export=tmp_path/'data/exports/orderbook-monitor';export.mkdir(parents=True)
     (export/'index.json').write_text(json.dumps(dict(datasets=[dict(dataset_id='b'*64,symbol='ACB',day='2026-11-13',

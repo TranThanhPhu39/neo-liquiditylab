@@ -58,4 +58,4 @@ Giới hạn 6 giờ hiện tại trong ứng dụng là giới hạn an toàn c
 Lịch GitHub có thể trễ hoặc bị bỏ khi quá tải. [GitHub schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Không tự thay lịch DNSE/Vnstock, không công khai SSI qua Pages và không gọi giao dịch/account APIs.
 
 
-Ng?y 16/11/2026, b?n tin chuy?n ATC th?c t? d?ng `market.FLAG` (ch? hoa), g?m HOSE/HNX/DER. Parser nh?n c? `market.flag` v? `market.FLAG`, chu?n h?a topic n?i b? v? gi? `source_topic` ?? truy v?t; ch? x? l? c? HOSE. C? ATC ???c gi? nguy?n, kh?ng ??i th?nh LO. ?? replay b?n b?n tin l?i th?c t? v? ki?m tra l?i ph?m vi/k?nh ri?ng t?.
+Ngày 16/11/2026, bản tin chuyển ATC thực tế dùng `market.FLAG` (chữ hoa), gồm HOSE/HNX/DER. Parser nhận cả `market.flag` và `market.FLAG`, chuẩn hóa topic nội bộ và giữ `source_topic` để truy vết; chỉ xử lý cờ HOSE. Cờ ATC được giữ nguyên, không đổi thành LO. Đã replay bốn bản tin lỗi thực tế và kiểm tra lại phạm vi/kênh riêng tư.

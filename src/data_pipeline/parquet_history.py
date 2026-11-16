@@ -55,6 +55,14 @@ class ParquetHistory:
 
     def folder(self, day):
         entry = self.days[day]
+        if entry.get('state') == 'UNIT_REVISION_ALL_ROWS_VERIFIED':
+            if not hasattr(self,'_revisions_checked'):self._revisions_checked=set()
+            if day not in self._revisions_checked:
+                folder,manifest=checked_folder(self.root,entry)
+                if manifest.get('format')!='liquiditylab-unit-revised-parquet-day-v1' or not manifest.get('unchanged_observation_digest'):
+                    raise ValueError('COMPACT_UNIT_REVISION_INVALID')
+                self._revisions_checked.add(day)
+            return confined(self.root,entry['folder'])
         if entry.get('state') != 'SOURCE_AND_PARQUET_ALL_ROWS_VERIFIED':
             raise ValueError('COMPACT_UNVERIFIED_DAY')
         return confined(self.root, entry['folder'])
