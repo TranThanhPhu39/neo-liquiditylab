@@ -178,6 +178,37 @@ def test_runtime_secret_file_does_not_load_broker_keys_or_override_platform_valu
     assert 'SSI_API_KEY' not in os.environ
 
 
+def test_verified_unit_revision_restores_parameters_under_new_identity_without_remapping_reviews(tmp_path,monkeypatch):
+    from scripts.serve_orderbook_monitor import MonitorServer
+    from src.monitoring.events import parameters,EventConfig
+    from src.monitoring.spread import SpreadConfig
+    class Reviews:
+        def __init__(self):
+            self.rows=[dict(dataset_id='a'*64,day='2026-11-13',symbol='ACB',parameters=parameters(SpreadConfig(),EventConfig()))]
+            self.revisions=[];self.notes=[dict(dataset_id='a'*64,note='keep original evidence')]
+        def analyses(self):return list(self.rows)
+        def analysis_revisions(self):return list(self.revisions)
+        def record_analysis(self,e):self.rows.append(e)
+        def record_analysis_revision(self,old,new):self.revisions.append(dict(old_dataset_id=old,new_dataset_id=new))
+    manifest=tmp_path/'data/processed/dnse/manifest.json';manifest.parent.mkdir(parents=True)
+    manifest.write_text(json.dumps(dict(state='UNIT_REVISION_AUDITED')))
+    server=CloudServer(tmp_path,port=0,origin='http://127.0.0.1:0',read_password='p'*32,ingest_token='x'*32,bind_host='127.0.0.1')
+    reviews=Reviews();server.reviews=reviews;entries=[];calls=[]
+    server.index=lambda:entries
+    def analyze(self,day,symbol,cfg,events):
+        calls.append(day);entry=dict(dataset_id='b'*64,day=day,symbol=symbol,parameters=reviews.rows[0]['parameters'])
+        entries.append(entry);return dict(dataset=entry)
+    monkeypatch.setattr(MonitorServer,'analyze',analyze)
+    try:
+        server.restore_analyses();server.restore_analyses()
+        assert len(calls)==1 and len(reviews.rows)==2
+        assert reviews.revisions==[dict(old_dataset_id='a'*64,new_dataset_id='b'*64)]
+        assert reviews.notes==[dict(dataset_id='a'*64,note='keep original evidence')]
+        entries.clear();reviews.revisions=[];manifest.write_text(json.dumps(dict(state='NORMALIZED_AND_AUDITED')))
+        with pytest.raises(ValueError,match='IDENTITY_CHANGED'):server.restore_analyses()
+    finally:server.server_close()
+
+
 def test_public_recovery_restores_verified_ciphertext_without_rest_or_credentials(tmp_path):
     import io
     source=tmp_path/'source';source.mkdir()

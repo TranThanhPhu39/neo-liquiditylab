@@ -14,6 +14,7 @@ class PostgresReviews:
                 db.execute('CREATE TABLE IF NOT EXISTS monitor_reviews (id BIGSERIAL PRIMARY KEY,dataset_id TEXT NOT NULL,event_id TEXT NOT NULL,verdict TEXT NOT NULL,note TEXT NOT NULL,created_at TEXT NOT NULL)')
                 db.execute('CREATE INDEX IF NOT EXISTS monitor_review_dataset ON monitor_reviews(dataset_id,id)')
                 db.execute('CREATE TABLE IF NOT EXISTS monitor_analyses (dataset_id TEXT PRIMARY KEY,day TEXT NOT NULL,symbol TEXT NOT NULL,parameters JSONB NOT NULL,created_at TEXT NOT NULL)')
+                db.execute('CREATE TABLE IF NOT EXISTS monitor_analysis_revisions (old_dataset_id TEXT NOT NULL,new_dataset_id TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(old_dataset_id,new_dataset_id))')
         except Exception:raise RuntimeError('PERSISTENT_REVIEWS_UNAVAILABLE') from None
 
     def query(self,sql,args=()):
@@ -25,6 +26,14 @@ class PostgresReviews:
     def read(self,dataset_id):return self.query('SELECT * FROM monitor_reviews WHERE dataset_id=%s ORDER BY id',(dataset_id,))
 
     def analyses(self):return self.query('SELECT * FROM monitor_analyses ORDER BY created_at')
+
+    def analysis_revisions(self):return self.query('SELECT * FROM monitor_analysis_revisions ORDER BY created_at')
+
+    def record_analysis_revision(self,old_id,new_id):
+        if any(not isinstance(v,str) or not re.fullmatch('[a-f0-9]{64}',v) for v in (old_id,new_id)):
+            raise ValueError('INVALID_ANALYSIS_REVISION')
+        self.query('INSERT INTO monitor_analysis_revisions VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING old_dataset_id',
+            (old_id,new_id,'RECALCULATED_AFTER_VERIFIED_UNIT_REVISION',datetime.now(timezone.utc).isoformat()))
 
     def record_analysis(self,entry):
         try:
@@ -50,3 +59,4 @@ class UnconfiguredReviews:
     def read(self,dataset_id):return []
     def append(self,value):raise RuntimeError('PERSISTENT_REVIEWS_NOT_CONFIGURED')
     def analyses(self):return []
+    def analysis_revisions(self):return []

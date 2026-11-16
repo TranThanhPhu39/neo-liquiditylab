@@ -66,11 +66,20 @@ class CloudServer(MonitorServer):
 
     def restore_analyses(self):
         from src.monitoring.events import configs_from_parameters
+        revisions={r['old_dataset_id']:r['new_dataset_id'] for r in self.reviews.analysis_revisions()}
+        manifest_path=self.root/'data/processed/dnse/manifest.json'
+        unit_revision=manifest_path.is_file() and json.loads(manifest_path.read_bytes()).get('state')=='UNIT_REVISION_AUDITED'
         for row in self.reviews.analyses():
-            if any(e['dataset_id']==row['dataset_id'] for e in self.index()):continue
+            known={e['dataset_id'] for e in self.index()}
+            if row['dataset_id'] in known or revisions.get(row['dataset_id']) in known:continue
             cfg,events=configs_from_parameters(row['parameters'])
             result=super().analyze(row['day'],row['symbol'],cfg,events)
-            if result['dataset']['dataset_id']!=row['dataset_id']:raise ValueError('CLOUD_ANALYSIS_IDENTITY_CHANGED')
+            if result['dataset']['dataset_id']!=row['dataset_id']:
+                if not unit_revision:raise ValueError('CLOUD_ANALYSIS_IDENTITY_CHANGED')
+                self.reviews.record_analysis(result['dataset'])
+                self.reviews.record_analysis_revision(row['dataset_id'],result['dataset']['dataset_id'])
+                print(json.dumps(dict(state='ANALYSIS_RECALCULATED_AFTER_VERIFIED_UNIT_REVISION',
+                    old_dataset_id=row['dataset_id'],new_dataset_id=result['dataset']['dataset_id'],reviews_remapped=False)),flush=True)
 
     def server_close(self):
         if self.recovery:self.recovery.close()
@@ -105,7 +114,7 @@ class CloudHandler(Handler):
                 recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
                 persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews)))
         if route.path=='/api/review-history':
-            try:return self.send_json(dict(reviews=self.server.reviews.all(),analyses=self.server.reviews.analyses()))
+            try:return self.send_json(dict(reviews=self.server.reviews.all(),analyses=self.server.reviews.analyses(),analysis_revisions=self.server.reviews.analysis_revisions()))
             except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)
         if route.path=='/api/dataset':
             if not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
