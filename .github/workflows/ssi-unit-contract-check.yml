@@ -1,0 +1,31 @@
+name: SSI unit certificate check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certificate:
+    if: github.repository == 'TranThanhPhu39/neo-liquiditylab' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-ssi.txt
+      - name: Verify the approved certificate without broker credentials
+        env:
+          SSI_UNIT_CONTRACT_BUNDLE: ${{ secrets.SSI_UNIT_CONTRACT_BUNDLE }}
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          from src.data_pipeline.ssi_contract_bundle import install_contract_bundle
+          scope = install_contract_bundle(Path.cwd(), os.environ['SSI_UNIT_CONTRACT_BUNDLE'])
+          assert scope['status'] == 'EMPIRICALLY_VERIFIED'
+          assert scope['trade_status'] == 'EMPIRICALLY_VERIFIED'
+          assert scope['symbols'] == scope['trade_symbols'] == ['ACB', 'FPT', 'HPG']
+          print(json.dumps(dict(state='APPROVED_UNIT_CERTIFICATE_VERIFIED_ON_RUNNER', scope=scope)))
