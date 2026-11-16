@@ -42,7 +42,7 @@ def test_failed_day_is_resumed_and_failure_is_not_success(local_root,monkeypatch
         calls.append((day,kwargs));return dict(state='FAILED_RESUMABLE',error_code='DNSE_TIMEOUT')
     monkeypatch.setattr(scheduled.update_dnse_day,'run',fail)
     result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
-    assert result['state']=='FAILED_RESUMABLE' and len(calls)==1
+    assert result['state']=='FAILED_RESUMABLE' and len(calls)==2
     assert calls[0][0]=='2026-11-05' and calls[0][1]['publish_web'] is False and calls[0][1]['export'] is False
     assert (local_root/'report/automation/dnse_local_schedule_result.json').exists()
 
@@ -67,7 +67,7 @@ def test_disabled_policy_and_explicit_exchange_holiday(local_root):
 
 
 def test_publication_failure_does_not_prevent_collecting_newer_due_day(local_root,monkeypatch):
-    from scripts import publish_dnse_web
+    from scripts import publish_dnse_web,publish_daily_monitor
     calls=[]
     def collect(day,**kwargs):
         calls.append(day)
@@ -76,8 +76,24 @@ def test_publication_failure_does_not_prevent_collecting_newer_due_day(local_roo
         return dict(state='COMPLETED')
     monkeypatch.setattr(scheduled.update_dnse_day,'run',collect)
     monkeypatch.setattr(publish_dnse_web,'publish_samples',lambda root:(_ for _ in ()).throw(ValueError('UPLOAD_RETRY')))
+    monkeypatch.setattr(publish_daily_monitor,'run',lambda root:dict(state='COMPLETED'))
     result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
     assert calls==['2026-11-05','2026-11-06']
     assert result['state']=='FAILED_RESUMABLE' and result['pages_publication_pending']
+    assert result['monitor_publication']['state']=='COMPLETED'
     next_plan=scheduled.plan(local_root,clock('2026-11-06T16:01:00'))
     assert next_plan['due_dates']==[] and next_plan['pages_publication_pending']
+
+
+def test_failed_old_raw_day_does_not_block_new_day(local_root,monkeypatch):
+    from scripts import publish_dnse_web,publish_daily_monitor
+    calls=[]
+    def collect(day,**kwargs):
+        calls.append(day)
+        return dict(state='FAILED_RESUMABLE' if day=='2026-11-05' else 'COMPLETED')
+    monkeypatch.setattr(scheduled.update_dnse_day,'run',collect)
+    monkeypatch.setattr(publish_dnse_web,'publish_samples',lambda root:dict(state='PUBLIC_SAMPLES_PUSHED'))
+    monkeypatch.setattr(publish_daily_monitor,'run',lambda root:dict(state='COMPLETED'))
+    result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
+    assert calls==['2026-11-05','2026-11-06'] and result['state']=='FAILED_RESUMABLE'
+    assert result['monitor_publication']['state']=='COMPLETED'

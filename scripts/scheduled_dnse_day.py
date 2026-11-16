@@ -69,10 +69,15 @@ def run(root=ROOT,now=None):
             outcome=update_dnse_day.run(day,root=root,session='day',export=False,publish_web=False,now=now)
             result['runs'].append(dict(date=day,state=outcome['state'],error_code=outcome.get('error_code')))
             if outcome['state']!='COMPLETED':
-                result['state']='FAILED_RESUMABLE';break
+                result['state']='FAILED_RESUMABLE'
         else:
-            result['state']='COMPLETED' if result['state']!='DISABLED' else 'DISABLED'
-        if result['state']=='COMPLETED':
+            if result['state']!='FAILED_RESUMABLE':result['state']='COMPLETED' if result['state']!='DISABLED' else 'DISABLED'
+        can_publish=(result['state']=='COMPLETED' or
+            result['state']=='FAILED_RESUMABLE' and any(r['state']=='COMPLETED' for r in result['runs']))
+        if can_publish:
+            def publication_failed(error):
+                code=str(error)
+                result.update(state='FAILED_RESUMABLE',error_code=code if re.fullmatch('[A-Z0-9_]{1,90}',code) else type(error).__name__)
             try:
                 if result['publish_web'] and (result['due_dates'] or result['pages_publication_pending']):
                     result['pages_publication_pending']=True
@@ -80,13 +85,17 @@ def run(root=ROOT,now=None):
                     from scripts.publish_dnse_web import publish_samples
                     result['pages_publication']=publish_samples(root)
                     result['pages_publication_pending']=False
+            except Exception as error:
+                publication_failed(error)
+            # Pages and the private monitor are independent destinations. A
+            # failed public sample upload must not hold back audited replay.
+            try:
                 from scripts.publish_daily_monitor import run as publish_monitor
                 result['monitor_publication']=publish_monitor(root)
                 if result['monitor_publication']['state'] not in ('COMPLETED','DISABLED'):
                     result.update(state='FAILED_RESUMABLE',error_code='MONITOR_PUBLICATION_PENDING')
             except Exception as error:
-                code=str(error)
-                result.update(state='FAILED_RESUMABLE',error_code=code if re.fullmatch('[A-Z0-9_]{1,90}',code) else type(error).__name__)
+                publication_failed(error)
         write_json(root/'report/automation/dnse_local_schedule_result.json',result)
         return result
 

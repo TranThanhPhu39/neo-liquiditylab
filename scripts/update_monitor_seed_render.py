@@ -18,7 +18,13 @@ def update(report_path=None,commit=None):
     service=next((v['service'] for v in services if v.get('service',{}).get('id')==SERVICE),None)
     if not service or service['ownerId']!=WORKSPACE or service['name']!='neo-liquiditylab-monitor':
         raise ValueError('CONFIRMED_MONITOR_REQUIRED')
-    preparation=json.loads((Path(report_path) if report_path else ROOT/'report/online_monitor_preparation_2026-11-16.json').read_bytes())
+    if report_path is None:
+        current=ROOT/'report/automation/monitor_daily_publication.json'
+        report_path=(json.loads(current.read_bytes()).get('preparation_report') if current.exists() else None)
+    selected=(Path(report_path) if report_path else ROOT/'report/online_monitor_preparation_2026-11-16.json').resolve()
+    if selected.parent!=(ROOT/'report').resolve() or not selected.name.startswith('online_monitor_preparation_'):
+        raise ValueError('UNEXPECTED_SEED_REPORT')
+    preparation=json.loads(selected.read_bytes())
     if (not preparation.get('uploaded') or not preparation.get('remote_recovery_verified') or preparation['datasets']<3 or
         preparation['proof']['watch_symbols']!=['ACB','FPT','HPG']):
         raise ValueError('APPROVED_REMOTE_SEED_REQUIRED')

@@ -1,5 +1,11 @@
 # Dashboard online: Render + GitHub SSI
 
+## Cập nhật vận hành ngày 16/11/2026
+
+Render đã phục hồi **42 replay chính, 14 ngày đến 16/11, 870.907 quan sát ACB/FPT/HPG**; quote ba mã đã xác minh đơn vị. Task Windows 15:15 nay tự tải, chuẩn hóa/audit và công bố gói replay mã hóa lên Render, có checkpoint và bỏ qua dữ liệu không đổi. Máy vẫn phải bật/đăng nhập. Xem [runbook tự động hiện tại](daily_monitor_automation.md). Dữ liệu quote mới không tự có trades: ngày 12, 13 và 16/11 chưa có gói giao dịch khớp DNSE.
+
+Đã kiểm tra browser thật trên desktop/mobile: chọn đủ ba mã, heatmap/sổ lệnh, tua, trang theo dõi, retry GET 503; không có JavaScript exception hay tràn ngang toàn trang 390 px. Đã sửa nhãn xác minh cố định và tải nối tiếp dataset trước trades để tránh tranh tài nguyên trên Free. Các con số gói 34 replay và phép thử ngày 15/11 bên dưới là lịch sử triển khai, không phải dung lượng hiện tại. Realtime trọn phiên/cờ LO vẫn chưa nghiệm thu.
+
 ## Truy cập bản đã triển khai ngày 15/11/2026
 
 - Trang giới thiệu công khai, không cần đăng nhập: **https://neo-liquiditylab-monitor.onrender.com/**.
