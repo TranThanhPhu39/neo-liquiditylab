@@ -68,6 +68,12 @@ def verify(day):
         from src.data_pipeline.parquet_history import ParquetHistory
         expected=set(ParquetHistory(ROOT/'data/compact/catalog.json').catalog(day))
         if {e['symbol'] for e in entries if e['day']==day and not e.get('archived')}!=expected:return False
+        probe=next((e for e in entries if e['day']==day and e.get('market_observation') and e['observations']),None)
+        if not probe:return False
+        pack=request('/api/dataset?dataset_id='+probe['dataset_id'])
+        if (pack.get('dataset_id')!=probe['dataset_id'] or len(pack.get('frames',[]))!=probe['observations'] or
+            pack.get('detector_scope')!='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION' or
+            any(f.get('features',{}).get('eligible') for f in pack['frames'])):return False
     return True
 
 

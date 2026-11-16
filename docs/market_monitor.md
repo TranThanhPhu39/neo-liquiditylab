@@ -28,6 +28,8 @@ Máy vẫn cần bật, đăng nhập và có mạng. Bảy ngày là cửa sổ
 
 Giới hạn riêng cho chế độ quan sát là 100.000 quan sát/mã/ngày; nguồn hiện có mã đạt 78.400, được giữ đầy đủ. Vượt giới hạn sẽ báo lỗi, không âm thầm lấy mẫu. Backend truyền khung hình theo batch nén gzip; danh mục được nén khi truyền và các bảng phân trang để giới hạn bộ nhớ trên Free.
 
+Catalog có giới hạn an toàn 50.000 bộ ngày–mã và 64 MiB metadata, gói bootstrap tối đa 768 MiB. Khi lịch sử tăng tới ngưỡng cần phân vùng catalog/bootstrap tiếp; hệ thống báo lỗi để xử lý, không tự xóa dữ liệu cũ hay đổi sang lấy mẫu. Phạm vi hiện tại và các ngày tới hạn nộp 01/12 nằm trong các ngưỡng này; cấu hình Free không phải kho tăng trưởng vô hạn.
+
 Lệnh chuẩn bị ở máy gốc (không gọi broker, chưa upload):
 
 ```powershell

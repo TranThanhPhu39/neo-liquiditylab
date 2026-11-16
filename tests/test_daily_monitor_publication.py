@@ -58,3 +58,25 @@ def test_prune_only_records_owned_stages_and_preserves_raw(tmp_path):
     keep,pending=p.prune(tmp_path,artifacts,2)
     assert len(keep)==2 and not pending and not Path(artifacts[0]['stage']).exists()
     assert (raw/'original.db').read_bytes()==b'keep'
+
+
+def test_market_publication_requires_a_usable_restored_day_not_only_a_catalog(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    from scripts import verify_monitor_hosted
+    from src.data_pipeline import parquet_history
+    (tmp_path/'config').mkdir();(tmp_path/'config/monitor_publication.json').write_text(json.dumps(dict(enabled=True,symbols=p.SYMBOLS,market_enabled=True)))
+    monkeypatch.setattr(p,'ROOT',tmp_path)
+    monkeypatch.setattr(parquet_history,'ParquetHistory',lambda path:SimpleNamespace(catalog=lambda day:{s:{} for s in p.SYMBOLS+['VNM']}))
+    entries=[dict(day='2026-11-16',symbol=s,observations=1,quality=dict(unit_counts={'EMPIRICALLY_VERIFIED':1})) for s in p.SYMBOLS]
+    entries.append(dict(day='2026-11-16',symbol='VNM',observations=1,market_observation=True,dataset_id='a'*64))
+    pack=dict(dataset_id='a'*64,detector_scope='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION',frames=[])
+    def request(path):
+        if path=='/api/hosting':return dict(seed_ready=True,recovery_state='READY')
+        if path=='/api/datasets':return dict(datasets=entries)
+        return pack
+    monkeypatch.setattr(verify_monitor_hosted,'request',request)
+    assert not p.verify('2026-11-16')
+    pack['frames']=[dict(features=dict(eligible=False))]
+    assert p.verify('2026-11-16')
+    pack['frames'][0]['features']['eligible']=True
+    assert not p.verify('2026-11-16')

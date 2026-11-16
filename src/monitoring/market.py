@@ -45,7 +45,7 @@ class MarketHistory:
         if not self.path.exists():return []
         signature=(self.path.stat().st_mtime_ns,self.path.stat().st_size)
         if signature==self._signature:return self._index
-        if signature[1]>24*1024*1024:raise ValueError('MARKET_INDEX_TOO_LARGE')
+        if signature[1]>64*1024*1024:raise ValueError('MARKET_INDEX_TOO_LARGE')
         value=json.loads(self.path.read_bytes());entries=value.get('datasets',[])
         if value.get('format')!=FORMAT or len(entries)>50000:raise ValueError('INVALID_MARKET_INDEX')
         seen=set()
@@ -79,8 +79,11 @@ class MarketHistory:
         tag=self._days.get(entry['day'])
         if not isinstance(tag,str) or not re.fullmatch(r'monitor-web-seed-market-\d{4}-\d{2}-\d{2}-[a-f0-9]{16}',tag):
             raise ValueError('MARKET_DAY_RECOVERY_NOT_CONFIGURED')
-        cache=self.root/'data/control/market-day-cache';cache.mkdir(parents=True,exist_ok=True)
+        cache=self.root/'data/control/market-day-cache'
+        if cache.resolve()!=cache or not cache.resolve().is_relative_to(self.root):raise ValueError('MARKET_CACHE_UNSAFE_PATH')
+        cache.mkdir(parents=True,exist_ok=True)
         folder=cache/hashlib.sha256(tag.encode()).hexdigest()[:24]
+        if folder.resolve()!=folder or folder.resolve().parent!=cache:raise ValueError('MARKET_CACHE_UNSAFE_PATH')
         p=confined(folder,entry['market_file'])
         if not p.is_file():
             from src.monitoring.web_archive import restore_seed
@@ -91,7 +94,7 @@ class MarketHistory:
         # Only this dedicated derived cache is eligible, never source Parquet.
         import shutil
         for old in sorted(cache.iterdir(),key=lambda p:p.stat().st_mtime,reverse=True)[2:]:
-            if old.is_dir() and not old.is_symlink() and old.resolve().parent==cache.resolve() and re.fullmatch(r'[a-f0-9]{24}',old.name):shutil.rmtree(old)
+            if old.is_dir() and not old.is_symlink() and old.resolve()==old and old.resolve().parent==cache.resolve() and re.fullmatch(r'[a-f0-9]{24}',old.name):shutil.rmtree(old)
         return p
 
     def frames(self,entry):
