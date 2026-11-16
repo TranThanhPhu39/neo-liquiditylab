@@ -8,6 +8,7 @@ Tại lần kiểm tra khoảng 15:00 giờ Việt Nam, GitHub có workflow đan
 
 - Lượt [43823435962](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/43823435962) thu từ khoảng 14:23 đến 14:30: **1.953 quote, 1.689 trade**. Dừng vì lỗi topic chuyển phiên. Checkpoint cuối được tải lại, giải mã và kiểm tra Parquet thành công, rồi nhập vào kho SSI local.
 - Lượt phục hồi [43824990785](https://github.com/TranThanhPhu39/neo-liquiditylab/actions/runs/43824990785) bắt đầu khoảng 14:36, dự kiến dừng 15:10. Đã qua mốc 14:45 mà không lỗi phạm vi. Checkpoint 14:51 được tải lại và kiểm tra độc lập: **716 quote, 930 trade; 1.838 bản ghi gồm metadata**. Đây là checkpoint giữa phiên, không phải kết quả cuối cùng.
+- Kiểm tra 15:04: collector còn active, đã kết nối lần thứ hai và ghi một gap. Chưa có quote mới sau ATC để nghiệm thu nhận quote qua reconnect; không gọi đây là luồng cả phiên không mất dữ liệu.
 - Hai khoảng thu này không bao phủ cả ngày. SSI chưa có đường backfill lịch sử sổ lệnh được xác minh; không điền khoảng thiếu bằng 0.
 - Task Windows `LiquidityLab - DNSE Daily Fallback` đang **Ready**, lịch kế tiếp **15:15 ngày 16/11**. Lần chạy gần nhất là 15/11, mã kết quả 0. Chưa tuyên bố task 15:15 hôm nay đã chạy khi giờ đó chưa đến.
 
@@ -39,6 +40,8 @@ Tại lần kiểm tra khoảng 15:00 giờ Việt Nam, GitHub có workflow đan
 Mở `http://127.0.0.1:8878/`. Kho gốc và bản lịch sử đang dùng trên web không đổi.
 
 ## Bằng chứng
+
+Các tệp JSON dưới đây nằm trên máy, không được đính kèm bản báo cáo trong repo công khai.
 
 - [Bản lịch sử đã dựng](verified_monitor_history_latest.json)
 - [Kiểm tra API cả ba mã](revised_history_http_2026-11-16.json)
