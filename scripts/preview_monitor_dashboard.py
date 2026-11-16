@@ -15,9 +15,9 @@ from scripts.serve_orderbook_monitor import MonitorServer,Handler
 from scripts.serve_monitor_cloud import CloudServer,CloudHandler
 
 
-def preview():
+def preview(stage=None,market=False):
     current=json.loads((ROOT/'report/verified_monitor_history_latest.json').read_bytes())
-    stage=ROOT/current['stage']
+    stage=Path(stage).resolve() if stage else ROOT/current['stage']
     class TransientHandler(CloudHandler):
         attempts=0
         def authenticated(self):return True  # Loopback-only QA, no real credentials.
@@ -67,31 +67,51 @@ def preview():
         call('Emulation.setDeviceMetricsOverride',dict(width=1440,height=1000,deviceScaleFactor=1,mobile=False))
         call('Page.navigate',dict(url=origin+'/dashboard'));ready('ACB')
         results=[]
-        for symbol in ('ACB','FPT','HPG'):
+        for symbol in (('ACB','FPT','HPG','VNM','SHS','A32') if market else ('ACB','FPT','HPG')):
             evaluate("document.getElementById('symbolSelect').value="+json.dumps(symbol)+";document.getElementById('symbolSelect').dispatchEvent(new Event('change',{bubbles:true}));")
             ready(symbol)
             evaluate("document.getElementById('seekTime').value='13:30:00';document.getElementById('seek').click();")
             state=json.loads(evaluate("JSON.stringify({symbol:document.getElementById('symbolSelect').value,title:document.getElementById('title').textContent,warningHidden:document.getElementById('unitWarning').hidden,labels:document.getElementById('sideWatch').textContent,canvasWidth:document.getElementById('heatmap').width,book:document.getElementById('book').textContent.length})"))
-            assert state['warningHidden'] and state['canvasWidth']>0 and state['book']>0
+            assert state['warningHidden']==(symbol in ('ACB','FPT','HPG')) and state['canvasWidth']>0 and state['book']>0
+            if symbol not in ('ACB','FPT','HPG'):
+                assert evaluate("document.getElementById('openConfig').disabled && document.getElementById('eventCount').textContent==='—'")
             assert 'detector bị chặn' not in state['labels']
             ordered=evaluate("(()=>{const r=performance.getEntriesByType('resource'),d=r.filter(x=>x.name.includes('/api/dataset?')).at(-1),t=r.filter(x=>x.name.includes('/api/trades?')).at(-1);return Boolean(d&&t&&t.startTime>=d.responseEnd)})()")
             assert ordered,'BUBBLES_REQUEST_OVERLAPS_HEAVY_DATASET_LOAD'
             results.append(state)
+        largest_check=None
+        if market:
+            largest=max((e for e in server.index() if e.get('market_observation')),key=lambda e:e['observations'])
+            evaluate("document.getElementById('daySelect').value="+json.dumps(largest['day'])+";document.getElementById('daySelect').dispatchEvent(new Event('change',{bubbles:true}));")
+            ready('A32')
+            evaluate("document.getElementById('symbolSelect').value="+json.dumps(largest['symbol'])+";document.getElementById('symbolSelect').dispatchEvent(new Event('change',{bubbles:true}));")
+            ready(largest['symbol'])
+            actual=evaluate("Number(document.getElementById('cursor').max)+1")
+            assert actual==largest['observations']
+            largest_check=dict(symbol=largest['symbol'],day=largest['day'],frames=actual)
+            evaluate("document.getElementById('daySelect').value='2026-11-16';document.getElementById('daySelect').dispatchEvent(new Event('change',{bubbles:true}));")
+            ready(largest['symbol'])
         image=call('Page.captureScreenshot',dict(format='png',captureBeyondViewport=False))
         (ROOT/'report/dashboard_qa_desktop.png').write_bytes(base64.b64decode(image['data']))
         evaluate("document.querySelector('[data-page=watch]').click()")
-        time.sleep(.7)
+        time.sleep(1.5)
         assert evaluate("document.getElementById('watchScreen').hidden === false")
+        if market:
+            missing=next(e['symbol'] for e in server.index() if e['day']=='2026-11-16' and not e['observations'])
+            evaluate("document.getElementById('marketSearch').value="+json.dumps(missing)+";document.getElementById('marketSearch').dispatchEvent(new Event('input',{bubbles:true}));")
+            time.sleep(.5)
+            assert evaluate("document.getElementById('inventory').textContent.includes('Nguồn không trả quan sát')")
+            evaluate("document.getElementById('marketSearch').value='';document.getElementById('marketSearch').dispatchEvent(new Event('input',{bubbles:true}));")
         evaluate("document.querySelector('[data-page=analysis]').click()")
         call('Emulation.setDeviceMetricsOverride',dict(width=390,height=1000,deviceScaleFactor=1,mobile=True))
         time.sleep(.5)
         dimensions=json.loads(evaluate('JSON.stringify({width:innerWidth,scroll:document.documentElement.scrollWidth})'))
         image=call('Page.captureScreenshot',dict(format='png',captureBeyondViewport=False))
         (ROOT/'report/dashboard_qa_mobile.png').write_bytes(base64.b64decode(image['data']))
-        result=dict(state='REAL_BROWSER_QA_PASSED' if not errors and dimensions['scroll']<=390 else 'REAL_BROWSER_QA_ISSUES',
+        result=dict(state='REAL_BROWSER_QA_PASSED' if not errors and dimensions['scroll']<=390 else 'REAL_BROWSER_QA_ISSUES',largest_replay=largest_check,
             symbols=results,mobile=dimensions,console_exceptions=errors,get_retry_proven=TransientHandler.attempts>=2,
             broker_access=False,remote_upload=False)
-        (ROOT/'report/dashboard_browser_qa_2026-11-16.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+        (ROOT/('report/dashboard_market_browser_qa_2026-11-16.json' if market else 'report/dashboard_browser_qa_2026-11-16.json')).write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
         return result
     finally:
         if ws:

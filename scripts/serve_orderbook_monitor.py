@@ -1,6 +1,7 @@
 """Loopback-only event replay app. Serves an asset allowlist, never the workspace."""
 import argparse
 import csv
+import gzip
 from contextlib import closing
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +19,7 @@ from src.data_pipeline.dnse_history import DNSEHistory, day_bounds, utc_text
 from src.data_pipeline.parquet_history import ParquetHistory, confined
 from src.data_pipeline.parquet_replay import ReplayDocument
 from src.monitoring.ssi_live import SSILive
+from src.monitoring.market import MarketHistory,MarketDocument,diagnostic
 from scripts.build_orderbook_monitor import build, serial
 from src.monitoring.events import configs_from_parameters, VERSION
 import zlib
@@ -27,7 +29,7 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript')}
 ASSETS.update({'/realtime':('realtime.html','text/html'),'/realtime/':('realtime.html','text/html'),'/live.js':('live.js','text/javascript'),'/live.css':('live.css','text/css'),'/live-model.js':('live-model.js','text/javascript')})
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v4-parquet'
+APPLICATION_VERSION='offline-monitor-v5-market'
 
 
 class ReviewStore:
@@ -75,6 +77,7 @@ class MonitorServer(ThreadingHTTPServer):
         self.reviews = reviews if reviews is not None else ReviewStore(self.root / 'data/control/orderbook-monitor-reviews.db')
         self.csrf = secrets.token_urlsafe(32)
         self.live = SSILive(self.root)
+        self.market = MarketHistory(self.root)
         super().__init__((bind_host, port), handler_class or Handler)
 
     def server_close(self):
@@ -90,12 +93,14 @@ class MonitorServer(ThreadingHTTPServer):
             if (e['symbol'] not in ('ACB','FPT','HPG') or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',e['day'])
                     or not re.fullmatch(r'dnse-(acb|fpt|hpg)-\d{4}-\d{2}-\d{2}(?:-[0-9a-f]{12})?\.json', e['file'])):
                 raise ValueError('INVALID_DATASET_FILENAME')
-        return entries
+        occupied={(e['day'],e['symbol']) for e in entries if not e.get('archived')}
+        return entries+[e for e in self.market.index() if (e['day'],e['symbol']) not in occupied]
 
     def dataset(self, dataset_id):
         entry = next((e for e in self.index() if e['dataset_id'] == dataset_id), None)
         if not entry:
             raise ValueError('UNKNOWN_DATASET')
+        if entry.get('market_observation'):return MarketDocument(self.market,entry)
         if entry.get('compact_folder'):
             folder=confined(self.root,entry['compact_folder'])
             if not folder.is_relative_to(self.root/'data/compact/monitor'):
@@ -109,6 +114,7 @@ class MonitorServer(ThreadingHTTPServer):
     def summary(self,dataset_id):
         entry=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
         if not entry:raise ValueError('UNKNOWN_DATASET')
+        if entry.get('market_observation'):return dict(dataset_id=dataset_id,symbol=entry['symbol'],day=entry['day'],events=[],quality=entry['quality'])
         if entry.get('events_file'):
             name=entry['events_file']
             if not re.fullmatch(r'dnse-(acb|fpt|hpg)-\d{4}-\d{2}-\d{2}-[0-9a-f]{12}\.events\.json',name):
@@ -126,6 +132,7 @@ class MonitorServer(ThreadingHTTPServer):
     def trades(self,dataset_id):
         entry=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
         if not entry:raise ValueError('UNKNOWN_DATASET')
+        if entry.get('market_observation'):return dict(state='NOT_COLLECTED',symbol=entry['symbol'],day=entry['day'],trades=[])
         store=DNSEHistory(self.root/'data/processed/dnse/normalized.db')
         if isinstance(store,ParquetHistory):
             result=store.trades(entry['symbol'],entry['day'])
@@ -142,6 +149,7 @@ class MonitorServer(ThreadingHTTPServer):
         notes=self.reviews.all();latest={(r['dataset_id'],r['event_id']):r for r in notes}
         rows=[]
         for entry in self.index():
+            if entry.get('market_observation'):continue
             for e in self.summary(entry['dataset_id'])['events']:
                 review=latest.get((entry['dataset_id'],e['id']))
                 rows.append(dict(dataset_id=entry['dataset_id'],day=entry['day'],symbol=entry['symbol'],
@@ -149,20 +157,26 @@ class MonitorServer(ThreadingHTTPServer):
                     reviews=sum(r['dataset_id']==entry['dataset_id'] and r['event_id']==e['id'] for r in notes)))
         return sorted(rows,key=lambda r:r['event']['detected_at'],reverse=True)
 
-    def watchlist(self,day,cutoff):
+    def watchlist(self,day,cutoff,symbols=None):
         entries=[e for e in self.index() if e['day']==day and not e.get('archived')]
         if not entries:raise ValueError('UNKNOWN_DAY')
         start,end=day_bounds(day);point=stamp(cutoff)
         if not start<=point<end:raise ValueError('INVALID_CUTOFF')
+        requested=symbols is not None
+        symbols=list(dict.fromkeys(symbols)) if requested else ['ACB','FPT','HPG']
+        known={e['symbol']:e for e in entries}
+        if not 1<=len(symbols)<=50 or requested and any(s not in known for s in symbols):raise ValueError('INVALID_WATCH_SYMBOLS')
         result=[]
         store=DNSEHistory(self.root/'data/processed/dnse/normalized.db')
-        records=store.reconstruct_at(('ACB','FPT','HPG'),day,point)
-        for symbol in ('ACB','FPT','HPG'):
+        primary=[s for s in symbols if s in known and not known[s].get('market_observation')]
+        records=store.reconstruct_at(primary,day,point) if primary else {}
+        records.update(self.market.at([known[s] for s in symbols if s in known and known[s].get('market_observation')],cutoff))
+        for symbol in symbols:
             entry=next((e for e in entries if e['symbol']==symbol),None)
             r=records.get(symbol)
             if not r:
-                result.append(dict(symbol=symbol,status='NO_DATA',dataset_id=entry['dataset_id'] if entry else None));continue
-            f=serial(features(r));age=(point-stamp(r['source_timestamp'])).total_seconds()
+                result.append(dict(symbol=symbol,status=entry.get('availability','NO_DATA') if entry and not entry.get('observations') else 'NO_DATA',dataset_id=entry['dataset_id'] if entry and entry.get('observations') else None));continue
+            f=diagnostic(r) if entry.get('market_observation') else serial(features(r));age=(point-stamp(r['source_timestamp'])).total_seconds()
             result.append(dict(symbol=symbol,dataset_id=entry['dataset_id'] if entry else None,
                 status='STALE_AT_CUTOFF' if age>60 else ('VERIFIED' if f['eligible'] else f['reason']),
                 time=r['source_timestamp'],age_seconds=age,units=r['unit_verification_status'],
@@ -170,6 +184,8 @@ class MonitorServer(ThreadingHTTPServer):
         return result
 
     def analyze(self,day,symbol,config,event_config):
+        e=next((e for e in self.index() if e['day']==day and e['symbol']==symbol and not e.get('archived')),None)
+        if e and e.get('market_observation'):raise ValueError('MARKET_OBSERVATION_ONLY_NO_DETECTOR_PERMISSION')
         return build(day,symbol=symbol,root=self.root,config=config,event_config=event_config)
 
 
@@ -209,7 +225,10 @@ class Handler(BaseHTTPRequestHandler):
         pass  # Never log query strings, submitted notes, or request headers.
 
     def send_bytes(self, value, content_type='application/json', status=200, filename=None):
+        compressed=len(value)>4096 and 'gzip' in self.headers.get('Accept-Encoding','')
+        if compressed:value=gzip.compress(value,compresslevel=1)
         self.send_response(status)
+        if compressed:self.send_header('Content-Encoding','gzip');self.send_header('Vary','Accept-Encoding')
         self.send_header('Content-Type', content_type + '; charset=utf-8')
         self.send_header('Content-Length', str(len(value)))
         self.send_header('Cache-Control', 'no-store')
@@ -266,7 +285,8 @@ class Handler(BaseHTTPRequestHandler):
             if route.path=='/api/trades':return self.send_json(self.server.trades(dataset_id))
             if route.path=='/api/library':return self.send_json(self.server.library())
             if route.path=='/api/watchlist':
-                return self.send_json(self.server.watchlist(params.get('day',[''])[0],params.get('cutoff',[''])[0]))
+                return self.send_json(self.server.watchlist(params.get('day',[''])[0],params.get('cutoff',[''])[0],
+                    params['symbols'][0].split(',') if 'symbols' in params else None))
             if route.path=='/api/export':
                 report=report_payload(self.server,dataset_id,params.get('event_id',[None])[0])
                 if params.get('format',['json'])[0]=='csv':

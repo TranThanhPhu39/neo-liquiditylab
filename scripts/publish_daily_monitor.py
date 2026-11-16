@@ -18,6 +18,7 @@ def policy(root):
     path=Path(root)/'config/monitor_publication.json'
     value=json.loads(path.read_bytes()) if path.exists() else dict(enabled=False,symbols=SYMBOLS)
     if value.get('symbols')!=SYMBOLS or not isinstance(value.get('enabled'),bool):raise ValueError('MONITOR_PUBLICATION_SCOPE_INVALID')
+    if not isinstance(value.get('market_enabled',False),bool):raise ValueError('MONITOR_MARKET_POLICY_INVALID')
     return value
 
 
@@ -28,10 +29,14 @@ def fingerprint(root):
         raise ValueError('MONITOR_AUDITED_PARQUET_REQUIRED')
     contract=root/'data/control/ssi_live_contract.json'
     source=dict(quotes=entries,trades=catalog.get('trade_packages',[]),contract_sha256=hashlib.sha256(contract.read_bytes()).hexdigest())
+    if policy(root).get('market_enabled'):source['market_scope']='ALL_CATALOG_SYMBOLS_market-projection-v1'
     return hashlib.sha256(json.dumps(source,sort_keys=True,separators=(',',':')).encode()).hexdigest(),max(e['day'] for e in entries)
 
 
 def prepare(root):
+    if policy(root).get('market_enabled'):
+        from scripts.prepare_market_monitor import prepare as market
+        return market(root)
     from scripts.prepare_verified_monitor_history import prepare as build
     return build(root)
 
@@ -59,6 +64,10 @@ def verify(day):
     for symbol in SYMBOLS:
         e=next((e for e in entries if e['day']==day and e['symbol']==symbol and not e.get('archived')),None)
         if not e or e.get('observations',0)<=0 or set(e.get('quality',{}).get('unit_counts',{}))!={'EMPIRICALLY_VERIFIED'}:return False
+    if policy(ROOT).get('market_enabled'):
+        from src.data_pipeline.parquet_history import ParquetHistory
+        expected=set(ParquetHistory(ROOT/'data/compact/catalog.json').catalog(day))
+        if {e['symbol'] for e in entries if e['day']==day and not e.get('archived')}!=expected:return False
     return True
 
 

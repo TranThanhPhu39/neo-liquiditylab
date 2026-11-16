@@ -9,7 +9,8 @@ const EventReplay = (() => {
   };
   const numeric = x => x === null || x === undefined || typeof x === 'boolean' || String(x).trim() === '' || !Number.isFinite(Number(x)) ? null : Number(x);
   function validate(d) {
-    if (!d || d.format !== FORMAT || d.provider !== 'dnse' || !['ACB','FPT','HPG'].includes(d.symbol) || d.levels !== 3 || d.price_unit !== 'VND' || d.volume_unit !== 'shares' || !/^[a-f0-9]{64}$/.test(d.dataset_id) || !Array.isArray(d.frames) || !d.frames.length || d.frames.length > 50000 || !Array.isArray(d.event_patches)) throw Error('Bộ dữ liệu không đúng hợp đồng replay DNSE.');
+    if (!d || d.format !== FORMAT || d.provider !== 'dnse' || !/^[A-Z][A-Z0-9]{1,11}$/.test(d.symbol) || !['HOSE','HNX','UPCOM'].includes(d.exchange||'HOSE') || d.levels !== 3 || d.price_unit !== 'VND' || d.volume_unit !== 'shares' || !/^[a-f0-9]{64}$/.test(d.dataset_id) || !Array.isArray(d.frames) || !d.frames.length || d.frames.length > (d.detector_scope==='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION'?100000:50000) || !Array.isArray(d.event_patches)) throw Error('Bộ dữ liệu không đúng hợp đồng replay DNSE.');
+    if(d.detector_scope==='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION'&&(d.event_patches.length||d.frames.some(f=>f.features?.eligible)))throw Error('Phạm vi chỉ quan sát không được mở detector.');
     let previous = -Infinity;
     for (const f of d.frames) {
       const t = time(f.time); time(f.received_at);

@@ -39,6 +39,8 @@ class CloudServer(MonitorServer):
     def metadata(self,dataset_id):
         entry=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
         if not entry:raise ValueError('UNKNOWN_DATASET')
+        if entry.get('market_observation'):
+            return self.market.metadata(entry)
         if entry.get('compact_folder'):
             self.dataset(dataset_id)  # Apply the existing confined-path checks.
             result=json.loads((confined(self.root,entry['compact_folder'])/'metadata.json').read_bytes())
@@ -48,6 +50,7 @@ class CloudServer(MonitorServer):
 
     def summary(self,dataset_id):
         e=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
+        if e and e.get('market_observation'):return super().summary(dataset_id)
         if e and e.get('events_file'):return super().summary(dataset_id)
         m=self.metadata(dataset_id)
         if 'event_patches' in m:patches=m['event_patches']
@@ -110,8 +113,11 @@ class CloudHandler(Handler):
         if not self.authenticated():return
         if route.path=='/api/hosting':
             r=self.server.recovery
+            entries=self.server.index();latest=max((e['day'] for e in entries),default=None)
+            current=[e for e in entries if e['day']==latest and not e.get('archived')]
             return self.send_json(dict(hosted=True,collection_control='SSI_GITHUB_AND_WINDOWS_DNSE_DAILY',
-                latest_history_day=max((e['day'] for e in self.server.index()),default=None),
+                latest_history_day=latest,market_scope='ALL_CATALOG_SYMBOLS' if any(e.get('market_observation') for e in entries) else 'THREE_VERIFIED_SYMBOLS',
+                latest_catalog_symbols=len(current),latest_symbols_with_observations=sum(bool(e.get('observations')) for e in current),
                 recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
                 persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews)))
         if route.path=='/api/review-history':
@@ -135,7 +141,27 @@ class CloudHandler(Handler):
         entry=next((e for e in self.server.index() if e['dataset_id']==dataset_id),None)
         if not entry:raise ValueError('UNKNOWN_DATASET')
         self.server.dataset(dataset_id)
-        if not entry.get('compact_folder'):return self.send_bytes(self.server.dataset(dataset_id).read_bytes())
+        if entry.get('market_observation'):
+            if not entry['observations']:raise ValueError('MARKET_NO_SOURCE_OBSERVATIONS')
+            frames=iter(self.server.market.frames(entry));first=next(frames)
+            meta=self.server.market.metadata(entry)
+            self.send_response(200)
+            for k,v in {'Content-Type':'application/json; charset=utf-8','Content-Encoding':'gzip','Connection':'close','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}.items():self.send_header(k,v)
+            self.end_headers();self.close_connection=True
+            with gzip.GzipFile(fileobj=self.wfile,mode='wb',compresslevel=1) as output:
+                output.write(json.dumps(meta,ensure_ascii=False,separators=(',',':')).encode()[:-1]+b',"frames":[')
+                output.write(json.dumps(first,ensure_ascii=False,separators=(',',':')).encode())
+                for frame in frames:output.write(b','+json.dumps(frame,ensure_ascii=False,separators=(',',':')).encode())
+                output.write(b']}')
+            return
+        if not entry.get('compact_folder'):
+            raw=self.server.dataset(dataset_id).read_bytes()
+            value=gzip.compress(raw,compresslevel=1)
+            self.send_response(200)
+            self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Content-Encoding','gzip')
+            self.send_header('Content-Length',str(len(value)));self.send_header('Cache-Control','no-store')
+            self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(value)
+            return
         folder=confined(self.server.root,entry['compact_folder']);meta=self.server.metadata(dataset_id)
         parquet=pq.ParquetFile(folder/'frames.parquet')
         manifest=json.loads((folder/'manifest.json').read_bytes())

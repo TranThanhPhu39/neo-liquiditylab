@@ -1,6 +1,7 @@
 {
   "enabled": true,
   "symbols": ["ACB", "FPT", "HPG"],
+  "market_enabled": true,
   "storage": "ENCRYPTED_GITHUB_RELEASES",
   "hosting": "EXISTING_FREE_RENDER_MONITOR",
   "retain_auto_stages": 2,

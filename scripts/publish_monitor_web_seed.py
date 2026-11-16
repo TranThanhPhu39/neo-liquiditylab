@@ -19,8 +19,20 @@ def publish(report_path=None):
     report=json.loads(report_path.read_bytes())
     if report['state']!='ENCRYPTED_AND_RESTORE_VERIFIED':raise ValueError('VERIFIED_SEED_REQUIRED')
     folder=Path(report['folder']).resolve();allowed=(ROOT/'data/control/web-seed').resolve()
-    if folder.parent not in (allowed,(ROOT/'data/control/verified-monitor-history').resolve()) or folder.is_symlink():
+    market_cache=(ROOT/'data/control/market-projection-cache').resolve()
+    market_day=(report.get('market_day') is True and folder.name=='sealed' and folder.parent.parent==market_cache)
+    if (folder.parent not in (allowed,(ROOT/'data/control/verified-monitor-history').resolve()) and not market_day) or folder.is_symlink():
         raise ValueError('UNEXPECTED_SEED_LOCATION')
+    # Immutable daily bundles are uploaded/remote-verified once. The main seed
+    # contains only their private catalog, and the host restores a day on demand.
+    for path in report.get('market_day_reports',[]):
+        child=Path(path).resolve()
+        if child.parent!=(ROOT/'report').resolve() or not child.name.startswith('online_monitor_preparation_market_'):
+            raise ValueError('UNEXPECTED_MARKET_DAY_REPORT')
+        saved=json.loads(child.read_bytes())
+        if saved.get('tag')!=report.get('market_day_tags',{}).get(saved.get('latest_day')):
+            raise ValueError('MARKET_DAY_REPORT_TAG_MISMATCH')
+        if not (saved.get('uploaded') and saved.get('remote_recovery_verified')):publish(child)
     tag=report['tag'];outer=json.loads((folder/'manifest.json').read_bytes())
     if outer['context']!=REPOSITORY+':'+tag:raise ValueError('SEED_CONTEXT_CHANGED')
     names=['manifest.json']+[p['name'] for p in outer['parts']]

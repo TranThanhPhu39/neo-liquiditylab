@@ -47,6 +47,26 @@ def package(stage,report_path=None):
             rebuilt=build(day,root=restored,symbol='ACB')
             proof.update(watch_symbols=[r['symbol'] for r in watch],trade_counts=trade_counts,
                          reanalysis_state=rebuilt['state'],reanalysis_observations=rebuilt['dataset']['observations'])
+            if manifest.get('market_scope'):
+                plans=[json.loads(Path(p).read_bytes()) for p in json.loads((stage/'market-publication.json').read_bytes())['day_reports']]
+                by_tag={p['tag']:p for p in plans}
+                def recover_day(destination,release):
+                    p=by_tag[release]
+                    return restore_seed(destination,key,release,api=LocalAssets(Path(p['folder']),p['assets']))
+                server.market.recover_day=recover_day
+                market=[e for e in entries if e.get('market_observation') and e['observations']]
+                probes=[next(e for e in market if e['day']==day and e['exchange']==exchange) for exchange in ('HOSE','HNX','UPCOM')]
+                probes.append(max(market,key=lambda e:e['observations']))
+                checks=[]
+                for entry in probes:
+                    n=0
+                    for frame in server.market.frames(entry):
+                        if frame['features']['eligible']:raise ValueError('MARKET_DETECTOR_MUST_REMAIN_BLOCKED')
+                        n+=1
+                    if n!=entry['observations']:raise ValueError('MARKET_RESTORED_REPLAY_COUNT_MISMATCH')
+                    checks.append(dict(symbol=entry['symbol'],day=entry['day'],observations=n,exchange=entry['exchange']))
+                proof.update(market_observation_probes=checks,market_catalog_entries=len(entries),
+                    independent_day_bundle_recovery_verified=True)
         finally:server.server_close()
     # Remove only our redundant plaintext tar after successful encrypted restore.
     tar=output/'private-seed.tar.gz'
@@ -56,6 +76,10 @@ def package(stage,report_path=None):
         latest_day=max(manifest['days']),symbols=manifest['symbols'],
         encrypted_bytes=sum((output/n).stat().st_size for n in names),assets=names,proof=proof,
         uploaded=False,hosting_deployed=False)
+    if manifest.get('market_scope'):
+        result.update(market_scope=manifest['market_scope'],market_rows=manifest['market_rows'],market_symbols=manifest['market_symbols'],
+            market_day_reports=json.loads((stage/'market-publication.json').read_bytes())['day_reports'],
+            market_day_tags=json.loads((stage/'data/compact/market/catalog.json').read_bytes())['day_releases'])
     (Path(report_path) if report_path else ROOT/'report/online_monitor_preparation_2026-11-15.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     return result
 

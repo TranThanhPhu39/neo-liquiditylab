@@ -1,5 +1,7 @@
 # Vận hành dashboard tự động từ 16/11/2026
 
+**Mở rộng theo yêu cầu mới cùng ngày:** khi `market_enabled=true`, lịch giữ luồng detector ba mã đã nghiệm thu và bổ sung quan sát toàn bộ danh mục HOSE/HNX/UPCOM. Ngày cũ có gói hiển thị mã hóa riêng được dùng lại; chỉ công bố gói ngày mới/còn thiếu và bootstrap catalog. Render tải ngày theo yêu cầu, cache tối đa hai ngày. Những đoạn “đúng ba mã” bên dưới là phạm vi gói detector trước mở rộng, không còn là giới hạn danh mục được xem. Xem [hướng dẫn toàn thị trường](market_monitor.md).
+
 Dashboard hiện tại: https://neo-liquiditylab-monitor.onrender.com/dashboard. Trang chủ giới thiệu công khai; dữ liệu có mật khẩu riêng, không cần tài khoản ChatGPT. GitHub Pages là ứng dụng phân tích cũ và giữ bộ mẫu công khai đã được duyệt.
 
 ## Hằng ngày cần làm gì?
