@@ -10,6 +10,16 @@ function data(){
 function tradeData(d=data()){
   let cumulative=0;return {format:'liquiditylab-market-trades-v1',provider:'dnse',symbol:d.symbol,day:d.day,board:'G1',market:'STO',price_unit:'VND',volume_unit:'shares',trade_dataset_id:'d'.repeat(64),unit_status:'EMPIRICALLY_VERIFIED_FOR_ACB_TRADES',quality:{volume_reconciliation:'RECONCILED_TO_LAST_REPORTED_CUMULATIVE'},trades:[1.1,1.5,2,4.25,6.5].map((s,i)=>({id:i.toString(16).padStart(64,'0'),time:new Date(M.time(d.frames[0].time)+s*1000).toISOString(),received_at:d.frames[0].received_at,price:i===4?'21500':'21050',qty:100*(i+1),side:i===3?'SELL':i===4?'UNSPECIFIED':'BUY',cumulative:cumulative+=100*(i+1)}))};
 }
+test('relative episodes are allowed without certifying units, but never absolute-size detectors',()=>{
+  const d=data();d.symbol='VNM';d.detector_scope='RELATIVE_RATIOS_ONLY_UNVERIFIED_UNITS';
+  d.frames.forEach(f=>{f.units='ASSUMED_SHARED_SCHEMA';f.features.eligible=false;f.features.relative_eligible=true;f.bids[0][1]=100;f.bids[1][1]=100;});
+  d.event_patches.forEach(p=>{p.event.analysis_basis=d.detector_scope;p.event.units_certified=false;});
+  assert.equal(M.validate(d).symbol,'VNM');assert.deepEqual(M.eventsAt(d,3),[]);
+  assert.equal(M.eventsAt(d,4).length,1);assert.equal(M.qualityAt(d,4).eligible,0);assert.equal(M.qualityAt(d,4).relativeEligible,5);
+  const bad=structuredClone(d);bad.event_patches[0].event.type='IMBALANCE_PERSISTENCE';assert.throws(()=>M.validate(bad));
+  const certified=structuredClone(d);certified.frames[0].features.eligible=true;assert.throws(()=>M.validate(certified));
+  const forged=structuredClone(d);forged.event_patches[0].event.units_certified=true;assert.throws(()=>M.validate(forged));
+});
 test('market observation replay accepts other exchanges and never grants detector permission',()=>{
   const d=data();d.symbol='SHS';d.exchange='HNX';d.event_patches=[];d.detector_scope='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION';
   d.frames.forEach(f=>{f.features.eligible=false;f.units='ASSUMED_SHARED_SCHEMA';});

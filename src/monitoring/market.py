@@ -1,4 +1,4 @@
-"""Lossless market-wide observation views; never grant new detector permissions."""
+"""Lossless market observations with explicitly limited relative episode analysis."""
 from collections import OrderedDict
 import hashlib
 import json
@@ -9,6 +9,7 @@ import threading
 from src.data_pipeline.parquet_history import confined,digest
 from src.monitoring.spread import features,SpreadConfig,stamp
 from src.monitoring.events import EventConfig,parameters
+from src.monitoring.relative import RelativeEngine, VERSION as RELATIVE_VERSION, SCOPE as RELATIVE_SCOPE, MAX_PATCHES, MAX_OBSERVATIONS
 
 FORMAT='liquiditylab-market-observations-v1'
 SYMBOL=re.compile(r'[A-Z][A-Z0-9]{1,11}')
@@ -21,6 +22,7 @@ def serial(value):
     from decimal import Decimal
     if isinstance(value,Decimal):return str(value)
     if isinstance(value,dict):return {k:serial(v) for k,v in value.items()}
+    if isinstance(value,(tuple,list)):return [serial(v) for v in value]
     return value
 
 
@@ -40,7 +42,7 @@ class MarketDocument:
 class MarketHistory:
     def __init__(self,root):
         self.root=Path(root).resolve();self.path=self.root/'data/compact/market/catalog.json'
-        self._signature=None;self._index=[];self._checked=set();self._cache=OrderedDict();self._days={};self.recover_day=None
+        self._signature=None;self._index=[];self._checked=set();self._cache=OrderedDict();self._analyses=OrderedDict();self._days={};self.recover_day=None
         self._index_lock=threading.RLock()
 
     def index(self):
@@ -69,8 +71,18 @@ class MarketHistory:
                 p=confined(self.root,name)
                 if not p.is_relative_to(self.root/'data/compact/market'):raise ValueError('INVALID_MARKET_FILE')
                 files[name]=checksum
-        self._index=entries;self._days=value.get('day_releases',{});self._signature=signature;self._cache.clear();self._checked.clear()
-        return entries
+        self._index=[self.relative_entry(e) for e in entries];self._days=value.get('day_releases',{});self._signature=signature;self._cache.clear();self._analyses.clear();self._checked.clear()
+        return self._index
+
+    @staticmethod
+    def relative_entry(entry):
+        if entry.get('analysis_mode')==RELATIVE_SCOPE:return entry
+        source=entry['dataset_id']
+        return dict(entry,source_dataset_id=source,
+            dataset_id=hashlib.sha256((source+'|'+RELATIVE_VERSION).encode()).hexdigest(),
+            analysis_mode=RELATIVE_SCOPE,detector_version=RELATIVE_VERSION,
+            relative_analysis_available=0<entry['observations']<=MAX_OBSERVATIONS,
+            quality=dict(entry['quality'],detector_scope=RELATIVE_SCOPE))
 
     def entry(self,dataset_id):return next((e for e in self.index() if e['dataset_id']==dataset_id),None)
 
@@ -109,31 +121,66 @@ class MarketHistory:
             if old.is_dir() and not old.is_symlink() and old.resolve()==old and old.resolve().parent==cache.resolve() and re.fullmatch(r'[a-f0-9]{24}',old.name):shutil.rmtree(old)
         return p
 
-    def frames(self,entry):
+    def records(self,entry):
         if not entry['observations']:raise ValueError('MARKET_NO_SOURCE_OBSERVATIONS')
         table=self.table(entry).sort_by([('source_time','ascending'),('source_order','ascending')])
         if table.num_rows!=entry['observations']:raise ValueError('MARKET_ROW_COUNT_MISMATCH')
         for batch in table.to_batches(max_chunksize=512):
             for r in batch.to_pylist():
                 if r['symbol']!=entry['symbol'] or r['exchange']!=entry['exchange']:raise ValueError('MARKET_SCOPE_MISMATCH')
-                r['provider']='dnse'
-                yield dict(id=r['event_id'],time=r['source_timestamp'],received_at=r['collected_at_utc'],
+                r.update(provider='dnse',local_date=entry['day'])
+                yield r
+
+    def engine(self,entry):
+        return RelativeEngine('|'.join((entry['day'],entry['symbol'],entry['exchange'],entry['dataset_id'])))
+
+    def frames(self,entry):
+        engine=self.engine(self.relative_entry(entry))
+        relative=self.metadata(entry)['detector_scope']==RELATIVE_SCOPE
+        for index,r in enumerate(self.records(entry)):
+            yield dict(id=r['event_id'],time=r['source_timestamp'],received_at=r['collected_at_utc'],
                     session=r['market_session'],quality=r['data_quality_status'],units=r['unit_verification_status'],
                     bids=[[r[f'bid_price_{i}'],r[f'bid_vol_{i}']] for i in (1,2,3)],
-                    asks=[[r[f'ask_price_{i}'],r[f'ask_vol_{i}']] for i in (1,2,3)],features=diagnostic(r))
+                    asks=[[r[f'ask_price_{i}'],r[f'ask_vol_{i}']] for i in (1,2,3)],features=serial(engine.push(r,index)) if relative else diagnostic(r))
 
     def metadata(self,entry):
+        entry=self.relative_entry(entry)
+        key=entry['dataset_id']
+        if key in self._analyses:
+            self._analyses.move_to_end(key);return self._analyses[key]
         cfg=SpreadConfig();ecfg=EventConfig()
-        return dict(format='liquiditylab-event-replay-v1',dataset_id=entry['dataset_id'],symbol=entry['symbol'],day=entry['day'],provider='dnse',
+        engine=self.engine(entry);patches=[];eligible=0;limited=entry['observations']>MAX_OBSERVATIONS
+        if not limited:
+            for index,r in enumerate(self.records(entry)):
+                feature=engine.push(r,index);eligible+=int(feature['relative_eligible'])
+                patches.extend(serial(engine.patches))
+                if len(patches)>MAX_PATCHES:
+                    limited=True;patches=[];eligible=None;break
+        if limited:eligible=None
+        scope='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION' if limited else RELATIVE_SCOPE
+        quality=dict(entry['quality'],relative_eligible_observations=eligible,
+                     units_newly_certified=False,detector_scope=scope,
+                     relative_analysis_status='RESOURCE_LIMIT_OBSERVATION_FALLBACK' if limited else 'COMPLETED')
+        result=dict(format='liquiditylab-event-replay-v1',dataset_id=entry['dataset_id'],symbol=entry['symbol'],day=entry['day'],provider='dnse',
             exchange=entry['exchange'],board='G1',levels=3,price_unit='VND',volume_unit='shares',
             clock_policy='RETROSPECTIVE_SOURCE_ORDER_NOT_LIVE_BACKTEST',sampling='ALL_STORED_SYMBOL_OBSERVATIONS_NO_RESAMPLE',
-            detector_version='market-observation-only-v1',configuration_status='DETECTORS_INHIBITED_MARKET_OBSERVATION_ONLY',
+            detector_version=RELATIVE_VERSION,configuration_status='EXPERIMENTAL_RELATIVE_ANALYSIS_UNVERIFIED_UNITS',
             config=cfg.payload(),detector_configs=dict(spread=cfg.payload(),events=ecfg.payload()),analysis_parameters=parameters(cfg,ecfg),
-            source_archive=entry['source_archive'],quality_summary=entry['quality'],event_patches=[],
-            detector_scope='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION',unit_rule_hash=entry['unit_rule_hash'])
+            source_archive=entry['source_archive'],quality_summary=quality,event_patches=patches,
+            config_hash=engine.config_hash,source_dataset_id=entry['source_dataset_id'],
+            detector_scope=scope,unit_rule_hash=entry['unit_rule_hash'])
+        self._analyses[key]=result
+        while len(self._analyses)>1:self._analyses.popitem(last=False)
+        return result
+
+    def summary(self,entry):
+        metadata=self.metadata(entry)
+        events={p['event']['id']:p['event'] for p in metadata['event_patches']}
+        return dict(dataset_id=metadata['dataset_id'],symbol=entry['symbol'],day=entry['day'],
+                    events=list(events.values()),quality=metadata['quality_summary'])
 
     def replay(self,entry):
-        key=entry['dataset_id']
+        entry=self.relative_entry(entry);key=entry['dataset_id']
         if key in self._cache:self._cache.move_to_end(key);return self._cache[key]
         result=dict(self.metadata(entry),frames=list(self.frames(entry)))
         self._cache[key]=result

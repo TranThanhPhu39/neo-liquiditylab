@@ -8,7 +8,7 @@ Mở `/dashboard`, chọn ngày, lọc sàn hoặc nhập mã vào **Tìm mã**,
 
 Trang **Theo dõi** hiển thị tối đa 50 mã mỗi trang; dùng bộ lọc mã/sàn phía trên và nút Trước/Sau ở bảng danh mục. Bảng theo dõi chỉ lấy snapshot không muộn hơn cutoff đang xem. Thống kê số quan sát trong bảng kho dữ liệu là hồi tố cả ngày, có nhãn riêng. Mã không có snapshot trước cutoff vẫn báo chưa có dữ liệu, dù có quan sát ở cuối ngày.
 
-ACB/FPT/HPG giữ replay, bằng chứng đơn vị, detector và ghi chú cũ. Các mã bổ sung là **chỉ quan sát**: giữ nhãn đơn vị/chất lượng của kho nguồn, khóa detector và cấu hình phân tích. Không có sự kiện không đồng nghĩa thanh khoản bình thường. Sổ lệnh chỉ bao phủ top 3, không có order ID hoặc thông tin hủy lệnh.
+ACB/FPT/HPG giữ replay, bằng chứng đơn vị, detector và ghi chú cũ. Các mã bổ sung có **D1/D2 tương đối thử nghiệm** nếu dữ liệu đủ đầu vào: spread theo bps và lượng chờ giảm theo tỷ lệ tại cùng giá. Nhãn đơn vị/chất lượng của kho nguồn giữ nguyên; D3, tính toán tuyệt đối và chỉnh cấu hình vẫn khóa. Không có sự kiện không đồng nghĩa thanh khoản bình thường. Sổ lệnh chỉ bao phủ top 3, không có order ID hoặc thông tin hủy lệnh. Xem [phạm vi và giới hạn phân tích tương đối](relative_market_analysis.md).
 
 Volume bubbles chỉ có khi đã thu tập giao dịch khớp riêng đúng mã/ngày. Mở rộng quote không sinh trades hoặc nâng chất lượng trades. SSI realtime ở trang `/realtime` vẫn theo ba mã đã cấu hình; bước này không mở rộng subscription SSI ra toàn thị trường và không chứng nhận stream cả phiên.
 

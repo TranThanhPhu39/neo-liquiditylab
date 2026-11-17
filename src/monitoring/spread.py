@@ -121,6 +121,9 @@ class SpreadDetector:
         self.cooldown_until = 0
         self.patches = []
 
+    def input_features(self, record):
+        return features(record)
+
     def _patch(self, index, **changes):
         self.active.update(changes)
         # Copy so later changes cannot leak into earlier replay patches.
@@ -137,7 +140,7 @@ class SpreadDetector:
     def push(self, record, index):
         t = stamp(record['source_timestamp']).timestamp()
         stamp(record['collected_at_utc'])
-        f = features(record)
+        f = self.input_features(record)
         session = record.get('market_session')
         identity = (record.get('provider'), record.get('symbol'), record.get('local_date'),
                     record.get('unit_contract_hash'), record.get('board_id'), session)

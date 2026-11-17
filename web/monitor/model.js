@@ -9,7 +9,9 @@ const EventReplay = (() => {
   };
   const numeric = x => x === null || x === undefined || typeof x === 'boolean' || String(x).trim() === '' || !Number.isFinite(Number(x)) ? null : Number(x);
   function validate(d) {
-    if (!d || d.format !== FORMAT || d.provider !== 'dnse' || !/^[A-Z][A-Z0-9]{1,11}$/.test(d.symbol) || !['HOSE','HNX','UPCOM'].includes(d.exchange||'HOSE') || d.levels !== 3 || d.price_unit !== 'VND' || d.volume_unit !== 'shares' || !/^[a-f0-9]{64}$/.test(d.dataset_id) || !Array.isArray(d.frames) || !d.frames.length || d.frames.length > (d.detector_scope==='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION'?100000:50000) || !Array.isArray(d.event_patches)) throw Error('Bộ dữ liệu không đúng hợp đồng replay DNSE.');
+    if (!d || d.format !== FORMAT || d.provider !== 'dnse' || !/^[A-Z][A-Z0-9]{1,11}$/.test(d.symbol) || !['HOSE','HNX','UPCOM'].includes(d.exchange||'HOSE') || d.levels !== 3 || d.price_unit !== 'VND' || d.volume_unit !== 'shares' || !/^[a-f0-9]{64}$/.test(d.dataset_id) || !Array.isArray(d.frames) || !d.frames.length || d.frames.length > (['OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION','RELATIVE_RATIOS_ONLY_UNVERIFIED_UNITS'].includes(d.detector_scope)?100000:50000) || !Array.isArray(d.event_patches)) throw Error('Bộ dữ liệu không đúng hợp đồng replay DNSE.');
+    const relative=d.detector_scope==='RELATIVE_RATIOS_ONLY_UNVERIFIED_UNITS';
+    if(relative&&d.frames.some(f=>f.features?.eligible))throw Error('Phân tích tương đối không cấp quyền đơn vị tuyệt đối.');
     if(d.detector_scope==='OBSERVATION_ONLY_NO_NEW_UNIT_VERIFICATION'&&(d.event_patches.length||d.frames.some(f=>f.features?.eligible)))throw Error('Phạm vi chỉ quan sát không được mở detector.');
     let previous = -Infinity;
     for (const f of d.frames) {
@@ -21,7 +23,8 @@ const EventReplay = (() => {
     for (const p of d.event_patches) {
       if (!Number.isInteger(p.at_index) || p.at_index < previous || p.at_index >= d.frames.length || !p.event || !/^[a-f0-9]{64}$/.test(p.event.id) || !Number.isInteger(p.event.detected_index) || !Number.isInteger(p.event.start_index) || p.event.start_index<0 || p.event.detected_index > p.at_index || p.event.start_index > p.event.detected_index || time(p.event.detected_at) > time(d.frames[p.at_index].time)) throw Error('Bằng chứng sự kiện không hợp lệ.');
       const frame=d.frames[p.event.detected_index];
-      if(!['EMPIRICALLY_VERIFIED','OFFICIALLY_VERIFIED'].includes(frame.units)&&frame.units!==undefined)throw Error('Sự kiện trên phạm vi chưa xác minh đơn vị.');
+      if(relative){if(!['SPREAD_WIDENING','DEPTH_DROP'].includes(p.event.type)||p.event.analysis_basis!==d.detector_scope||p.event.units_certified!==false||frame.features.relative_eligible!==true)throw Error('Sự kiện vượt phạm vi phân tích tương đối.');}
+      else if(!['EMPIRICALLY_VERIFIED','OFFICIALLY_VERIFIED'].includes(frame.units)&&frame.units!==undefined)throw Error('Sự kiện trên phạm vi chưa xác minh đơn vị.');
       if(p.event.ended_at&&time(p.event.ended_at)>time(d.frames[p.at_index].time))throw Error('Sự kiện chứa kết thúc ở tương lai.');
       previous = p.at_index;
     }
@@ -64,10 +67,11 @@ const EventReplay = (() => {
     return lo;
   }
   function qualityAt(data,index){
-    let eligible=0,gaps=0;const reasons={};
+    let eligible=0,relativeEligible=0,gaps=0;const reasons={};
     for(let i=0;i<=index;i++){const f=data.frames[i];if(f.features.eligible)eligible++;else {const r=f.features.reason||'UNKNOWN';reasons[r]=(reasons[r]||0)+1;}
-      if(i&&f.session===data.frames[i-1].session&&f.features.eligible&&time(f.time)-time(data.frames[i-1].time)>data.config.max_observation_gap_seconds*1000)gaps++;}
-    return {observations:index+1,eligible,blocked:index+1-eligible,gaps,reasons};
+      if(f.features.relative_eligible)relativeEligible++;
+      if(i&&f.session===data.frames[i-1].session&&(f.features.eligible||f.features.relative_eligible)&&time(f.time)-time(data.frames[i-1].time)>data.config.max_observation_gap_seconds*1000)gaps++;}
+    return {observations:index+1,eligible,relativeEligible,blocked:index+1-eligible,gaps,reasons};
   }
   function priceComparison(before,after,side){
     const a=new Map(before[side].filter(p=>numeric(p[0])!==null).map(p=>[Number(p[0]),p[1]]));

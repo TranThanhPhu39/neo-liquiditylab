@@ -29,7 +29,7 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript')}
 ASSETS.update({'/realtime':('realtime.html','text/html'),'/realtime/':('realtime.html','text/html'),'/live.js':('live.js','text/javascript'),'/live.css':('live.css','text/css'),'/live-model.js':('live-model.js','text/javascript')})
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v5-market'
+APPLICATION_VERSION='offline-monitor-v6-relative'
 
 
 class ReviewStore:
@@ -118,7 +118,7 @@ class MonitorServer(ThreadingHTTPServer):
     def summary(self,dataset_id):
         entry=next((e for e in self.index() if e['dataset_id']==dataset_id),None)
         if not entry:raise ValueError('UNKNOWN_DATASET')
-        if entry.get('market_observation'):return dict(dataset_id=dataset_id,symbol=entry['symbol'],day=entry['day'],events=[],quality=entry['quality'])
+        if entry.get('market_observation'):return self.market.summary(entry)
         if entry.get('events_file'):
             name=entry['events_file']
             if not re.fullmatch(r'dnse-(acb|fpt|hpg)-\d{4}-\d{2}-\d{2}-[0-9a-f]{12}\.events\.json',name):
@@ -153,7 +153,7 @@ class MonitorServer(ThreadingHTTPServer):
         notes=self.reviews.all();latest={(r['dataset_id'],r['event_id']):r for r in notes}
         rows=[]
         for entry in self.index():
-            if entry.get('market_observation'):continue
+            if entry.get('market_observation') and not any(r['dataset_id']==entry['dataset_id'] for r in notes):continue
             for e in self.summary(entry['dataset_id'])['events']:
                 review=latest.get((entry['dataset_id'],e['id']))
                 rows.append(dict(dataset_id=entry['dataset_id'],day=entry['day'],symbol=entry['symbol'],

@@ -15,7 +15,7 @@ from scripts.serve_orderbook_monitor import MonitorServer,Handler
 from scripts.serve_monitor_cloud import CloudServer,CloudHandler
 
 
-def preview(stage=None,market=False):
+def preview(stage=None,market=False,report_date='2026-11-16'):
     current=json.loads((ROOT/'report/verified_monitor_history_latest.json').read_bytes())
     stage=Path(stage).resolve() if stage else ROOT/current['stage']
     class TransientHandler(CloudHandler):
@@ -74,7 +74,7 @@ def preview(stage=None,market=False):
             state=json.loads(evaluate("JSON.stringify({symbol:document.getElementById('symbolSelect').value,title:document.getElementById('title').textContent,warningHidden:document.getElementById('unitWarning').hidden,labels:document.getElementById('sideWatch').textContent,canvasWidth:document.getElementById('heatmap').width,book:document.getElementById('book').textContent.length})"))
             assert state['warningHidden']==(symbol in ('ACB','FPT','HPG')) and state['canvasWidth']>0 and state['book']>0
             if symbol not in ('ACB','FPT','HPG'):
-                assert evaluate("document.getElementById('openConfig').disabled && document.getElementById('eventCount').textContent==='—'")
+                assert evaluate("document.getElementById('openConfig').disabled && /^\\d/.test(document.getElementById('eventCount').textContent) && document.getElementById('unitWarning').textContent.includes('D1')")
             assert 'detector bị chặn' not in state['labels']
             ordered=evaluate("(()=>{const r=performance.getEntriesByType('resource'),d=r.filter(x=>x.name.includes('/api/dataset?')).at(-1),t=r.filter(x=>x.name.includes('/api/trades?')).at(-1);return Boolean(d&&t&&t.startTime>=d.responseEnd)})()")
             assert ordered,'BUBBLES_REQUEST_OVERLAPS_HEAVY_DATASET_LOAD'
@@ -111,7 +111,7 @@ def preview(stage=None,market=False):
         result=dict(state='REAL_BROWSER_QA_PASSED' if not errors and dimensions['scroll']<=390 else 'REAL_BROWSER_QA_ISSUES',largest_replay=largest_check,
             symbols=results,mobile=dimensions,console_exceptions=errors,get_retry_proven=TransientHandler.attempts>=2,
             broker_access=False,remote_upload=False)
-        (ROOT/('report/dashboard_market_browser_qa_2026-11-16.json' if market else 'report/dashboard_browser_qa_2026-11-16.json')).write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+        (ROOT/('report/dashboard_market_browser_qa_'+report_date+'.json' if market else 'report/dashboard_browser_qa_'+report_date+'.json')).write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
         return result
     finally:
         if ws:
