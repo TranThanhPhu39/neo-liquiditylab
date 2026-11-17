@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import threading
 
 from src.data_pipeline.parquet_history import confined,digest
 from src.monitoring.spread import features,SpreadConfig,stamp
@@ -40,23 +41,34 @@ class MarketHistory:
     def __init__(self,root):
         self.root=Path(root).resolve();self.path=self.root/'data/compact/market/catalog.json'
         self._signature=None;self._index=[];self._checked=set();self._cache=OrderedDict();self._days={};self.recover_day=None
+        self._index_lock=threading.RLock()
 
     def index(self):
+        with self._index_lock:return self._load_index()
+
+    def _load_index(self):
         if not self.path.exists():return []
         signature=(self.path.stat().st_mtime_ns,self.path.stat().st_size)
         if signature==self._signature:return self._index
         if signature[1]>64*1024*1024:raise ValueError('MARKET_INDEX_TOO_LARGE')
         value=json.loads(self.path.read_bytes());entries=value.get('datasets',[])
         if value.get('format')!=FORMAT or len(entries)>50000:raise ValueError('INVALID_MARKET_INDEX')
-        seen=set()
+        seen=set();files={}
         for e in entries:
             if (not SYMBOL.fullmatch(e['symbol']) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',e['day']) or
                 not re.fullmatch('[a-f0-9]{64}',e['dataset_id']) or e['dataset_id'] in seen or
                 e['exchange'] not in ('HOSE','HNX','UPCOM') or type(e['observations']) is not int or not 0<=e['observations']<=100000):
                 raise ValueError('INVALID_MARKET_ENTRY')
             seen.add(e['dataset_id'])
-            p=confined(self.root,e['market_file'])
-            if not p.is_relative_to(self.root/'data/compact/market') or p.suffix!='.parquet':raise ValueError('INVALID_MARKET_FILE')
+            name=e['market_file'];checksum=e['market_sha256']
+            if not re.fullmatch(r'data/compact/market/'+e['day']+r'/quotes-[0-3]\.parquet',name) or not re.fullmatch('[a-f0-9]{64}',checksum):
+                raise ValueError('INVALID_MARKET_FILE')
+            if name in files:
+                if files[name]!=checksum:raise ValueError('INCONSISTENT_MARKET_FILE_HASH')
+            else:
+                p=confined(self.root,name)
+                if not p.is_relative_to(self.root/'data/compact/market'):raise ValueError('INVALID_MARKET_FILE')
+                files[name]=checksum
         self._index=entries;self._days=value.get('day_releases',{});self._signature=signature;self._cache.clear();self._checked.clear()
         return entries
 

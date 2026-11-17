@@ -89,3 +89,22 @@ def test_encrypted_day_restores_only_on_demand_and_keeps_no_data_label(market,mo
     assert history.replay(e)['frames'] and calls==[tag]
     assert history.replay(e)['frames'] and calls==[tag]
     assert next(e for e in history.index() if e['symbol']=='EMG')['availability']=='NO_DATA_RETURNED'
+
+
+def test_concurrent_catalog_requests_parse_once_and_reuse_file_path_checks(market,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+    import threading,time
+    import src.monitoring.market as module
+    root,_,_,_=market;history=MarketHistory(root);read=Path.read_bytes;reads=[];paths=[]
+    original=module.confined
+    def counted_read(path):
+        if path==history.path:reads.append(path);time.sleep(.03)
+        return read(path)
+    def counted_path(root,name):paths.append(name);return original(root,name)
+    monkeypatch.setattr(Path,'read_bytes',counted_read);monkeypatch.setattr(module,'confined',counted_path)
+    barrier=threading.Barrier(6)
+    def load():barrier.wait();return history.index()
+    with ThreadPoolExecutor(max_workers=6) as workers:results=list(workers.map(lambda _:load(),range(6)))
+    assert len(reads)==1 and all(v is results[0] for v in results)
+    assert len(paths)==len({e['market_file'] for e in results[0]})

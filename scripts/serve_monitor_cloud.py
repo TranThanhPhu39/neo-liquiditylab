@@ -73,7 +73,7 @@ class CloudServer(MonitorServer):
         manifest_path=self.root/'data/processed/dnse/manifest.json'
         unit_revision=manifest_path.is_file() and json.loads(manifest_path.read_bytes()).get('state')=='UNIT_REVISION_AUDITED'
         for row in self.reviews.analyses():
-            known={e['dataset_id'] for e in self.index()}
+            known={e['dataset_id'] for e in self.base_index()}
             if row['dataset_id'] in known or revisions.get(row['dataset_id']) in known:continue
             cfg,events=configs_from_parameters(row['parameters'])
             result=super().analyze(row['day'],row['symbol'],cfg,events)
@@ -113,13 +113,17 @@ class CloudHandler(Handler):
         if not self.authenticated():return
         if route.path=='/api/hosting':
             r=self.server.recovery
-            entries=self.server.index();latest=max((e['day'] for e in entries),default=None)
+            entries=[] if r and not r.seed_ready else self.server.index()
+            latest=max((e['day'] for e in entries),default=None)
             current=[e for e in entries if e['day']==latest and not e.get('archived')]
             return self.send_json(dict(hosted=True,collection_control='SSI_GITHUB_AND_WINDOWS_DNSE_DAILY',
                 latest_history_day=latest,market_scope='ALL_CATALOG_SYMBOLS' if any(e.get('market_observation') for e in entries) else 'THREE_VERIFIED_SYMBOLS',
                 latest_catalog_symbols=len(current),latest_symbols_with_observations=sum(bool(e.get('observations')) for e in current),
                 recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
                 persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews)))
+        if (self.server.recovery and not self.server.recovery.seed_ready and route.path.startswith('/api/') and
+            not route.path.startswith('/api/live/') and route.path!='/api/review-history'):
+            return self.send_json({'error':'DATA_RESTORING_RETRY'},503)
         if route.path=='/api/review-history':
             try:return self.send_json(dict(reviews=self.server.reviews.all(),analyses=self.server.reviews.analyses(),analysis_revisions=self.server.reviews.analysis_revisions()))
             except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)

@@ -84,7 +84,7 @@ class MonitorServer(ThreadingHTTPServer):
         self.live.close()
         super().server_close()
 
-    def index(self):
+    def base_index(self):
         data = json.loads((self.data / 'index.json').read_text(encoding='utf-8'))
         entries = data.get('datasets', [])
         if not isinstance(entries, list) or len(entries) > 500:
@@ -93,6 +93,10 @@ class MonitorServer(ThreadingHTTPServer):
             if (e['symbol'] not in ('ACB','FPT','HPG') or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',e['day'])
                     or not re.fullmatch(r'dnse-(acb|fpt|hpg)-\d{4}-\d{2}-\d{2}(?:-[0-9a-f]{12})?\.json', e['file'])):
                 raise ValueError('INVALID_DATASET_FILENAME')
+        return entries
+
+    def index(self):
+        entries=self.base_index()
         occupied={(e['day'],e['symbol']) for e in entries if not e.get('archived')}
         return entries+[e for e in self.market.index() if (e['day'],e['symbol']) not in occupied]
 
@@ -184,7 +188,8 @@ class MonitorServer(ThreadingHTTPServer):
         return result
 
     def analyze(self,day,symbol,config,event_config):
-        e=next((e for e in self.index() if e['day']==day and e['symbol']==symbol and not e.get('archived')),None)
+        entries=self.base_index() if symbol in ('ACB','FPT','HPG') else self.index()
+        e=next((e for e in entries if e['day']==day and e['symbol']==symbol and not e.get('archived')),None)
         if e and e.get('market_observation'):raise ValueError('MARKET_OBSERVATION_ONLY_NO_DETECTOR_PERMISSION')
         return build(day,symbol=symbol,root=self.root,config=config,event_config=event_config)
 

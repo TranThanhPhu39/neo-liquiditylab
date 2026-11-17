@@ -33,6 +33,26 @@ def test_ssi_recovery_rejects_arbitrary_release_paths_and_unbounded_lists():
     with pytest.raises(ValueError):ssi_recovery_tags([],['ssi-ws-20261116-fixture']*7)
 
 
+def test_cold_start_status_and_health_do_not_load_the_market_catalog(tmp_path):
+    from types import SimpleNamespace
+    server=CloudServer(tmp_path,port=0,origin='http://127.0.0.1:0',read_password='p'*32,ingest_token='x'*32,bind_host='127.0.0.1')
+    server.public_origin='http://127.0.0.1:'+str(server.server_port)
+    server.recovery=SimpleNamespace(seed_ready=False,state='RECOVERING',close=lambda:None)
+    server.index=lambda:(_ for _ in ()).throw(AssertionError('Catalog read during recovery'))
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    auth='Basic '+base64.b64encode(('liquiditylab:'+'p'*32).encode()).decode()
+    def get(path):
+        c=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=2)
+        try:
+            c.request('GET',path,headers={'Authorization':auth});r=c.getresponse();return r.status,json.loads(r.read())
+        finally:c.close()
+    try:
+        status,body=get('/api/hosting');assert status==200 and body['seed_ready'] is False
+        assert get('/healthz')[0]==200
+        assert get('/api/datasets')==(503,{'error':'DATA_RESTORING_RETRY'})
+    finally:server.shutdown();server.server_close();thread.join(timeout=3)
+
+
 def packet():
     now=datetime.now(timezone.utc).isoformat()
     frame=dict(id='id',index=0,time=now,source_time=now,received_at=now,session='SSI_SESSION_UNKNOWN',quality='VALID',units='UNVERIFIED_SSI_QUOTE',
@@ -210,6 +230,7 @@ def test_verified_unit_revision_restores_parameters_under_new_identity_without_r
     server=CloudServer(tmp_path,port=0,origin='http://127.0.0.1:0',read_password='p'*32,ingest_token='x'*32,bind_host='127.0.0.1')
     reviews=Reviews();server.reviews=reviews;entries=[];calls=[]
     server.index=lambda:entries
+    server.base_index=lambda:entries
     def analyze(self,day,symbol,cfg,events):
         calls.append(day);entry=dict(dataset_id='b'*64,day=day,symbol=symbol,parameters=reviews.rows[0]['parameters'])
         entries.append(entry);return dict(dataset=entry)
