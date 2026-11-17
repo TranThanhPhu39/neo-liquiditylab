@@ -190,13 +190,15 @@ def summary(db,state):
         'symbols_with_normalized_data':db.execute('SELECT count(DISTINCT symbol) FROM snapshots').fetchone()[0]}
 
 
-def run(root=ROOT,max_pages=None):
-    output=root/'data/processed/dnse/normalized.db'
+def run(root=ROOT,max_pages=None,*,days=None,database_path=None,report_path=None):
+    if database_path is None and (root/'data/compact/catalog.json').exists():
+        raise ValueError('PARQUET_MODE_USE_UPDATE_DNSE_DAY')
+    output=database_path or root/'data/processed/dnse/normalized.db'
     rules=load_rules(prepare_rules(root))
-    report=root/'report/dnse_normalization.json'
+    report=report_path or root/'report/dnse_normalization.json'
     paths=[]
     for folder in sorted((root/'data/history/dnse').iterdir()):
-        if folder.is_dir():
+        if folder.is_dir() and (days is None or folder.name in days):
             for candidate in (folder/'history.db',folder/'morning/history.db'):
                 if candidate.exists():
                     paths.append(candidate.resolve())
@@ -264,6 +266,9 @@ def main():
     try:
         result=run(max_pages=args.max_pages)
     except (Exception,KeyboardInterrupt) as error:
+        if str(error)=='PARQUET_MODE_USE_UPDATE_DNSE_DAY':
+            print(json.dumps(dict(state='NOT_STARTED',error_code=str(error))),flush=True)
+            return 2
         state='INTERRUPTED_RESUMABLE' if isinstance(error,KeyboardInterrupt) else 'FAILED_RESUMABLE'
         code=str(error) if str(error).isupper() and len(str(error))<100 else type(error).__name__
         output=ROOT/'data/processed/dnse/normalized.db'

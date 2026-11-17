@@ -35,7 +35,8 @@ FILES=['src/data_providers/ssi_stream.py','tests/test_ssi_session.py','src/data_
        'docs/relative_market_analysis.md','scripts/render_cli_ops.py','scripts/cleanup_dashboard_storage.py',
        'scripts/pilot_compact_dnse.py','scripts/compact_dnse_history.py',
        'scripts/migrate_dashboard_parquet.py','scripts/update_dnse_parquet.py',
-       'tests/test_event_monitor.py','tests/test_storage_compaction.py','scripts/publish_ssi_repair.py']
+       'tests/test_event_monitor.py','tests/test_storage_compaction.py','scripts/publish_ssi_repair.py',
+       'scripts/normalize_dnse_history.py','scripts/audit_dnse_normalized.py','tests/test_dnse_normalization.py']
 
 
 def main():

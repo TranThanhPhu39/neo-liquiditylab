@@ -1,6 +1,6 @@
 # Mở rộng xác minh đơn vị theo nhóm mã
 
-Web hiện có bằng chứng được duyệt cho ACB/FPT/HPG. Các mã toàn thị trường khác vẫn là dữ liệu quan sát. Không cấp nhãn xác minh chỉ vì cùng schema, cùng sàn hoặc có giá trông hợp lý.
+Web hiện có bằng chứng được duyệt cho ACB/FPT/HPG. Các mã toàn thị trường khác chưa được cấp quyền về đơn vị tuyệt đối; có thể dùng [D1/D2 tương đối](relative_market_analysis.md) khi đủ đầu vào. Không cấp nhãn xác minh chỉ vì cùng schema, cùng sàn hoặc có giá trông hợp lý.
 
 Đã bổ sung bộ đối chiếu độc lập theo mã/sàn/ngày, đọc trực tiếp Parquet. Bộ này tạo hồ sơ số liệu để duyệt, chưa thay đổi contract hoặc bật detector. Cần hoàn tất việc duyệt nguồn/phạm vi và dựng lại replay trước khi mở chức năng trên web cho mã mới.
 

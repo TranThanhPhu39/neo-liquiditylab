@@ -63,9 +63,9 @@ def check_record(record,quote,page_received,rule_hash):
         raise ValueError('UNVERIFIED_SCOPE_FINANCIAL_ELIGIBILITY')
 
 
-def audit(root=ROOT,export=False):
+def audit(root=ROOT,export=False,*,database_path=None,report_path=None):
     folder=root/'data/processed/dnse'
-    path=folder/'normalized.db'
+    path=database_path or folder/'normalized.db'
     checked=quarantined=pages_checked=0
     last_progress=0
     with exclusive_job(root/'data/control/dnse_history.lock'),exclusive_job(root/'data/control/dnse_normalization.lock'),keep_awake(),closing(sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)) as db:
@@ -146,15 +146,15 @@ def audit(root=ROOT,export=False):
             temporary.replace(target)
             result['export']={'path':str(target.relative_to(root)),'records':exported,'sha256':file_sha(target),'bytes':target.stat().st_size}
         result['database']={'path':str(path.relative_to(root)),'sha256':file_sha(path),'bytes':path.stat().st_size}
-        write_json(root/'report/dnse_normalization_audit.json',result)
+        write_json(report_path or root/'report/dnse_normalization_audit.json',result)
         return result
 
 
-def validate_finance(root=ROOT):
+def validate_finance(root=ROOT,*,database_path=None,report_path=None):
     from src.finance.execution_simulator import simulate_execution
     from src.finance.stress_testing import compare_scenario
     from src.models.scenario import Scenario
-    path=root/'data/processed/dnse/normalized.db'
+    path=database_path or root/'data/processed/dnse/normalized.db'
     checked=0
     with closing(sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)) as db:
         samples=[]
@@ -187,7 +187,7 @@ def validate_finance(root=ROOT):
                 raise ValueError('UNVERIFIED_UNIT_GUARD_FAILED')
     result={'state':'PASSED','eligible_snapshots_sampled':len(samples),'execution_checks':checked,
             'assumed_scope_default_financial_calculation_blocked':blocked}
-    write_json(root/'report/dnse_normalization_finance_checks.json',result)
+    write_json(report_path or root/'report/dnse_normalization_finance_checks.json',result)
     return result
 
 
