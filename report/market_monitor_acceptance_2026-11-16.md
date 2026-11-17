@@ -1,5 +1,9 @@
 # Mở rộng dashboard lịch sử toàn thị trường — 16/11/2026
 
+**Hoàn tất online ngày 17/11:** commit `c74306cefd63de1b5a8f504a64d45a04d81b600e`, deployment `dep-dbtu6op42hec73b16psg` live; hosting READY, đủ 1.517 mã ngày 16/11 (1.300 có quan sát, 217 thiếu), 1.523 mã qua 14 ngày/12.863.385 quan sát. Đã tải thật VNM 5.828, SHS 7.560, A32 3 và VIX 78.400 khung; giữ 5 capture SSI và truy cập ghi chú. Kiểm tra cutoff và mã thiếu đạt; dữ liệu/API vẫn 401 khi chưa đăng nhập. Báo cáo chi tiết: `report/market_monitor_hosted_2026-11-16.json`.
+
+**Bản sửa khởi động 17/11: 517/517 kiểm thử đạt.** Catalog 21.245 bộ ngày–mã từng lặp kiểm tra đường dẫn cho cùng 56 tệp và có thể bị nạp trùng khi nhiều request đến trong lúc khôi phục. Đã kiểm tra mỗi đường dẫn duy nhất một lần, dùng khóa nạp catalog, giữ health/status phản hồi nhanh và phục hồi phân tích ba mã trước khi nạp danh mục lớn. Đo trên máy: 9,323 giây → 0,221 giây; không dùng số này như cam kết tốc độ Render. Các lần restart/request đóng kết nối của bản trước đã được xử lý bằng đường nạp mới; không kết luận OOM khi chưa có số liệu bộ nhớ.
+
 ## Phạm vi dữ liệu
 
 Đã chuẩn bị và đối chiếu **12.863.385 quan sát chuẩn hóa của 14 ngày**, từ 28/10 đến 16/11; **1.523 mã** xuất hiện trong danh mục qua các ngày. Có **21.245 bộ ngày–mã**, bao gồm các mã không được nguồn trả quan sát. Riêng ngày 16/11: **1.517 mã**, 1.300 có quan sát và 217 thiếu dữ liệu nguồn. Đây là toàn bộ danh mục DNSE đã thu, không phải chứng nhận bao phủ mọi chứng khoán/full depth hoặc không mất tick từ sở.
