@@ -16,6 +16,8 @@ if (-not $VerifyOnly) {
     $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     $action = New-ScheduledTaskAction -Execute $pythonWindowlessPath -Argument $launcherArguments -WorkingDirectory $projectRoot
     $weekly = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '15:15'
+    $pattern = New-ScheduledTaskTrigger -Once -At '15:15' -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Hours 8)
+    $weekly.Repetition = $pattern.Repetition
     $logon = New-ScheduledTaskTrigger -AtLogOn -User $userId
     $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 8) -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 15)
@@ -30,7 +32,8 @@ $report = [ordered]@{
     logon_type=[string]$task.Principal.LogonType; last_task_result=$info.LastTaskResult;
     start_when_available=$task.Settings.StartWhenAvailable; wake_to_run=$task.Settings.WakeToRun;
     multiple_instances=[string]$task.Settings.MultipleInstances; restart_count=$task.Settings.RestartCount;
-    trigger_summary='Mon-Fri 15:15 Vietnam + current-user logon; closed-session gates and seven-day local catchup';
+    repetition_interval=$task.Triggers[0].Repetition.Interval; repetition_duration=$task.Triggers[0].Repetition.Duration;
+    trigger_summary='Mon-Fri 15:15-23:15 Vietnam every 30 minutes + logon; avoids missing a day when an older publication overlaps 15:15';
     requires_computer_on_and_user_logged_in=$true; no_stored_password=$true;
     config='config/dnse_local_schedule.json'; stop_file='data/control/STOP_DNSE_HISTORY'
 }

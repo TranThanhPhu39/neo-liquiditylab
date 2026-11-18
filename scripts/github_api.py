@@ -21,7 +21,8 @@ def credential():
         return token
     env={**os.environ,"GIT_TERMINAL_PROMPT":"0","GCM_INTERACTIVE":"never","GCM_GUI_PROMPT":"false"}
     result=subprocess.run(["git","credential","fill"],input="protocol=https\nhost=github.com\n\n",
-        capture_output=True,text=True,timeout=20,env=env)
+        capture_output=True,text=True,timeout=20,env=env,
+        creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
     if result.returncode:
         raise RuntimeError("GITHUB_AUTH_NOT_AVAILABLE")
     fields=dict(line.split("=",1) for line in result.stdout.splitlines() if "=" in line)

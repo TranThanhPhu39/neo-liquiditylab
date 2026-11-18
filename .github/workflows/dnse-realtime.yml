@@ -1,4 +1,5 @@
 name: DNSE realtime G1 collector
+run-name: DNSE ${{ inputs.mode || 'scheduled' }} ${{ inputs.session || github.event.schedule }}
 
 on:
   schedule:

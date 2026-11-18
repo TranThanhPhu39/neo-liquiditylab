@@ -1,5 +1,7 @@
 # NEO LiquidityLab
 
+**Khôi phục lịch — 18/11/2026:** đến 13:29, GitHub chưa tạo run cron hôm nay. Đã dispatch SSI lúc 13:31 (web nhận quote/trade thật) và DNSE lúc 13:35 sau khi làm mới catalog mã hóa 1.517 mã. Đã cài Windows guard kiểm tra GitHub mỗi 5 phút trong giờ thu, chống trùng/giới hạn retry và tự làm mới danh mục DNSE theo ngày. Lịch REST cuối ngày giữ mốc 15:15, thêm kiểm tra mỗi 30 phút để tránh bỏ lỡ khi tác vụ cũ còn chạy. **Máy phải bật và đăng nhập để các lịch Windows hoạt động**; chưa bảo đảm cron GitHub phát đúng giờ hoặc phục hồi realtime phần phiên đã lỡ. Xem [lịch dự phòng và cách kiểm tra](docs/independent_collection_schedule.md).
+
 **Phân tích tương đối toàn thị trường — 17/11/2026:** đang triển khai D1 spread theo bps và D2 lượng chờ giảm theo tỷ lệ tại cùng giá cho dữ liệu đủ đầu vào. Giữ nguyên nhãn đơn vị chưa xác minh; D3 và tính toán tuyệt đối vẫn khóa. Không thay dữ liệu gốc hoặc cấp chứng nhận đơn vị mới. Xem [cách dùng và giới hạn](docs/relative_market_analysis.md).
 
 **Đối chiếu đơn vị theo nhóm mã — 17/11/2026:** đã có lệnh thu mẫu bảng giá cho nhóm mã tùy chọn và audit độc lập theo mã/sàn/ngày trực tiếp từ Parquet. Chạy thử 1.517 mã ngày 16/11 cho thấy 1.514 mã chưa có mẫu đối chiếu trong bộ bằng chứng hiện tại. Không tự nâng nhãn hoặc mở detector khi thiếu mẫu; ACB/FPT/HPG giữ phạm vi xác minh hiện có. Xem [quy trình mở rộng xác minh](docs/market_unit_verification.md). Bộ kiểm thử liên quan đạt 24/24 tại máy; chưa triển khai thay đổi này lên web.
