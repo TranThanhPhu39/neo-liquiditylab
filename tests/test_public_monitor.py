@@ -152,3 +152,21 @@ def test_background_recovery_busy_response_identifies_recovery_after_seed_is_rea
         assert code==503 and json.loads(body)['error']=='DATA_RESTORING_RETRY'
         assert headers['Retry-After']=='3'
         assert get('/healthz')[0]==200
+
+
+def test_catalog_response_keeps_quality_labels_without_full_storage_provenance(public_monitor):
+    server,get,did=public_monitor
+    entry=dict(dataset_id=did,symbol='VNM',day='2026-11-19',observations=3,market_observation=True,
+        compact_folder='data/private-large-folder',source_archive='not-needed-for-navigation',
+        quality=dict(unit_counts={'ASSUMED_SHARED_SCHEMA':3},raw_catalog=['large-source-metadata']))
+    server.index=lambda:[entry]
+    result=json.loads(get('/api/datasets')[2])['datasets'][0]
+    assert result['dataset_id']==did and result['observations']==3
+    assert result['quality']['unit_counts']=={'ASSUMED_SHARED_SCHEMA':3}
+    assert 'compact_folder' not in result and 'source_archive' not in result
+    assert 'raw_catalog' not in result['quality']
+    assert server.index()[0]==entry
+    import gzip
+    code,headers,compressed=get('/api/datasets',headers={'Accept-Encoding':'gzip'})
+    assert code==200 and headers['Content-Encoding']=='gzip'
+    assert json.loads(gzip.decompress(compressed))['datasets']==[result]

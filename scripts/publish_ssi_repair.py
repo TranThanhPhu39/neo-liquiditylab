@@ -43,7 +43,9 @@ FILES=['src/data_providers/ssi_stream.py','tests/test_ssi_session.py','src/data_
        'web/monitor/live.js','tests/test_public_monitor.py','scripts/check_monitor_cloud.py',
        '.github/workflows/monitor-web-checks.yml','web/monitor/capture-model.js','web/monitor/live-model.js',
        'tests/js/capture-model.test.cjs','docs/unified_dashboard.md','scripts/verify_unified_monitor_browser.py',
-       'web/monitor/http.js','tests/js/monitor-http.test.cjs','tests/test_cloud_recovery_budget.py']
+       'web/monitor/http.js','tests/js/monitor-http.test.cjs','tests/test_cloud_recovery_budget.py',
+       'src/monitoring/web_relay.py','src/monitoring/ssi_live.py','src/data_pipeline/ssi_live_store.py',
+       'scripts/ssi_checkpoint.py','tests/test_github_ssi.py','tests/test_ssi_live.py']
 
 
 def main():
@@ -77,7 +79,7 @@ def main():
     if not changes:
         print(json.dumps(dict(source_commit=h,state='SOURCE_ALREADY_CURRENT')));return
     t=api.request('POST',b+'/git/trees',{'base_tree':c['tree']['sha'],'tree':changes})
-    new=api.request('POST',b+'/git/commits',{'message':'Recover gracefully from busy or restarting servers and release checkpoint payload memory','tree':t['sha'],'parents':[h]})
+    new=api.request('POST',b+'/git/commits',{'message':'Bound catalog, checkpoint and replay memory while preserving full Parquet history','tree':t['sha'],'parents':[h]})
     api.request('PATCH',b+'/git/refs/heads/main',{'sha':new['sha'],'force':False})
     report=dict(source_commit=new['sha'],contract_bundle_upload='INSTALLED' if Path('report/ssi_contract_secret_2026-11-16.json').exists() else 'WAITING_FOR_EXPLICIT_APPROVAL',units_locally_reviewed=['ACB','FPT','HPG'])
     Path('report/ssi_repair_2026-11-16.json').write_text(json.dumps(report,indent=2),encoding='utf-8')

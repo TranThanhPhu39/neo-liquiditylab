@@ -25,6 +25,8 @@ Nếu backend đang phục hồi sau khởi động hoặc có truy vấn khác 
 
 Đây là xử lý trạng thái phục vụ dữ liệu; không tự biến dữ liệu trễ hoặc thiếu thành dữ liệu đầy đủ. Giới hạn xử lý và checkpoint trên backend không ảnh hưởng bản Parquet gốc hoặc lịch thu.
 
+Backend không giữ nhiều bản sao JSON của toàn danh mục khi trả danh sách mã. Danh mục HTTP chỉ chứa các trường điều hướng và nhãn đơn vị; provenance đầy đủ vẫn có khi mở bộ dữ liệu. Cửa sổ quote RAM của relay giữ 2.000 quan sát/mã, phần đã ra khỏi cửa sổ vẫn được đọc lại từ Parquet bằng Đoạn trước/Đoạn sau. Giới hạn bộ đệm giao dịch khớp không đổi. Giải mã checkpoint và đọc Parquet theo luồng giảm đỉnh RAM, vẫn kiểm tra AES-GCM, hash, số hàng, thứ tự và cutoff.
+
 ## Kiểm tra kỹ thuật
 
 `node --test tests/js/*.test.cjs` kiểm tra chuyển chế độ, giữ mã, xử lý mã chưa thu, bỏ phản hồi cũ sau khi đổi chế độ, giới hạn đơn vị, clock và bằng chứng sau con trỏ. Bộ HTTP kiểm tra link cũ chuyển hướng, asset allowlist, quyền xem công khai và quyền ghi riêng. `python -m scripts.verify_unified_monitor_browser` mở hồ sơ trình duyệt mới, không cung cấp mật khẩu và chặn mọi request ghi để kiểm tra hai chế độ trên cùng URL, desktop và mobile.

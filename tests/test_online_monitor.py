@@ -87,6 +87,19 @@ def test_relay_rejects_private_fields_scope_escape_and_unordered_records():
     with pytest.raises(ValueError,match='SEQUENCE'):validate(p)
 
 
+def test_relay_evicts_only_ram_windows_and_can_replay_evicted_quotes_from_parquet(tmp_path):
+    service=RelayLive(tmp_path,quote_window=2,trade_window=2)
+    try:
+        for i in range(4):
+            p=packet();p['records'][0].update(ordinal=i,quote_index=i);p['records'][0]['frame'].update(index=i,id=str(i))
+            assert service.apply(p)['next_ordinal']==i+1
+        assert [f['index'] for f in service.frames['ACB']]==[2,3]
+        service.journal.flush()
+        assert [f['index'] for f in service.view('a'*32,'ACB',start=0)['frames']]==[0,1,2,3]
+        assert service.quote_total==4
+    finally:service.close()
+
+
 def test_hosted_http_is_private_and_ingest_does_not_grant_browser_or_collection_control(tmp_path):
     password='fixture-web-password-32-characters';token='fixture-ingest-token-32-characters'
     server=CloudServer(tmp_path,port=0,origin='http://127.0.0.1:0',read_password=password,ingest_token=token,bind_host='127.0.0.1')

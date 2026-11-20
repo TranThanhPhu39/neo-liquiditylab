@@ -65,6 +65,18 @@ def test_only_committed_allowlisted_parquet_can_enter_checkpoint(tmp_path):
     with pytest.raises(ValueError,match='CHANGED'):pack(j.folder,j.manifest,{},b'x'*32,'context')
 
 
+def test_multi_part_checkpoint_streaming_preserves_bytes_and_size_guards(tmp_path,monkeypatch):
+    import scripts.ssi_checkpoint as checkpoint
+    monkeypatch.setattr(checkpoint,'CHUNK',128)
+    j=capture(tmp_path);assets=pack(j.folder,j.manifest,dict(state='STOPPED'),b'x'*32,'multi-part')
+    assert len(assets)>2
+    files,proof=unpack(assets,b'x'*32,'multi-part')
+    assert proof['records']==2
+    for part in j.manifest['files']:
+        assert files['run/'+part['path']]==(j.folder/part['path']).read_bytes()
+    with pytest.raises(ValueError,match='SIZE_LIMIT'):unpack(assets,b'x'*32,'multi-part',max_bytes=1)
+
+
 def test_collect_guard_requires_approval_and_secrets_before_source_access(tmp_path,monkeypatch):
     monkeypatch.setenv('GITHUB_REPOSITORY','TranThanhPhu39/neo-liquiditylab');monkeypatch.setenv('GITHUB_REF','refs/heads/main')
     monkeypatch.delenv('SSI_REALTIME_STORAGE_APPROVED',raising=False)
@@ -133,3 +145,11 @@ def test_import_cloud_capture_does_not_overwrite_local_runs(tmp_path):
     assert json.loads((destination/'manifest.json').read_bytes())['state']=='IMPORTED_CLOUD_CHECKPOINT'
     assert destination.parent.parent==root/'data/realtime/ssi'
     with pytest.raises(ValueError,match='NO_OVERWRITE'):install(files,root=root)
+
+def test_cli_prints_a_closed_window_failure_instead_of_only_exit_one(monkeypatch,capsys):
+    import scripts.github_ssi_realtime as worker
+    monkeypatch.setattr('sys.argv',['github_ssi_realtime','--mode','collect','--session','morning'])
+    monkeypatch.setattr(worker,'run',lambda *args:dict(state='FAILED_SESSION_WINDOW_ALREADY_CLOSED',realtime_recovered=False))
+    assert worker.main()==1
+    import json
+    assert json.loads(capsys.readouterr().out)['state']=='FAILED_SESSION_WINDOW_ALREADY_CLOSED'

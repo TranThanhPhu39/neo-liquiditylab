@@ -2,7 +2,7 @@
 import argparse
 import csv
 import gzip
-from contextlib import closing
+from contextlib import closing,nullcontext
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -29,7 +29,7 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript'),'/http.js':('http.js','text/javascript')}
 ASSETS.update({'/realtime':('index.html','text/html'),'/realtime/':('index.html','text/html'),'/live-model.js':('live-model.js','text/javascript'),'/capture-model.js':('capture-model.js','text/javascript')})
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v9-recovery'
+APPLICATION_VERSION='offline-monitor-v10-bounded'
 
 
 class ReviewStore:
@@ -99,6 +99,16 @@ class MonitorServer(ThreadingHTTPServer):
         entries=self.base_index()
         occupied={(e['day'],e['symbol']) for e in entries if not e.get('archived')}
         return entries+[e for e in self.market.index() if (e['day'],e['symbol']) not in occupied]
+
+    def catalog_entries(self):
+        """Small navigation records; full provenance stays in dataset metadata."""
+        fields=('dataset_id','symbol','day','exchange','observations','market_observation','archived',
+                'availability','event_counts')
+        for entry in self.index():
+            row={k:entry[k] for k in fields if k in entry}
+            quality=entry.get('quality',{})
+            row['quality']={k:quality[k] for k in ('unit_counts',) if k in quality}
+            yield row
 
     def dataset(self, dataset_id):
         entry = next((e for e in self.index() if e['dataset_id'] == dataset_id), None)
@@ -228,6 +238,40 @@ def report_csv(report):
 class Handler(BaseHTTPRequestHandler):
     def read_only(self):return False
 
+    def discard_small_body(self):
+        # Closing HTTP/1.0 with unread bytes can reset the response on Windows.
+        if self.command!='POST' or self.headers.get('Transfer-Encoding'):return
+        try:length=int(self.headers.get('Content-Length','0'))
+        except ValueError:return
+        if not 0<length<=8192:return
+        previous=self.connection.gettimeout()
+        try:
+            self.connection.settimeout(.25);self.rfile.read(length)
+        except (OSError,TimeoutError):pass
+        finally:self.connection.settimeout(previous)
+
+    def send_catalog(self):
+        # A market-wide catalog must not become several full JSON/gzip RAM copies.
+        entries=iter(self.server.catalog_entries());first_entry=next(entries,None)
+        prefix=json.dumps(dict(csrf=None if self.read_only() else self.server.csrf,
+            read_only=self.read_only(),application_version=APPLICATION_VERSION),ensure_ascii=False).encode()[:-1]+b',"datasets":['
+        compressed='gzip' in self.headers.get('Accept-Encoding','')
+        self.send_response(200);self.send_header('Content-Type','application/json; charset=utf-8')
+        self.send_header('Connection','close');self.send_header('Cache-Control','no-store')
+        self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY')
+        self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+        self.send_header('Vary','Accept-Encoding')
+        if compressed:self.send_header('Content-Encoding','gzip')
+        self.end_headers();self.close_connection=True
+        with gzip.GzipFile(fileobj=self.wfile,mode='wb',compresslevel=1) if compressed else nullcontext(self.wfile) as output:
+            output.write(prefix);first=True
+            if first_entry is not None:
+                output.write(json.dumps(first_entry,ensure_ascii=False,separators=(',',':')).encode());first=False
+            for entry in entries:
+                if not first:output.write(b',')
+                output.write(json.dumps(entry,ensure_ascii=False,separators=(',',':')).encode());first=False
+            output.write(b']}')
+
     def log_message(self, *args):
         pass  # Never log query strings, submitted notes, or request headers.
 
@@ -267,8 +311,7 @@ class Handler(BaseHTTPRequestHandler):
                 name, content_type = ASSETS[route.path]
                 return self.send_bytes((self.server.assets / name).read_bytes(), content_type)
             if route.path == '/api/datasets':
-                return self.send_json(dict(datasets=self.server.index(),csrf=None if self.read_only() else self.server.csrf,
-                    read_only=self.read_only(),application_version=APPLICATION_VERSION))
+                return self.send_catalog()
             params = parse_qs(route.query)
             if route.path=='/api/live/status':return self.send_json(dict(self.server.live.status(),csrf=None if self.read_only() else self.server.csrf,read_only=self.read_only()))
             if route.path=='/api/live/runs':return self.send_json(self.server.live.runs())
@@ -311,6 +354,7 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.expected_origin()
         if (not self.valid_host() or self.headers.get('Origin') != origin
                 or not secrets.compare_digest(self.headers.get('X-Monitor-CSRF', ''), self.server.csrf)):
+            self.discard_small_body()
             return self.send_json({'error': 'INVALID_LOCAL_ORIGIN'}, 403)
         if self.path not in ('/api/reviews','/api/analyze','/api/live/start','/api/live/stop','/api/live/reviews'):
             return self.send_json({'error': 'NOT_FOUND'}, 404)

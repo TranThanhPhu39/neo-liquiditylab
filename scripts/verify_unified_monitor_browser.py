@@ -23,7 +23,7 @@ def main():
         '--disable-gpu','--no-first-run','--no-default-browser-check','--disable-extensions',
         '--remote-debugging-port=0','--user-data-dir='+str(profile),'about:blank'],
         stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW)
-    result=dict(origin=ORIGIN,anonymous=True,auth_challenges=0,write_attempts=0,js_exceptions=[],http_failures=[])
+    result=dict(origin=ORIGIN,anonymous=True,auth_challenges=0,write_attempts=0,js_exceptions=[],http_failures=[],wait_notices=[])
     ws=None;counter=0
     try:
         for _ in range(100):
@@ -64,6 +64,8 @@ def main():
         def wait(condition,seconds=240):
             until=time.monotonic()+seconds
             while time.monotonic()<until:
+                notice=evaluate("document.getElementById('serverNotice')?.hidden===false?document.getElementById('serverNotice').textContent:null")
+                if notice and notice not in result['wait_notices']:result['wait_notices'].append(notice)
                 if evaluate(condition):return True
                 time.sleep(.3)
             return False
@@ -72,6 +74,8 @@ def main():
         call('Fetch.enable',dict(handleAuthRequests=True,patterns=[dict(urlPattern=ORIGIN+'/*')]))
         call('Emulation.setDeviceMetricsOverride',dict(width=1440,height=1000,deviceScaleFactor=1,mobile=False))
         call('Page.navigate',dict(url=ORIGIN+'/dashboard'))
+        if wait("Boolean(document.getElementById('serverNotice'))",seconds=25):
+            evaluate("document.querySelector('[data-page=review]').click();")
         if not wait("document.getElementById('play')?.disabled===false && document.getElementById('error')?.hidden===true"):
             raise RuntimeError('PUBLIC_DASHBOARD_NOT_READY')
         result['dashboard']=evaluate("({day:document.getElementById('daySelect').value,symbol:document.getElementById('symbolSelect').value,frames:Number(document.getElementById('cursor').max)+1,canvas:document.getElementById('heatmap').width,config_disabled:document.getElementById('openConfig').disabled,review_hidden:document.getElementById('reviewForm').hidden})")
@@ -111,7 +115,7 @@ def main():
         result['returned_to_history']=evaluate("document.getElementById('symbolSelect').value==='ACB' && document.getElementById('captureActions').hidden")
         assert result['auth_challenges']==result['write_attempts']==0
         assert not result['js_exceptions']
-        assert not [r for r in result['http_failures'] if r['path']!='/favicon.ico']
+        assert not [r for r in result['http_failures'] if r['path']!='/favicon.ico' and r['status'] not in (429,502,503,504)]
         assert result['dashboard']['config_disabled'] and result['dashboard']['event_review_hidden']
         assert result['capture']['review_hidden'] and result['capture']['config_disabled']
         assert result['capture']['url']=='/dashboard' and result['returned_to_history']

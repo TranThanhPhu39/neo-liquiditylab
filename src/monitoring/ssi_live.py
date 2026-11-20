@@ -10,7 +10,7 @@ import time
 
 from src.data_providers.ssi_readonly import SSIReadOnly
 from src.data_providers.ssi_stream import collect, SYMBOLS
-from src.data_pipeline.ssi_live_store import LiveJournal,run_folder,read_records,atomic
+from src.data_pipeline.ssi_live_store import LiveJournal,run_folder,iter_records,atomic
 from src.data_pipeline.ssi_live_normalization import load_contract,normalize_quote,normalize_trade,select_session_flag,serial
 from src.monitoring.events import OfflineEngine
 
@@ -205,9 +205,8 @@ class SSILive:
             else:
                 folder=run_folder(self.root,run_id);m=json.loads((folder/'manifest.json').read_bytes())
                 total=m['quote_counts'].get(symbol,0);first=start if start is not None else max(0,total-2000)
-                records=read_records(folder,symbol,'QUOTE',start=first,limit=5000)
-                frames=[r['frame'] for r in records];reset=True
-                trades=[r['trade'] for r in read_records(folder,symbol,'TRADE',limit=10000,
+                frames=[r['frame'] for r in iter_records(folder,symbol,'QUOTE',start=first,limit=5000)];reset=True
+                trades=[r['trade'] for r in iter_records(folder,symbol,'TRADE',limit=10000,
                     begin=frames[0]['time'] if frames else None,end=frames[-1]['time'] if frames else None)] if frames else []
                 patches=self._archive_patches(folder,symbol)
             c=m.get('unit_contract',{})
@@ -223,6 +222,7 @@ class SSILive:
 
     @staticmethod
     def _events(patches,at):
+        if not at:return []
         result={}
         for p in patches:
             if at and datetime.fromisoformat(p['received_at'])<=datetime.fromisoformat(at):
@@ -234,16 +234,18 @@ class SSILive:
 
     def _archive_patches(self,folder,symbol):
         import pyarrow.dataset as ds
-        result=[];m=json.loads((folder/'manifest.json').read_bytes())
+        m=json.loads((folder/'manifest.json').read_bytes())
         for part in m['files']:
             if __import__('re').fullmatch(r'part-\d{8}\.parquet',part['path']) is None:raise ValueError('INVALID_SSI_PARTITION')
             path=folder/part['path']
             if path.is_symlink():raise ValueError('INVALID_SSI_PARTITION')
             condition=((ds.field('symbol')==symbol)&(ds.field('kind')=='QUOTE'))|(ds.field('kind')=='SYSTEM')
-            for row in ds.dataset(path,format='parquet').to_table(columns=['record_json'],filter=condition).to_pylist():
-                r=json.loads(row['record_json'])
-                result.extend(r.get('patches',[]) if r['kind']=='QUOTE' else r.get('patches',{}).get(symbol,[]))
-        return result
+            scanner=ds.dataset(path,format='parquet').scanner(columns=['record_json'],filter=condition,
+                batch_size=128,batch_readahead=0,fragment_readahead=0,use_threads=False)
+            for batch in scanner.to_batches():
+                for row in batch.to_pylist():
+                    r=json.loads(row['record_json'])
+                    yield from (r.get('patches',[]) if r['kind']=='QUOTE' else r.get('patches',{}).get(symbol,[]))
 
     def events(self,run_id,symbol,at):
         if symbol not in SYMBOLS:raise ValueError('INVALID_SSI_SYMBOL')

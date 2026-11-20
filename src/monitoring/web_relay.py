@@ -57,8 +57,11 @@ def validate(packet):
 
 class RelayLive(SSILive):
     """Same replay API as local SSI; the GitHub collector owns collection controls."""
-    def __init__(self,root):
+    def __init__(self,root,*,quote_window=2000,trade_window=30000):
+        if any(type(n) is not int or n<1 for n in (quote_window,trade_window)):raise ValueError('WEB_RELAY_WINDOW_INVALID')
         super().__init__(root);self.delivery_at=None;self.upstream={};self.state='WAITING_FOR_COLLECTOR'
+        self.quote_window=quote_window;self.trade_window=trade_window
+        self.frames={s:deque(maxlen=quote_window) for s in SYMBOLS};self.trades={s:deque(maxlen=trade_window) for s in SYMBOLS}
 
     def apply(self,packet):
         validate(packet);m=packet['manifest'];rows=packet['records']
@@ -71,7 +74,7 @@ class RelayLive(SSILive):
                 journal.manifest.update(run_id=m['run_id'],created_at=m['created_at'],unit_contract=public_contract(m.get('unit_contract',{})),
                     normalization_version=m.get('normalization_version'),unit_verification_origin='UPSTREAM_COLLECTOR')
                 self.contract=dict(m.get('unit_contract') or self.contract)
-                self.frames={s:deque(maxlen=15000) for s in SYMBOLS};self.trades={s:deque(maxlen=30000) for s in SYMBOLS}
+                self.frames={s:deque(maxlen=self.quote_window) for s in SYMBOLS};self.trades={s:deque(maxlen=self.trade_window) for s in SYMBOLS}
                 self.patches={s:[] for s in SYMBOLS};self.counts={s:0 for s in SYMBOLS};self.trade_counts={s:0 for s in SYMBOLS}
                 self.quote_total=self.trade_total=0
                 if journal.manifest['last_ordinal']>=0:

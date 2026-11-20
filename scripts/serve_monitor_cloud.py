@@ -108,6 +108,7 @@ class CloudHandler(Handler):
 
     def authenticated(self):
         if self.owner_authenticated():return True
+        self.discard_small_body()
         self.send_response(401);self.send_header('WWW-Authenticate','Basic realm="LiquidityLab", charset="UTF-8"')
         self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return False
 
@@ -223,7 +224,8 @@ class CloudHandler(Handler):
         if not self.valid_host():return self.send_json({'error':'INVALID_HOST'},403)
         if self.path=='/api/relay':
             expected='Bearer '+self.server.ingest_token;actual=self.headers.get('Authorization','')
-            if len(actual)>1024 or not actual.isascii() or not secrets.compare_digest(actual,expected):return self.send_json({'error':'UNAUTHORIZED'},401)
+            if len(actual)>1024 or not actual.isascii() or not secrets.compare_digest(actual,expected):
+                self.discard_small_body();return self.send_json({'error':'UNAUTHORIZED'},401)
             if not self.server.heavy.acquire(blocking=False):return self.resource_busy()
             try:
                 size=int(self.headers.get('Content-Length','0'))
@@ -258,6 +260,9 @@ def load_secret_file(secret_file):
 
 
 def main():
+    import pyarrow as pa
+    # One small web instance should not prefetch/decode on a host-sized pool.
+    pa.set_cpu_count(1);pa.set_io_thread_count(1)
     if os.getenv('MONITOR_CONFIG_FILE'):load_secret_file(os.environ['MONITOR_CONFIG_FILE'])
     root=Path(os.getenv('MONITOR_DATA_ROOT','/tmp/liquiditylab')).resolve();root.mkdir(parents=True,exist_ok=True)
     origin=os.getenv('MONITOR_PUBLIC_ORIGIN') or os.getenv('RENDER_EXTERNAL_URL','')

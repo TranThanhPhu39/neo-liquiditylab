@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import tarfile
+import tempfile
 from urllib.parse import quote
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -49,22 +50,25 @@ def unpack(assets,key,context,*,max_bytes=512*1024*1024):
     if outer.get('format')!='ssi-encrypted-parquet-v1' or outer.get('context')!=context or not outer.get('parts'):
         raise ValueError('SSI_CHECKPOINT_CONTEXT_INVALID')
     if set(assets)!={'manifest.json',*(p['name'] for p in outer['parts'])}:raise ValueError('SSI_CHECKPOINT_ASSET_SET_INVALID')
-    raw=bytearray()
-    for i,p in enumerate(outer['parts']):
-        if p['name']!=f'part-{i:04d}.enc':raise ValueError('SSI_CHECKPOINT_PART_NAME_INVALID')
-        data=assets[p['name']]
-        if len(data)!=p['bytes'] or sha(data)!=p['sha256']:raise ValueError('SSI_CHECKPOINT_HASH_MISMATCH')
-        raw.extend(AESGCM(key).decrypt(data[:12],data[12:],(context+':'+str(i)).encode()))
-        if len(raw)>max_bytes:raise ValueError('SSI_CHECKPOINT_SIZE_LIMIT')
-    if sha(raw)!=outer['archive_sha256']:raise ValueError('SSI_CHECKPOINT_ARCHIVE_CHANGED')
-    files={};size=0
-    with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as archive:
-        for m in archive:
-            allowed=m.name in ('run/manifest.json','status.json') or re.fullmatch(r'run/part-\d{8}\.parquet',m.name)
-            size+=m.size
-            if not allowed or not m.isfile() or m.name in files or m.size<0 or size>max_bytes:
-                raise ValueError('SSI_UNSAFE_CHECKPOINT_ARCHIVE')
-            files[m.name]=archive.extractfile(m).read()
+    # Decrypted archive goes to a temporary stream, avoiding two full RAM copies.
+    files={};size=0;archive_bytes=0;archive_hash=hashlib.sha256()
+    with tempfile.TemporaryFile() as decrypted:
+        for i,p in enumerate(outer['parts']):
+            if p['name']!=f'part-{i:04d}.enc':raise ValueError('SSI_CHECKPOINT_PART_NAME_INVALID')
+            data=assets[p['name']]
+            if len(data)!=p['bytes'] or sha(data)!=p['sha256']:raise ValueError('SSI_CHECKPOINT_HASH_MISMATCH')
+            block=AESGCM(key).decrypt(data[:12],data[12:],(context+':'+str(i)).encode());archive_bytes+=len(block)
+            if archive_bytes>max_bytes:raise ValueError('SSI_CHECKPOINT_SIZE_LIMIT')
+            archive_hash.update(block);decrypted.write(block);del block,data
+        if archive_hash.hexdigest()!=outer['archive_sha256']:raise ValueError('SSI_CHECKPOINT_ARCHIVE_CHANGED')
+        decrypted.seek(0)
+        with tarfile.open(fileobj=decrypted,mode='r:gz') as archive:
+            for m in archive:
+                allowed=m.name in ('run/manifest.json','status.json') or re.fullmatch(r'run/part-\d{8}\.parquet',m.name)
+                size+=m.size
+                if not allowed or not m.isfile() or m.name in files or m.size<0 or size>max_bytes:
+                    raise ValueError('SSI_UNSAFE_CHECKPOINT_ARCHIVE')
+                files[m.name]=archive.extractfile(m).read()
     manifest=json.loads(files['run/manifest.json']);status=json.loads(files['status.json'])
     if manifest.get('format')!='liquiditylab-ssi-live-v1':raise ValueError('SSI_CHECKPOINT_RUN_FORMAT_INVALID')
     expected={'run/manifest.json','status.json',*('run/'+p['path'] for p in manifest['files'])}

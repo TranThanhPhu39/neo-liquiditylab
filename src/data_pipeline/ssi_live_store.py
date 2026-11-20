@@ -106,12 +106,12 @@ def run_folder(root,run_id):
     return folder
 
 
-def read_records(folder,symbol,kind,*,start=0,limit=5000,begin=None,end=None):
+def iter_records(folder,symbol,kind,*,start=0,limit=5000,begin=None,end=None):
     import pyarrow.dataset as ds
     manifest=json.loads((Path(folder)/'manifest.json').read_bytes())
     if symbol not in manifest['symbols'] or kind not in ('QUOTE','TRADE'):raise ValueError('INVALID_SSI_QUERY')
     if not 1<=limit<=10000:raise ValueError('INVALID_SSI_QUERY_LIMIT')
-    result=[]
+    count=0
     for f in manifest['files']:
         if not re.fullmatch(r'part-\d{8}\.parquet',f['path']):raise ValueError('INVALID_SSI_PARTITION')
         path=Path(folder)/f['path']
@@ -120,8 +120,13 @@ def read_records(folder,symbol,kind,*,start=0,limit=5000,begin=None,end=None):
         if kind=='QUOTE':condition=condition&(ds.field('quote_index')>=start)
         if begin:condition=condition&(ds.field('received_at')>=datetime.fromisoformat(begin))
         if end:condition=condition&(ds.field('received_at')<=datetime.fromisoformat(end))
-        table=ds.dataset(path,format='parquet').to_table(columns=['record_json'],filter=condition)
-        for r in table.to_pylist():
-            result.append(json.loads(r['record_json']))
-            if len(result)>=limit:return result
-    return result
+        scanner=ds.dataset(path,format='parquet').scanner(columns=['record_json'],filter=condition,
+            batch_size=128,batch_readahead=0,fragment_readahead=0,use_threads=False)
+        for batch in scanner.to_batches():
+            for r in batch.to_pylist():
+                yield json.loads(r['record_json']);count+=1
+                if count>=limit:return
+
+
+def read_records(folder,symbol,kind,*,start=0,limit=5000,begin=None,end=None):
+    return list(iter_records(folder,symbol,kind,start=start,limit=limit,begin=begin,end=end))
