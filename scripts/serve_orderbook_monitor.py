@@ -29,7 +29,7 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript')}
 ASSETS.update({'/realtime':('realtime.html','text/html'),'/realtime/':('realtime.html','text/html'),'/live.js':('live.js','text/javascript'),'/live.css':('live.css','text/css'),'/live-model.js':('live-model.js','text/javascript')})
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v6-relative'
+APPLICATION_VERSION='offline-monitor-v7-public'
 
 
 class ReviewStore:
@@ -149,8 +149,8 @@ class MonitorServer(ThreadingHTTPServer):
             raise ValueError('TRADE_IDENTITY_MISMATCH')
         return result
 
-    def library(self):
-        notes=self.reviews.all();latest={(r['dataset_id'],r['event_id']):r for r in notes}
+    def library(self,include_reviews=True):
+        notes=self.reviews.all() if include_reviews else [];latest={(r['dataset_id'],r['event_id']):r for r in notes}
         rows=[]
         for entry in self.index():
             if entry.get('market_observation') and not any(r['dataset_id']==entry['dataset_id'] for r in notes):continue
@@ -194,7 +194,7 @@ class MonitorServer(ThreadingHTTPServer):
         return build(day,symbol=symbol,root=self.root,config=config,event_config=event_config)
 
 
-def report_payload(server,dataset_id,event_id=None):
+def report_payload(server,dataset_id,event_id=None,*,include_reviews=True):
     summary=server.summary(dataset_id)
     events=summary['events']
     if event_id:
@@ -208,7 +208,7 @@ def report_payload(server,dataset_id,event_id=None):
         'config','analysis_parameters','source_archive','audit_checked_at','continuity_policy')}
     return dict(scope='FULL_SESSION_RETROSPECTIVE_REVIEW',configuration_status='EXPERIMENTAL_UNCALIBRATED',
                 dataset_id=dataset_id,symbol=summary['symbol'],day=summary['day'],quality=summary['quality'],
-                provenance=provenance,events=events,reviews=[r for r in server.reviews.read(dataset_id) if r['event_id'] in ids])
+                provenance=provenance,events=events,reviews=[r for r in server.reviews.read(dataset_id) if r['event_id'] in ids] if include_reviews else [])
 
 
 def report_csv(report):
@@ -226,6 +226,8 @@ def report_csv(report):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def read_only(self):return False
+
     def log_message(self, *args):
         pass  # Never log query strings, submitted notes, or request headers.
 
@@ -262,9 +264,10 @@ class Handler(BaseHTTPRequestHandler):
                 name, content_type = ASSETS[route.path]
                 return self.send_bytes((self.server.assets / name).read_bytes(), content_type)
             if route.path == '/api/datasets':
-                return self.send_json(dict(datasets=self.server.index(), csrf=self.server.csrf,application_version=APPLICATION_VERSION))
+                return self.send_json(dict(datasets=self.server.index(),csrf=None if self.read_only() else self.server.csrf,
+                    read_only=self.read_only(),application_version=APPLICATION_VERSION))
             params = parse_qs(route.query)
-            if route.path=='/api/live/status':return self.send_json(dict(self.server.live.status(),csrf=self.server.csrf))
+            if route.path=='/api/live/status':return self.send_json(dict(self.server.live.status(),csrf=None if self.read_only() else self.server.csrf,read_only=self.read_only()))
             if route.path=='/api/live/runs':return self.send_json(self.server.live.runs())
             if route.path=='/api/live/view':
                 return self.send_json(self.server.live.view(params.get('run_id',[''])[0],params.get('symbol',['ACB'])[0],
@@ -275,7 +278,7 @@ class Handler(BaseHTTPRequestHandler):
                 run=params.get('run_id',[''])[0];symbol=params.get('symbol',['ACB'])[0]
                 cutoff=params.get('at',[datetime.now(timezone.utc).isoformat()])[0]
                 events=self.server.live.events(run,symbol,cutoff)
-                notes=self.server.reviews.read(self.server.live.dataset_id(run,symbol))
+                notes=[] if self.read_only() else self.server.reviews.read(self.server.live.dataset_id(run,symbol))
                 if route.path.endswith('/reviews'):return self.send_json(notes)
                 return self.send_bytes(json.dumps(dict(provider='ssi',run_id=run,symbol=symbol,events=events,reviews=notes,
                     cutoff=cutoff,scope='UNTIL_RECEIVE_CUTOFF',clock_policy='RECEIVE_ORDER_WITH_ORIGINAL_SOURCE_CLOCK',configuration_status='EXPERIMENTAL_UNCALIBRATED'),ensure_ascii=False).encode(),filename='ssi-events.json')
@@ -286,14 +289,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_bytes(raw)
             if route.path == '/api/reviews':
                 self.server.dataset(dataset_id)
-                return self.send_json(self.server.reviews.read(dataset_id))
+                return self.send_json([] if self.read_only() else self.server.reviews.read(dataset_id))
             if route.path=='/api/trades':return self.send_json(self.server.trades(dataset_id))
-            if route.path=='/api/library':return self.send_json(self.server.library())
+            if route.path=='/api/library':return self.send_json(self.server.library(include_reviews=False) if self.read_only() else self.server.library())
             if route.path=='/api/watchlist':
                 return self.send_json(self.server.watchlist(params.get('day',[''])[0],params.get('cutoff',[''])[0],
                     params['symbols'][0].split(',') if 'symbols' in params else None))
             if route.path=='/api/export':
-                report=report_payload(self.server,dataset_id,params.get('event_id',[None])[0])
+                report=report_payload(self.server,dataset_id,params.get('event_id',[None])[0],include_reviews=not self.read_only())
                 if params.get('format',['json'])[0]=='csv':
                     return self.send_bytes(report_csv(report),'text/csv',filename='liquidity-events.csv')
                 return self.send_bytes(json.dumps(report,ensure_ascii=False).encode('utf-8'),filename='liquidity-events.json')

@@ -1,4 +1,4 @@
-"""Password-protected hosted monitor; SSI secrets remain on the GitHub collector."""
+"""Public read-only monitor with separately authenticated owner writes and relay."""
 import base64
 from datetime import datetime,timezone
 import gzip
@@ -20,12 +20,14 @@ from src.monitoring.web_reviews import PostgresReviews,UnconfiguredReviews
 
 
 class CloudServer(MonitorServer):
-    def __init__(self,root,*,port=10000,origin,read_password,ingest_token,database_url=None,bind_host='0.0.0.0'):
+    def __init__(self,root,*,port=10000,origin,read_password,ingest_token,database_url=None,bind_host='0.0.0.0',public_read=False):
         parts=urlsplit(origin)
         if parts.scheme not in ('https','http') or not parts.netloc or parts.path not in ('','/') or parts.query or parts.fragment or parts.username:
             raise ValueError('MONITOR_PUBLIC_ORIGIN_INVALID')
         if parts.scheme=='http' and parts.hostname!='127.0.0.1':raise ValueError('MONITOR_HTTPS_REQUIRED')
         if len(read_password)<24 or len(ingest_token)<32:raise ValueError('MONITOR_STRONG_CREDENTIALS_REQUIRED')
+        if type(public_read) is not bool:raise ValueError('MONITOR_PUBLIC_READ_BOOLEAN_REQUIRED')
+        self.public_read=public_read
         self.public_origin=origin.rstrip('/');self.read_password=read_password;self.ingest_token=ingest_token
         self.heavy=threading.BoundedSemaphore(1);self.recovery=None
         reviews=PostgresReviews(database_url) if database_url else UnconfiguredReviews()
@@ -93,10 +95,15 @@ class CloudHandler(Handler):
     def valid_host(self):return self.headers.get('Host')==urlsplit(self.server.public_origin).netloc
     def expected_origin(self):return self.server.public_origin
 
-    def authenticated(self):
+    def owner_authenticated(self):
         expected='Basic '+base64.b64encode(('liquiditylab:'+self.server.read_password).encode()).decode()
         actual=self.headers.get('Authorization','')
-        if len(actual)<=1024 and actual.isascii() and secrets.compare_digest(actual,expected):return True
+        return len(actual)<=1024 and actual.isascii() and secrets.compare_digest(actual,expected)
+
+    def read_only(self):return self.server.public_read and not self.owner_authenticated()
+
+    def authenticated(self):
+        if self.owner_authenticated():return True
         self.send_response(401);self.send_header('WWW-Authenticate','Basic realm="LiquidityLab", charset="UTF-8"')
         self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return False
 
@@ -110,7 +117,18 @@ class CloudHandler(Handler):
             return self.send_bytes((self.server.assets/'intro.css').read_bytes(),'text/css')
         if route.path=='/robots.txt':
             return self.send_bytes(b'User-agent: *\nAllow: /$\nDisallow: /dashboard\nDisallow: /index.html\nDisallow: /realtime\nDisallow: /api/\n','text/plain')
-        if not self.authenticated():return
+        if self.server.public_read:
+            public_api={'/api/hosting','/api/datasets','/api/dataset','/api/reviews','/api/trades','/api/library',
+                        '/api/watchlist','/api/export','/api/live/status','/api/live/runs','/api/live/view',
+                        '/api/live/events','/api/live/reviews','/api/live/export'}
+            if route.path in ('/admin','/api/review-history'):
+                if not self.authenticated():return
+                if route.path=='/admin':
+                    self.send_response(303);self.send_header('Location','/dashboard')
+                    self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
+            elif route.path not in ASSETS and route.path not in public_api:
+                return self.send_json({'error':'NOT_FOUND'},404)
+        elif not self.authenticated():return
         if route.path=='/api/hosting':
             r=self.server.recovery
             entries=[] if r and not r.seed_ready else self.server.index()
@@ -120,7 +138,8 @@ class CloudHandler(Handler):
                 latest_history_day=latest,market_scope='ALL_CATALOG_SYMBOLS' if any(e.get('market_observation') for e in entries) else 'THREE_VERIFIED_SYMBOLS',
                 latest_catalog_symbols=len(current),latest_symbols_with_observations=sum(bool(e.get('observations')) for e in current),
                 recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
-                persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews)))
+                persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews),
+                public_read=self.server.public_read,read_only=self.read_only()))
         if (self.server.recovery and not self.server.recovery.seed_ready and route.path.startswith('/api/') and
             not route.path.startswith('/api/live/') and route.path!='/api/review-history'):
             return self.send_json({'error':'DATA_RESTORING_RETRY'},503)
@@ -238,7 +257,7 @@ def main():
     origin=os.getenv('MONITOR_PUBLIC_ORIGIN') or os.getenv('RENDER_EXTERNAL_URL','')
     server=CloudServer(root,port=int(os.getenv('PORT','10000')),origin=origin,
         read_password=os.environ['MONITOR_WEB_PASSWORD'],ingest_token=os.environ['MONITOR_INGEST_TOKEN'],
-        database_url=os.getenv('MONITOR_DATABASE_URL'))
+        database_url=os.getenv('MONITOR_DATABASE_URL'),public_read=os.getenv('MONITOR_PUBLIC_READ','false').lower()=='true')
     encoded=os.getenv('LIQUIDITYLAB_STATE_KEY')
     if encoded:
         key=base64.b64decode(encoded,validate=True)

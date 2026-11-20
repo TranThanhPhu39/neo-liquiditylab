@@ -84,7 +84,7 @@ test('trade package rejects cross-symbol/day, duplicate identity, bad quantities
   for(const mutate of [p=>p.symbol='FPT',p=>p.day='2026-11-10',p=>p.trades[0].qty=true,p=>p.trades[1].id=p.trades[0].id,p=>p.trades[1].time=p.trades[0].time.replace('01.100','00.100')]){const p=tradeData();mutate(p);assert.throws(()=>M.validateTrades(p,data()));}
   assert.deepEqual(M.bubblesAt(null,0,1),[]);assert.deepEqual(M.bubblesAt({trades:[]},0,1),[]);
 });
-test('app loads history, opens event evidence, rewinds, plays and saves notes',async()=>{
+for(const publicRead of [false,true])test('app loads history and evidence in '+(publicRead?'anonymous read-only mode':'owner mode'),async()=>{
   const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
   const elements=new Map(),raf=[];let notes=[],saved=null,draws=0,analyzed=null,arcs=0;
   class Element{
@@ -107,7 +107,7 @@ test('app loads history, opens event evidence, rewinds, plays and saves notes',a
   let catalog=[entry(d),entry(fpt)];
   const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:q=>q==='[data-page]'?nav:[]},window:{devicePixelRatio:1},ResizeObserver:class{observe(){}},requestAnimationFrame:fn=>raf.push(fn),performance:{now:()=>0},Intl,Date,console,
     fetch:async(url,options={})=>{let result;
-      if(url==='/api/datasets')result={application_version:'offline-monitor-v3-bubbles',csrf:'fixture',datasets:catalog};
+      if(url==='/api/datasets')result={application_version:'offline-monitor-v7-public',csrf:publicRead?null:'fixture',read_only:publicRead,datasets:catalog};
       else if(url.startsWith('/api/trades?'))result=tradeData(packs.get(url.split('=')[1]));
       else if(url.startsWith('/api/dataset?'))result=packs.get(url.split('=')[1]);
       else if(url.startsWith('/api/watchlist?'))result=[{symbol:'ACB',bid:'21000',ask:'21050',time:d.frames[0].time,status:'VERIFIED',dataset_id:d.dataset_id,features:{bid_depth:100,ask_depth:900}}];
@@ -122,8 +122,18 @@ test('app loads history, opens event evidence, rewinds, plays and saves notes',a
   assert.ok(arcs>0);assert.match(get('bubbleStatus').textContent,/bubbles/);
   const was=arcs;get('showBubbles').checked=false;await get('showBubbles').emit('change');assert.equal(arcs,was);assert.match(get('bubbleStatus').textContent,/Đã ẩn/);
   get('showBubbles').checked=true;await get('showBubbles').emit('change');assert.ok(arcs>was);
-  await get('events').nodes[0].emit('click');assert.equal(get('cursor').value,4);assert.equal(get('reviewForm').hidden,false);
+  await get('events').nodes[0].emit('click');assert.equal(get('cursor').value,4);assert.equal(get('reviewForm').hidden,publicRead);
   assert.match(get('evidence').textContent,/20/);assert.doesNotMatch(get('evidence').textContent,/40 bps/);
+  if(publicRead){
+    assert.equal(get('openConfig').disabled,true);
+    await get('reviewForm').emit('submit',{preventDefault(){}});
+    await get('configForm').emit('submit',{preventDefault(){}});
+    await get('openConfig').emit('click');
+    assert.equal(saved,null);assert.equal(analyzed,null);assert.notEqual(get('configDialog').open,true);
+    await get('first').emit('click');assert.equal(get('eventCount').textContent,'0');
+    await get('play').emit('click');raf.shift()(1000);assert.equal(get('cursor').value,7);
+    return;
+  }
   get('note').value='fixture review';await get('reviewForm').emit('submit',{preventDefault(){}});assert.equal(saved.note,'fixture review');
   await get('first').emit('click');assert.equal(get('eventCount').textContent,'0');assert.equal(get('reviewForm').hidden,true);
   await get('play').emit('click');raf.shift()(1000);assert.equal(get('cursor').value,7);assert.equal(get('eventCount').textContent,'1');

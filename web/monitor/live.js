@@ -57,7 +57,7 @@
     const current=rows.find(e=>e.id===eventId);if(current)showEvidence(current);
   }
   function showEvidence(event){
-    $('evidence').replaceChildren();const pre=document.createElement('pre');pre.textContent=JSON.stringify(event,null,2);$('evidence').append(pre);$('review').hidden=false;
+    $('evidence').replaceChildren();const pre=document.createElement('pre');pre.textContent=JSON.stringify(event,null,2);$('evidence').append(pre);$('review').hidden=Boolean(status.read_only);
     $('export').hidden=false;$('export').href='/api/live/export?'+query()+'&at='+encodeURIComponent(buffer.frames[index].time);
     const selection=buffer.run+'|'+event.id;
     if($('review').dataset.event!==selection){
@@ -115,7 +115,7 @@
   for(const id of ['window','scale','bubbles','group'])$(id).onchange=paint;
   for(const button of document.querySelectorAll('[data-side]'))button.onclick=()=>{side=button.dataset.side;for(const b of document.querySelectorAll('[data-side]'))b.classList.toggle('selected',b===button);paint();};
   $('heatmap').onmousemove=e=>{const rect=$('heatmap').getBoundingClientRect();const hit=layout?.hits.find(h=>Math.hypot(e.clientX-rect.left-h.x,e.clientY-rect.top-h.y)<=h.radius+3);$('hover').hidden=!hit;if(hit)setText('hover','KHỚP LỆNH SSI · '+hit.bubble.side+'\nGiá '+fmt(hit.bubble.price)+' · Lượng '+fmt(hit.bubble.qty)+'\n'+fmt(hit.bubble.count)+' giao dịch · '+clock(hit.bubble.first)+' – '+clock(hit.bubble.last));};$('heatmap').onmouseleave=()=>{$('hover').hidden=true;};
-  $('review').onsubmit=async e=>{e.preventDefault();if(!eventId)return;const run=buffer.run,id=eventId,symbol=buffer.symbol;try{await api('/api/live/reviews',{run_id:run,symbol,event_id:id,verdict:$('verdict').value,note:$('note').value});const rows=await api('/api/live/reviews?run_id='+run+'&symbol='+symbol);if(buffer.run===run&&eventId===id){noteRows=rows.filter(r=>r.event_id===id);setText('reviewState',(status.hosted?'Đã lưu nhận xét trên máy chủ; giữ toàn bộ lịch sử.':'Đã lưu nhận xét trên máy; giữ toàn bộ lịch sử.'));renderEvents();}}catch(error){fail(error);}};
+  $('review').onsubmit=async e=>{e.preventDefault();if(status.read_only||!eventId)return;const run=buffer.run,id=eventId,symbol=buffer.symbol;try{await api('/api/live/reviews',{run_id:run,symbol,event_id:id,verdict:$('verdict').value,note:$('note').value});const rows=await api('/api/live/reviews?run_id='+run+'&symbol='+symbol);if(buffer.run===run&&eventId===id){noteRows=rows.filter(r=>r.event_id===id);setText('reviewState',(status.hosted?'Đã lưu nhận xét trên máy chủ; giữ toàn bộ lịch sử.':'Đã lưu nhận xét trên máy; giữ toàn bộ lịch sử.'));renderEvents();}}catch(error){fail(error);}};
   new ResizeObserver(paint).observe($('heatmap').parentElement);requestAnimationFrame(tick);
   poll();
 })();

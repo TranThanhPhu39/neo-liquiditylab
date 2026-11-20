@@ -1,5 +1,7 @@
 # Phạm vi mới — LiquidityLab: theo dõi và xem lại sự kiện thanh khoản
 
+**Quyền xem ngày 20/11:** theo yêu cầu bỏ đăng nhập, web Render mở công khai chế độ xem dashboard/lịch sử và capture SSI hiện có. Quyền ghi và ghi chú riêng vẫn được bảo vệ. Thay đổi này không mở rộng danh sách SSI subscription hoặc chứng nhận đơn vị. Xem [quyền truy cập](online_monitor.md).
+
 **Điều chỉnh theo yêu cầu 16/11:** mở rộng **lịch sử quan sát sổ lệnh** ra toàn bộ danh mục DNSE, gồm HOSE/HNX/UPCOM, có tìm mã, lọc sàn và phân trang. Phạm vi detector đã nghiệm thu đơn vị và SSI subscription vẫn là ACB/FPT/HPG; các mã còn lại chỉ quan sát, không tự mở khóa detector. Đây là ngoại lệ thay thế giới hạn “không toàn thị trường” của kế hoạch 12/11 bên dưới, không phải cam kết realtime toàn thị trường. Xem [phạm vi và cách dùng mới](market_monitor.md).
 
 Quyết định ngày 12/11/2026 theo đề xuất người dùng gửi. Người thực hiện xác nhận **làm một mình, hạn nộp 01/12/2026**. Khoảng 19 ngày còn lại thay cho giả định 10 tuần/ba người trong bản đề xuất. **Ưu tiên đã điều chỉnh: hoàn thiện sản phẩm offline trên dữ liệu cũ trước, sau đó mới nối realtime.** Bản local v2 có ba màn hình Theo dõi / Phân tích mã / Rà soát, D1/D2/D3, replay/evidence, review giữ lịch sử, phiên bản ngưỡng và xuất hồ sơ. Dữ liệu gồm 11 ngày, ba mã DNSE; detector FPT/HPG bị chặn do đơn vị chưa xác minh. Xem [hướng dẫn và giới hạn nghiệm thu](event_monitor_runbook.md). Chưa nối SSI live, deploy hoặc nghiệm thu giá trị/hiệu chỉnh; hình thức browser thật chưa kiểm tra được.

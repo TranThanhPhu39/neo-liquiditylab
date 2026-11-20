@@ -13,6 +13,7 @@ on:
       - 'scripts/check_monitor_cloud.py'
       - 'src/monitoring/web_*.py'
       - 'tests/test_online_monitor.py'
+      - 'tests/test_public_monitor.py'
       - '.github/workflows/monitor-web-checks.yml'
   workflow_dispatch:
 permissions:
@@ -41,7 +42,7 @@ jobs:
           Draft202012Validator(schema).validate(blueprint)
           assert all(x['plan']=='free' for group in ('services','databases') for x in blueprint[group])
           PY
-      - run: python -m pytest tests/test_online_monitor.py -q --basetemp=.pytest_online --tb=short
+      - run: python -m pytest tests/test_online_monitor.py tests/test_public_monitor.py -q --basetemp=.pytest_online --tb=short
       - name: Build Linux production image
         run: docker build -f Dockerfile -t liquiditylab-monitor:check .
       - name: Verify image health and access controls without SSI keys
@@ -51,6 +52,14 @@ jobs:
         run: |
           docker run --detach --name monitor-check --publish 127.0.0.1:10000:10000 --env MONITOR_PUBLIC_ORIGIN=http://127.0.0.1:10000 --env MONITOR_WEB_PASSWORD --env MONITOR_INGEST_TOKEN=fixture-ingest-token-32-characters liquiditylab-monitor:check
           python -m scripts.check_monitor_cloud
+      - name: Verify public viewing with owner controls protected
+        env:
+          MONITOR_WEB_PASSWORD: fixture-web-password-32-characters
+          MONITOR_CHECK_ORIGIN: http://127.0.0.1:10001
+          MONITOR_PUBLIC_READ: 'true'
+        run: |
+          docker run --detach --name monitor-public-check --publish 127.0.0.1:10001:10000 --env MONITOR_PUBLIC_ORIGIN=http://127.0.0.1:10001 --env MONITOR_PUBLIC_READ --env MONITOR_WEB_PASSWORD --env MONITOR_INGEST_TOKEN=fixture-ingest-token-32-characters liquiditylab-monitor:check
+          python -m scripts.check_monitor_cloud
       - name: Stop owned smoke container
         if: always()
-        run: docker rm --force monitor-check || true
+        run: docker rm --force monitor-check monitor-public-check || true
