@@ -114,7 +114,8 @@
           if(!captureRuns.some(r=>r.run_id===captureStatus.run_id))captureRuns=await api('/api/live/runs');if(!isCapture()||epoch!==pollEpoch)return;
           captureOptions($('symbolSelect').value,captureRuns.find(r=>r.run_id===captureStatus.run_id)?.day,captureStatus.run_id);
         }
-        await loadCapture(null,{delta:true});
+        const current=$('captureRun').value===captureStatus.run_id,total=captureStatus.quote_counts?.[$('symbolSelect').value];
+        if((!data&&current)||current&&(captureStatus.active||Number.isSafeInteger(total)&&total>capture.window.total))await loadCapture(null,{delta:true});
       }
       captureState();
     }catch(e){if(isCapture()&&epoch===pollEpoch){$('modeStatus').textContent='Không cập nhật được bản thu. Dữ liệu đang xem có thể đã cũ.';showError(e.message);$('viewBadge').textContent='MẤT CẬP NHẬT';}}
