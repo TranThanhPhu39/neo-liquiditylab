@@ -122,7 +122,7 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
       else if(url==='/api/analyze'){analyzed=JSON.parse(options.body);const p=structuredClone(d);p.dataset_id='c'.repeat(64);packs.set(p.dataset_id,p);catalog=[{...entry(d),archived:true},entry(p),entry(fpt)];result=entry(p);}
       else if(options.method==='POST'){saved=JSON.parse(options.body);assert.equal(options.headers['X-Monitor-CSRF'],'fixture');notes.push({...saved,created_at:'2026-11-12T00:00:00Z'});result={state:'SAVED'};}
       else result=notes.filter(n=>n.dataset_id===url.split('=')[1]);if(holdCapture&&url.startsWith('/api/live/view?'))await new Promise(resolve=>heldCapture=resolve);return {ok:true,json:async()=>result};}});
-  for(const file of ['model.js','heatmap.js','live-model.js','capture-model.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../../web/monitor',file),'utf8'),context);
+  for(const file of ['model.js','heatmap.js','live-model.js','capture-model.js','http.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../../web/monitor',file),'utf8'),context);
   for(let i=0;i<3;i++)await new Promise(r=>setImmediate(r));
   assert.equal(get('error').hidden,true);assert.equal(get('eventCount').textContent,'0');assert.ok(draws>0);
   await get('sessionEnd').emit('click');assert.equal(get('eventCount').textContent,'1');

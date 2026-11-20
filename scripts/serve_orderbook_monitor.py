@@ -26,10 +26,10 @@ import zlib
 
 ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/html'), '/index.html': ('index.html', 'text/html'),
           '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'),
-          '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript')}
+          '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript'),'/http.js':('http.js','text/javascript')}
 ASSETS.update({'/realtime':('index.html','text/html'),'/realtime/':('index.html','text/html'),'/live-model.js':('live-model.js','text/javascript'),'/capture-model.js':('capture-model.js','text/javascript')})
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v8-unified'
+APPLICATION_VERSION='offline-monitor-v9-recovery'
 
 
 class ReviewStore:
@@ -201,7 +201,7 @@ def report_payload(server,dataset_id,event_id=None,*,include_reviews=True):
         events=[e for e in events if e['id']==event_id]
         if not events:raise ValueError('UNKNOWN_EVENT')
     ids={e['id'] for e in events}
-    pack=json.loads(server.dataset(dataset_id).read_text(encoding='utf-8'))
+    pack=server.metadata(dataset_id) if callable(getattr(server,'metadata',None)) else json.loads(server.dataset(dataset_id).read_text(encoding='utf-8'))
     if pack['dataset_id']!=dataset_id:raise ValueError('DATASET_IDENTITY_MISMATCH')
     provenance={k:pack.get(k) for k in ('provider','exchange','board','levels','price_unit','volume_unit',
         'clock_policy','sampling','unit_rule_hash','detector_version','config_hash','detector_configs',
@@ -239,6 +239,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', content_type + '; charset=utf-8')
         self.send_header('Content-Length', str(len(value)))
         self.send_header('Cache-Control', 'no-store')
+        if status in (429,503):self.send_header('Retry-After','3')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
         if filename:self.send_header('Content-Disposition','attachment; filename="'+filename+'"')

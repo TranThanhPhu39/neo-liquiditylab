@@ -1,5 +1,7 @@
 # NEO LiquidityLab
 
+**Xử lý máy chủ bận/phục hồi — 20/11/2026:** dashboard nhận biết riêng `DATA_RESTORING_RETRY`, `SERVER_BUSY_RETRY` và lỗi kết nối; hiển thị trạng thái chờ, tự thử lại có giới hạn và gộp các yêu cầu GET trùng. Không tự gửi lại yêu cầu lưu ghi chú. Backend chia sẻ giới hạn xử lý giữa phục hồi checkpoint và truy vấn nặng, giải phóng payload checkpoint sau khi cài, và xuất hồ sơ từ metadata thay vì tải cả replay vào RAM. [Cách dùng dashboard](docs/unified_dashboard.md).
+
 **Một dashboard chung — 20/11/2026:** dùng [dashboard](https://neo-liquiditylab-monitor.onrender.com/dashboard), chọn **Lịch sử** hoặc **Theo dõi gần nhất** trên cùng giao diện heatmap, bubbles, sổ lệnh và replay. Không còn điều hướng riêng theo DNSE/SSI; tên nguồn chỉ nằm trong thông tin chất lượng. Mã được giữ khi đổi chế độ; nếu chưa có bản thu thì báo rõ. Link `/realtime` cũ chuyển về dashboard chung. [Cách sử dụng và giới hạn](docs/unified_dashboard.md).
 
 **Xem công khai — 20/11/2026:** [dashboard chung](https://neo-liquiditylab-monitor.onrender.com/dashboard) không yêu cầu đăng nhập khi bật `MONITOR_PUBLIC_READ=true` trên Render. Ghi chú riêng không xuất hiện với người xem; quyền lưu ghi chú và thay cấu hình vẫn dành cho chủ dự án qua `/admin`. Không cần tài khoản ChatGPT. Xem [quyền truy cập hiện tại](docs/online_monitor.md).

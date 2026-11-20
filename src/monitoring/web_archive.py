@@ -1,6 +1,7 @@
 """Bounded encrypted cloud seed/recovery. Public Releases hold ciphertext only."""
 from datetime import datetime,timezone
 import hashlib
+from contextlib import nullcontext
 import io
 import json
 import os
@@ -131,10 +132,41 @@ def ssi_recovery_tags(releases,preferred=()):
 
 
 class CloudRecovery:
-    def __init__(self,root,key,seed_tag=None,*,api=None,live=None,on_seed=None,preferred_tags=()):
+    def __init__(self,root,key,seed_tag=None,*,api=None,live=None,on_seed=None,preferred_tags=(),resource_lock=None):
         self.root=Path(root);self.key=key;self.seed_tag=seed_tag;self.api=api or PublicReleases(REPOSITORY);self.live=live
         self.state='NOT_STARTED';self.seed_ready=not bool(seed_tag);self.last_error=None;self.closed=threading.Event();self.thread=None;self.known_tags=set();self.on_seed=on_seed
         self.preferred_tags=ssi_recovery_tags([],preferred_tags)
+        self.resource_lock=resource_lock
+
+    def restore_capture(self,tag):
+        # Keep decrypted bytes inside this call, never across the 15-minute sleep.
+        files=None
+        try:
+            with self.live.lock if self.live else nullcontext():
+                active=self.live.journal.run_id if self.live and self.live.journal and self.live.status()['active'] else None
+            files,proof=SSICheckpoints(REPOSITORY,self.key,api=self.api).restore(tag,max_bytes=64*1024*1024)
+            if proof['run_id']==active:return
+            with self.live.lock if self.live else nullcontext():
+                existing=list((self.root/'data/realtime/ssi').glob('????-??-??/'+proof['run_id']+'/manifest.json'))
+                if existing:
+                    old=json.loads(existing[0].read_bytes());new=json.loads(files['run/manifest.json'])
+                    if old['last_ordinal']>=new['last_ordinal']:
+                        self.known_tags.add(tag);return
+                    if self.live and self.live.journal and self.live.journal.run_id==proof['run_id']:
+                        if self.live.status()['active']:return
+                        self.live.journal.close();self.live.journal=None
+                    previous=existing[0].parent;backup=self.root/'data/control'/('relay-replaced-'+uuid.uuid4().hex)
+                    if not previous.resolve().is_relative_to(self.root.resolve()) or not backup.resolve().is_relative_to(self.root.resolve()):
+                        raise ValueError('UNSAFE_RECOVERY_DESTINATION')
+                    backup.parent.mkdir(parents=True,exist_ok=True);previous.rename(backup)
+                    try:install(files,root=self.root)
+                    except Exception:backup.rename(previous);raise
+                    if backup.resolve().is_relative_to((self.root/'data/control').resolve()) and backup.name.startswith('relay-replaced-'):
+                        shutil.rmtree(backup)
+                else:install(files,root=self.root)
+                self.known_tags.add(tag)
+        finally:
+            if files is not None:files.clear()
 
     def start(self):
         def worker():
@@ -142,36 +174,15 @@ class CloudRecovery:
                 try:
                     self.state='RECOVERING'
                     if not self.seed_ready:
-                        restore_seed(self.root,self.key,self.seed_tag,self.api)
-                        if self.on_seed:self.on_seed()
-                        self.seed_ready=True
+                        with self.resource_lock if self.resource_lock is not None else nullcontext():
+                            restore_seed(self.root,self.key,self.seed_tag,self.api)
+                            if self.on_seed:self.on_seed()
+                            self.seed_ready=True
                     releases=self.api.request('GET',repository_path(REPOSITORY)+'/releases?per_page=100')
                     for r in [dict(tag_name=t) for t in ssi_recovery_tags(releases,self.preferred_tags)]:
                         if r['tag_name'] in self.known_tags:continue
-                        with self.live.lock if self.live else threading.RLock():
-                            active=self.live.journal.run_id if self.live and self.live.journal and self.live.status()['active'] else None
-                        files,proof=SSICheckpoints(REPOSITORY,self.key,api=self.api).restore(r['tag_name'],max_bytes=64*1024*1024)
-                        if proof['run_id']==active:continue
-                        with self.live.lock if self.live else threading.RLock():
-                            existing=list((self.root/'data/realtime/ssi').glob('????-??-??/'+proof['run_id']+'/manifest.json'))
-                            if existing:
-                                old=json.loads(existing[0].read_bytes());new=json.loads(files['run/manifest.json'])
-                                if old['last_ordinal']>=new['last_ordinal']:
-                                    self.known_tags.add(r['tag_name']);continue
-                                if self.live and self.live.journal and self.live.journal.run_id==proof['run_id']:
-                                    if self.live.status()['active']:continue
-                                    self.live.journal.close();self.live.journal=None
-                                previous=existing[0].parent;backup=self.root/'data/control'/('relay-replaced-'+uuid.uuid4().hex)
-                                if not previous.resolve().is_relative_to(self.root.resolve()) or not backup.resolve().is_relative_to(self.root.resolve()):
-                                    raise ValueError('UNSAFE_RECOVERY_DESTINATION')
-                                backup.parent.mkdir(parents=True,exist_ok=True);previous.rename(backup)
-                                try:install(files,root=self.root)
-                                except Exception:backup.rename(previous);raise
-                                # The verified source archive now supersedes this relay copy.
-                                if backup.resolve().is_relative_to((self.root/'data/control').resolve()) and backup.name.startswith('relay-replaced-'):
-                                    shutil.rmtree(backup)
-                            else:install(files,root=self.root)
-                            self.known_tags.add(r['tag_name'])
+                        with self.resource_lock if self.resource_lock is not None else nullcontext():
+                            self.restore_capture(r['tag_name'])
                     self.state='READY';self.last_error=None
                 except Exception as error:
                     self.state='RECOVERY_RETRY';self.last_error=type(error).__name__

@@ -75,6 +75,14 @@ def main():
         if not wait("document.getElementById('play')?.disabled===false && document.getElementById('error')?.hidden===true"):
             raise RuntimeError('PUBLIC_DASHBOARD_NOT_READY')
         result['dashboard']=evaluate("({day:document.getElementById('daySelect').value,symbol:document.getElementById('symbolSelect').value,frames:Number(document.getElementById('cursor').max)+1,canvas:document.getElementById('heatmap').width,config_disabled:document.getElementById('openConfig').disabled,review_hidden:document.getElementById('reviewForm').hidden})")
+        evaluate("document.querySelector('[data-page=review]').click();")
+        if not wait("document.querySelectorAll('#libraryTable tbody tr').length>0 && document.getElementById('error')?.hidden===true"):
+            result['library_error']=evaluate("document.getElementById('libraryStatus')?.textContent")
+            raise RuntimeError('PUBLIC_EVENT_LIBRARY_NOT_READY')
+        result['library']=evaluate("({rows:document.querySelectorAll('#libraryTable tbody tr').length,status:document.getElementById('libraryStatus').textContent,error_hidden:document.getElementById('error').hidden,notice_hidden:document.getElementById('serverNotice').hidden})")
+        screenshot=call('Page.captureScreenshot',dict(format='png',captureBeyondViewport=False))
+        (ROOT/'report/recovery_library_2026-11-20.png').write_bytes(base64.b64decode(screenshot['data']))
+        evaluate("document.querySelector('[data-page=analysis]').click();")
         evaluate("document.getElementById('sessionEnd').click();document.querySelector('#events button')?.click();")
         result['dashboard']['event_review_hidden']=evaluate("document.getElementById('reviewForm').hidden")
         screenshot=call('Page.captureScreenshot',dict(format='png',captureBeyondViewport=False))

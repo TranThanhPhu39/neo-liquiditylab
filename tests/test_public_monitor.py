@@ -117,3 +117,38 @@ def test_public_cold_start_returns_restoring_instead_of_a_login_prompt(public_mo
     assert code==503 and json.loads(body)['error']=='DATA_RESTORING_RETRY'
     assert 'WWW-Authenticate' not in headers
     assert json.loads(get('/api/hosting')[2])['seed_ready'] is False
+
+
+def test_heavy_budget_exhaustion_does_not_block_health_or_request_a_login(public_monitor):
+    server,get,_=public_monitor
+    with server.heavy:
+        for path in ('/api/library','/api/live/view?run_id='+'c'*32+'&symbol=ACB'):
+            code,headers,body=get(path)
+            assert code==503 and json.loads(body)['error']=='SERVER_BUSY_RETRY'
+            assert headers['Retry-After']=='3'
+            assert 'WWW-Authenticate' not in headers
+        assert get('/healthz')[0]==200
+        assert get('/dashboard')[0]==200
+        code,_,body=get('/api/relay',method='POST',headers={'Authorization':'Bearer '+server.ingest_token})
+        assert code==503 and json.loads(body)['error']=='SERVER_BUSY_RETRY'
+        assert server.live.journal is None
+    assert get('/api/library')[0]==200
+
+
+def test_hosted_export_reads_metadata_without_materializing_replay_frames(public_monitor):
+    from scripts.serve_orderbook_monitor import report_payload
+    server,_,did=public_monitor
+    server.metadata=lambda value:dict(dataset_id=did,provider='dnse',price_unit='VND')
+    server.dataset=lambda value:(_ for _ in ()).throw(AssertionError('Full replay loaded for event export'))
+    result=report_payload(server,did,include_reviews=False)
+    assert result['provenance']['price_unit']=='VND' and result['reviews']==[]
+
+
+def test_background_recovery_busy_response_identifies_recovery_after_seed_is_ready(public_monitor):
+    server,get,_=public_monitor
+    server.recovery=SimpleNamespace(seed_ready=True,state='RECOVERING',close=lambda:None)
+    with server.heavy:
+        code,headers,body=get('/api/library')
+        assert code==503 and json.loads(body)['error']=='DATA_RESTORING_RETRY'
+        assert headers['Retry-After']=='3'
+        assert get('/healthz')[0]==200

@@ -14,6 +14,8 @@ on:
       - 'src/monitoring/web_*.py'
       - 'tests/test_online_monitor.py'
       - 'tests/test_public_monitor.py'
+      - 'tests/test_cloud_recovery_budget.py'
+      - 'tests/js/monitor-http.test.cjs'
       - 'tests/js/capture-model.test.cjs'
       - 'tests/js/event-replay.test.cjs'
       - '.github/workflows/monitor-web-checks.yml'
@@ -44,9 +46,9 @@ jobs:
           Draft202012Validator(schema).validate(blueprint)
           assert all(x['plan']=='free' for group in ('services','databases') for x in blueprint[group])
           PY
-      - run: python -m pytest tests/test_online_monitor.py tests/test_public_monitor.py -q --basetemp=.pytest_online --tb=short
+      - run: python -m pytest tests/test_online_monitor.py tests/test_public_monitor.py tests/test_cloud_recovery_budget.py -q --basetemp=.pytest_online --tb=short
       - name: Verify unified viewer, capture clocks and replay cutoff
-        run: node --test tests/js/event-replay.test.cjs tests/js/capture-model.test.cjs tests/js/ssi-live.test.cjs
+        run: node --test tests/js/event-replay.test.cjs tests/js/capture-model.test.cjs tests/js/ssi-live.test.cjs tests/js/monitor-http.test.cjs
       - name: Build Linux production image
         run: docker build -f Dockerfile -t liquiditylab-monitor:check .
       - name: Verify image health and access controls without SSI keys

@@ -2,7 +2,7 @@
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Theo dõi, phát lại và rà soát sự kiện thanh khoản trong một dashboard sổ lệnh.">
 <title>LiquidityLab · Theo dõi và rà soát sự kiện</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/style.css">
-<script src="/model.js" defer></script><script src="/heatmap.js" defer></script><script src="/live-model.js" defer></script><script src="/capture-model.js" defer></script><script src="/app.js" defer></script></head>
+<script src="/model.js" defer></script><script src="/heatmap.js" defer></script><script src="/live-model.js" defer></script><script src="/capture-model.js" defer></script><script src="/http.js" defer></script><script src="/app.js" defer></script></head>
 <body><aside class="sidebar">
   <a class="brand" href="/" aria-label="LiquidityLab"><span class="logo">▥</span><span>LiquidityLab<small>ORDER BOOK OBSERVATORY</small></span></a>
   <span class="eyebrow">KHÔNG GIAN QUAN SÁT</span>
@@ -15,6 +15,7 @@
   <section class="view-controls" aria-label="Chế độ dữ liệu"><label>Chế độ xem<select id="dataMode"><option value="history">Lịch sử</option><option value="capture">Theo dõi gần nhất</option></select></label><label id="captureRunLabel" hidden>Bản thu<select id="captureRun"></select></label><div id="captureActions" class="capture-actions" hidden><button id="followLatest" class="outline">Theo dõi mới nhất</button><button id="pauseCapture" class="outline">Tạm dừng màn hình</button><button id="captureEarlier" class="outline">← Đoạn trước</button><button id="captureLater" class="outline">Đoạn sau →</button></div><p id="modeStatus" class="subtle" role="status">Dữ liệu đã lưu · Chọn ngày và mã để xem lại.</p></section>
   <div class="title-row"><div><div class="eyebrow">QUAN SÁT · PHÁT LẠI · GIẢI THÍCH</div><h1 id="title">Phân tích sổ lệnh</h1><p id="pageDescription">Xem diễn biến đã lưu và bằng chứng của từng sự kiện.</p></div><div class="dataset-controls"><label>Ngày<select id="daySelect" disabled></select></label><label>Sàn<select id="marketExchange"><option value="all">Tất cả</option><option>HOSE</option><option>HNX</option><option>UPCOM</option></select></label><label>Tìm mã<input id="marketSearch" type="search" maxlength="12" placeholder="VNM, SHS, A32…"></label><label>Mã có dữ liệu<select id="symbolSelect" disabled><option>—</option></select></label><button id="applySymbol" class="outline">Mở mã</button><label class="sr-only" for="dataset">Bộ dữ liệu</label><select id="dataset" hidden></select></div></div>
   <div id="error" role="alert" hidden></div>
+  <div id="serverNotice" class="context" role="status" aria-live="polite" hidden></div>
   <div class="context"><span class="context-dot"></span><span id="provenance">Đang đọc bộ dữ liệu…</span><button id="openConfig" class="link-button">Quy tắc & ngưỡng ↗</button></div>
   <div id="unitWarning" class="warning" hidden></div>
 

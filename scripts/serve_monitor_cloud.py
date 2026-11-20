@@ -95,6 +95,10 @@ class CloudHandler(Handler):
     def valid_host(self):return self.headers.get('Host')==urlsplit(self.server.public_origin).netloc
     def expected_origin(self):return self.server.public_origin
 
+    def resource_busy(self):
+        restoring=self.server.recovery and self.server.recovery.state=='RECOVERING'
+        return self.send_json({'error':'DATA_RESTORING_RETRY' if restoring else 'SERVER_BUSY_RETRY'},503)
+
     def owner_authenticated(self):
         expected='Basic '+base64.b64encode(('liquiditylab:'+self.server.read_password).encode()).decode()
         actual=self.headers.get('Authorization','')
@@ -147,13 +151,13 @@ class CloudHandler(Handler):
             try:return self.send_json(dict(reviews=self.server.reviews.all(),analyses=self.server.reviews.analyses(),analysis_revisions=self.server.reviews.analysis_revisions()))
             except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)
         if route.path=='/api/dataset':
-            if not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
+            if not self.server.heavy.acquire(blocking=False):return self.resource_busy()
             try:return self.stream_dataset(parse_qs(route.query).get('dataset_id',[''])[0])
             except (ValueError,KeyError,OSError):return self.send_json({'error':'DATA_NOT_READY_OR_INVALID'},404)
             finally:self.server.heavy.release()
         # Serialize expensive history/analysis requests on small free instances.
-        heavy=route.path in ('/api/watchlist','/api/library','/api/export','/api/trades')
-        if heavy and not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
+        heavy=route.path in ('/api/watchlist','/api/library','/api/export','/api/trades','/api/live/view','/api/live/events','/api/live/reviews','/api/live/export')
+        if heavy and not self.server.heavy.acquire(blocking=False):return self.resource_busy()
         try:return super().do_GET()
         except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)
         finally:
@@ -220,6 +224,7 @@ class CloudHandler(Handler):
         if self.path=='/api/relay':
             expected='Bearer '+self.server.ingest_token;actual=self.headers.get('Authorization','')
             if len(actual)>1024 or not actual.isascii() or not secrets.compare_digest(actual,expected):return self.send_json({'error':'UNAUTHORIZED'},401)
+            if not self.server.heavy.acquire(blocking=False):return self.resource_busy()
             try:
                 size=int(self.headers.get('Content-Length','0'))
                 if not 0<size<=MAX_BODY or self.headers.get_content_type()!='application/json':raise ValueError('INVALID_BODY')
@@ -230,6 +235,7 @@ class CloudHandler(Handler):
                 elif self.headers.get('Content-Encoding'):raise ValueError('INVALID_ENCODING')
                 result=self.server.live.apply(json.loads(raw));return self.send_json(result)
             except (ValueError,KeyError,TypeError,OSError,EOFError,zlib.error):return self.send_json({'error':'RELAY_PACKET_REJECTED'},400)
+            finally:self.server.heavy.release()
         if not self.authenticated():return
         if self.path in ('/api/live/start','/api/live/stop'):
             return self.send_json({'error':'COLLECTION_MANAGED_BY_GITHUB_SCHEDULE'},403)
@@ -263,7 +269,7 @@ def main():
         key=base64.b64decode(encoded,validate=True)
         if len(key)!=32:raise ValueError('INVALID_RECOVERY_KEY')
         server.recovery=CloudRecovery(root,key,os.getenv('MONITOR_SEED_TAG'),live=server.live,on_seed=server.restore_analyses,
-            preferred_tags=json.loads(os.getenv('SSI_RECOVERY_TAGS_JSON','[]')));server.recovery.start()
+            preferred_tags=json.loads(os.getenv('SSI_RECOVERY_TAGS_JSON','[]')),resource_lock=server.heavy);server.recovery.start()
     print(json.dumps(dict(state='CLOUD_MONITOR_READY',origin=origin,ssi_keys_on_host=False)),flush=True)
     try:server.serve_forever()
     except KeyboardInterrupt:pass

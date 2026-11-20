@@ -19,6 +19,12 @@ Từ 20/11/2026, dùng một giao diện tại **https://neo-liquiditylab-monito
 
 Link `/realtime` cũ chuyển về `/dashboard?view=capture`, sử dụng cùng HTML và bộ điều khiển. Collector, API thu dữ liệu, lịch GitHub/Windows, chuẩn hóa và xuất Parquet không thay đổi.
 
+## Khi máy chủ tạm thời chưa sẵn sàng
+
+Nếu backend đang phục hồi sau khởi động hoặc có truy vấn khác đang chiếm tài nguyên, trang hiện thông báo đang chờ và tự thử lại có giới hạn. Không cần bấm liên tục “Mở mã” hoặc tải lại thư viện. Nếu hết thời gian chờ, thông báo phân biệt máy chủ chưa phục hồi, đang bận, lỗi kết nối và kho ghi chú; dữ liệu đã tải vẫn giữ nguyên. Yêu cầu lưu/ghi không được tự gửi lại, tránh lưu trùng khi chưa rõ kết quả.
+
+Đây là xử lý trạng thái phục vụ dữ liệu; không tự biến dữ liệu trễ hoặc thiếu thành dữ liệu đầy đủ. Giới hạn xử lý và checkpoint trên backend không ảnh hưởng bản Parquet gốc hoặc lịch thu.
+
 ## Kiểm tra kỹ thuật
 
 `node --test tests/js/*.test.cjs` kiểm tra chuyển chế độ, giữ mã, xử lý mã chưa thu, bỏ phản hồi cũ sau khi đổi chế độ, giới hạn đơn vị, clock và bằng chứng sau con trỏ. Bộ HTTP kiểm tra link cũ chuyển hướng, asset allowlist, quyền xem công khai và quyền ghi riêng. `python -m scripts.verify_unified_monitor_browser` mở hồ sơ trình duyệt mới, không cung cấp mật khẩu và chặn mọi request ghi để kiểm tra hai chế độ trên cùng URL, desktop và mobile.
