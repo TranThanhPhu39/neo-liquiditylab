@@ -45,7 +45,8 @@ FILES=['src/data_providers/ssi_stream.py','tests/test_ssi_session.py','src/data_
        'tests/js/capture-model.test.cjs','docs/unified_dashboard.md','scripts/verify_unified_monitor_browser.py',
        'web/monitor/http.js','tests/js/monitor-http.test.cjs','tests/test_cloud_recovery_budget.py',
        'src/monitoring/web_relay.py','src/monitoring/ssi_live.py','src/data_pipeline/ssi_live_store.py',
-       'scripts/ssi_checkpoint.py','tests/test_github_ssi.py','tests/test_ssi_live.py']
+       'scripts/ssi_checkpoint.py','tests/test_github_ssi.py','tests/test_ssi_live.py',
+       'tests/js/ssi-live.test.cjs','tests/js/ssi-live-ui.test.cjs','web/monitor/realtime.html','web/monitor/live.css']
 
 
 def main():

@@ -1,0 +1,10 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+global.EventReplay=require('../../web/monitor/model.js');
+const {Window}=require('../../web/monitor/live-model.js');
+const f=i=>({index:i,id:'f'+i,time:`2026-11-13T03:00:0${i}+00:00`,received_at:`2026-11-13T03:00:0${i}+00:00`,connection:1,bids:[['20000',100]],asks:[['20050',200]],features:{eligible:false}});
+const pack=(frames,changes={})=>({run_id:'a',symbol:'ACB',frames,trades:[],events:[],reset:true,total:frames.length,unit_status:'UNVERIFIED',...changes});
+test('SSI window appends deltas and does not turn missing sides into zero',()=>{const w=new Window();w.accept(pack([f(0)]));w.accept(pack([{...f(1),asks:[]}],{reset:false}));assert.equal(w.frames.length,2);const g=w.geometry(1,300);assert.equal(g.ask[1][1],null);assert.equal(g.cells.filter(c=>c.side==='asks').length,1);});
+test('same timestamp matches survive when capture IDs differ; response overlap is idempotent',()=>{const w=new Window();const a={id:'a'.repeat(64),time:f(0).time,price:'20000',qty:100,side:'BUY'},b={...a,id:'b'.repeat(64)};w.accept(pack([f(0)],{trades:[a,b]}));w.accept(pack([f(1)],{reset:false,trades:[a,b]}));assert.equal(w.trades.length,2);assert.equal(w.bubbles(w.geometry(1,300)).rows[0].qty,200);});
+test('a future detection is hidden at a replay prefix and connection changes leave a gap',()=>{const w=new Window();w.accept(pack([f(0),{...f(1),connection:2}],{events:[{id:'event',detected_received_at:f(1).time,observed_at:f(1).time}]}));assert.equal(w.geometry(0,300).events.length,0);assert.equal(w.geometry(1,300).events.length,1);assert.equal(w.geometry(1,300).gaps.length,1);});
+test('reversed receive clocks fail instead of silently sorting a live feed',()=>{const w=new Window();assert.throws(()=>w.accept(pack([f(1),f(0)])));});
+test('incompatible quote/trade price scales do not produce misleading bubbles',()=>{const w=new Window();w.accept(pack([f(0)],{trades:[{id:'a'.repeat(64),time:f(0).time,price:'20',qty:100,side:'BUY'}]}));const b=w.bubbles(w.geometry(0,300));assert.equal(b.rows.length,0);assert.equal(b.scaleMismatch,true);});
