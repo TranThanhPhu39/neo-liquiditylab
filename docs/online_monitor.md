@@ -1,5 +1,9 @@
 # Dashboard online: Render + GitHub SSI
 
+## Giao diện chung từ 20/11/2026
+
+Mở **https://neo-liquiditylab-monitor.onrender.com/dashboard**, chọn **Lịch sử** hoặc **Theo dõi gần nhất**. Hai chế độ dùng cùng giao diện; không chọn nhà cung cấp hoặc chuyển sang trang SSI riêng. `/realtime` cũ chỉ là đường chuyển hướng tương thích tới dashboard chung. Phần nguồn/chất lượng vẫn ghi đúng nhà cung cấp, đơn vị và đồng hồ. Xem [hướng dẫn dashboard chung](unified_dashboard.md). Các đoạn mô tả hai trang bên dưới là lịch sử triển khai.
+
 ## Quyền truy cập từ 20/11/2026
 
 Dashboard và trang SSI mở công khai để xem, không yêu cầu tài khoản hoặc mật khẩu. Backend Render dùng `MONITOR_PUBLIC_READ=true`; việc xem dữ liệu không cấp quyền ghi. Các mô tả mật khẩu bên dưới chỉ còn áp dụng cho quyền quản trị hoặc cấu hình triển khai cũ.

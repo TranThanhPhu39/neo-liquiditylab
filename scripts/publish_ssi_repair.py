@@ -41,7 +41,8 @@ FILES=['src/data_providers/ssi_stream.py','tests/test_ssi_session.py','src/data_
        'scripts/install_cloud_guard_task.ps1','scripts/install_dnse_day_task.py','scripts/install_dnse_day_task.ps1',
        '.github/workflows/dnse-realtime.yml','tests/test_scheduled_cloud_guard.py','docs/independent_collection_schedule.md',
        'web/monitor/live.js','tests/test_public_monitor.py','scripts/check_monitor_cloud.py',
-       '.github/workflows/monitor-web-checks.yml']
+       '.github/workflows/monitor-web-checks.yml','web/monitor/capture-model.js','web/monitor/live-model.js',
+       'tests/js/capture-model.test.cjs','docs/unified_dashboard.md','scripts/verify_unified_monitor_browser.py']
 
 
 def main():
@@ -75,7 +76,7 @@ def main():
     if not changes:
         print(json.dumps(dict(source_commit=h,state='SOURCE_ALREADY_CURRENT')));return
     t=api.request('POST',b+'/git/trees',{'base_tree':c['tree']['sha'],'tree':changes})
-    new=api.request('POST',b+'/git/commits',{'message':'Open dashboard and SSI viewing without login while protecting owner notes and writes','tree':t['sha'],'parents':[h]})
+    new=api.request('POST',b+'/git/commits',{'message':'Unify historical and streaming order books in one public dashboard with task-based modes','tree':t['sha'],'parents':[h]})
     api.request('PATCH',b+'/git/refs/heads/main',{'sha':new['sha'],'force':False})
     report=dict(source_commit=new['sha'],contract_bundle_upload='INSTALLED' if Path('report/ssi_contract_secret_2026-11-16.json').exists() else 'WAITING_FOR_EXPLICIT_APPROVAL',units_locally_reviewed=['ACB','FPT','HPG'])
     Path('report/ssi_repair_2026-11-16.json').write_text(json.dumps(report,indent=2),encoding='utf-8')

@@ -112,7 +112,7 @@ def test_hosted_http_is_private_and_ingest_does_not_grant_browser_or_collection_
         assert request('GET','/dashboard',headers={'Authorization':basic})[0]==200
         assert request('GET','/',headers={'Host':'evil.example'})[0]==403
         assert request('GET','/api/live/status',headers={'Authorization':'Bearer '+token})[0]==401
-        assert request('GET','/realtime',headers={'Authorization':basic})[0]==200
+        assert request('GET','/realtime',headers={'Authorization':basic})[0]==303
         raw=gzip.compress(json.dumps(packet()).encode())
         headers={'Content-Type':'application/json','Content-Encoding':'gzip','Authorization':'Bearer '+token}
         code,_,body=request('POST','/api/relay',raw,headers);assert code==200 and json.loads(body)['next_ordinal']==1

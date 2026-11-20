@@ -1,5 +1,7 @@
 # Phạm vi mới — LiquidityLab: theo dõi và xem lại sự kiện thanh khoản
 
+**Giao diện thống nhất 20/11:** lịch sử và capture được đưa vào một dashboard với hai chế độ theo tác vụ, dùng cùng biểu đồ và điều khiển. Không phân luồng màn hình theo nhà cung cấp. Dữ liệu gốc và đồng hồ của từng nguồn vẫn tách đúng provenance; phạm vi bộ thu và điều kiện detector không đổi. Xem [giao diện chung](unified_dashboard.md).
+
 **Quyền xem ngày 20/11:** theo yêu cầu bỏ đăng nhập, web Render mở công khai chế độ xem dashboard/lịch sử và capture SSI hiện có. Quyền ghi và ghi chú riêng vẫn được bảo vệ. Thay đổi này không mở rộng danh sách SSI subscription hoặc chứng nhận đơn vị. Xem [quyền truy cập](online_monitor.md).
 
 **Điều chỉnh theo yêu cầu 16/11:** mở rộng **lịch sử quan sát sổ lệnh** ra toàn bộ danh mục DNSE, gồm HOSE/HNX/UPCOM, có tìm mã, lọc sàn và phân trang. Phạm vi detector đã nghiệm thu đơn vị và SSI subscription vẫn là ACB/FPT/HPG; các mã còn lại chỉ quan sát, không tự mở khóa detector. Đây là ngoại lệ thay thế giới hạn “không toàn thị trường” của kế hoạch 12/11 bên dưới, không phải cam kết realtime toàn thị trường. Xem [phạm vi và cách dùng mới](market_monitor.md).

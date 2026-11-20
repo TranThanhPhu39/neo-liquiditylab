@@ -86,7 +86,7 @@ test('trade package rejects cross-symbol/day, duplicate identity, bad quantities
 });
 for(const publicRead of [false,true])test('app loads history and evidence in '+(publicRead?'anonymous read-only mode':'owner mode'),async()=>{
   const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-  const elements=new Map(),raf=[];let notes=[],saved=null,draws=0,analyzed=null,arcs=0;
+  const elements=new Map(),raf=[],timers=new Map(),requests=[];let notes=[],saved=null,draws=0,analyzed=null,arcs=0,timerId=0,holdCapture=false,heldCapture=null;
   class Element{
     constructor(id=''){this.id=id;this.value='';this.dataset={};this.nodes=[];this.listeners={};this.hidden=false;this.disabled=false;this.parentElement=this;this.classList={toggle(){}};}
     set textContent(v){this.text=String(v);this.nodes=[];}get textContent(){return (this.text||'')+this.nodes.map(n=>n.textContent||'').join(' ');}
@@ -105,17 +105,24 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
   const packs=new Map([[d.dataset_id,d],[fpt.dataset_id,fpt]]);
   const entry=p=>({dataset_id:p.dataset_id,symbol:p.symbol,day:p.day,observations:p.frames.length,event_counts:{SPREAD_WIDENING:p.event_patches.length?1:0}});
   let catalog=[entry(d),entry(fpt)];
-  const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:q=>q==='[data-page]'?nav:[]},window:{devicePixelRatio:1},ResizeObserver:class{observe(){}},requestAnimationFrame:fn=>raf.push(fn),performance:{now:()=>0},Intl,Date,console,
+  const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:q=>q==='[data-page]'?nav:[]},window:{devicePixelRatio:1},ResizeObserver:class{observe(){}},requestAnimationFrame:fn=>raf.push(fn),performance:{now:()=>0},Intl,Date,console,URLSearchParams,
+    setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
     fetch:async(url,options={})=>{let result;
+      requests.push({url,method:options.method||'GET'});
       if(url==='/api/datasets')result={application_version:'offline-monitor-v7-public',csrf:publicRead?null:'fixture',read_only:publicRead,datasets:catalog};
+      else if(url==='/api/live/status')result={read_only:true,csrf:null,run_id:'9'.repeat(32),active:true,quote_counts:{ACB:108,FPT:108},quote_ages:{ACB:0,FPT:0},gaps:2,stale:false};
+      else if(url==='/api/live/runs')result=[{run_id:'9'.repeat(32),day:d.day,created_at:d.frames[0].time,symbols:['ACB','FPT'],quote_counts:{ACB:108,FPT:108}}];
+      else if(url.startsWith('/api/live/view?')){const symbol=new URLSearchParams(url.split('?')[1]).get('symbol');result={run_id:'9'.repeat(32),dataset_id:'8'.repeat(64),day:d.day,symbol,total:108,frames:d.frames.map((f,i)=>({...structuredClone(f),index:100+i,units:'UNVERIFIED_SSI_QUOTE',connection:1,source_time:f.time,features:{...f.features,eligible:false,reason:'UNVERIFIED_UNITS'}})),trades:[],events:[],reset:true,unit_status:'UNVERIFIED',price_unit:'SSI_SOURCE_PRICE',volume_unit:'SSI_SOURCE_QUANTITY'};}
+      else if(url.startsWith('/api/live/events?')){const at=new URLSearchParams(url.split('?')[1]).get('at'),patch=d.event_patches.filter(p=>M.time(d.frames[p.at_index].time)<=M.time(at)).at(-1);result=patch?[{...patch.event,start_index:102,detected_index:104,last_index:100+patch.at_index,observed_at:d.frames[patch.at_index].time,detected_received_at:d.frames[4].time}]:[];}
+      else if(url.startsWith('/api/live/reviews?'))result=[];
       else if(url.startsWith('/api/trades?'))result=tradeData(packs.get(url.split('=')[1]));
       else if(url.startsWith('/api/dataset?'))result=packs.get(url.split('=')[1]);
       else if(url.startsWith('/api/watchlist?'))result=[{symbol:'ACB',bid:'21000',ask:'21050',time:d.frames[0].time,status:'VERIFIED',dataset_id:d.dataset_id,features:{bid_depth:100,ask_depth:900}}];
       else if(url==='/api/library')result=[{...entry(d),event:d.event_patches[1].event,review:notes.at(-1),archived:catalog.find(e=>e.dataset_id===d.dataset_id).archived}];
       else if(url==='/api/analyze'){analyzed=JSON.parse(options.body);const p=structuredClone(d);p.dataset_id='c'.repeat(64);packs.set(p.dataset_id,p);catalog=[{...entry(d),archived:true},entry(p),entry(fpt)];result=entry(p);}
       else if(options.method==='POST'){saved=JSON.parse(options.body);assert.equal(options.headers['X-Monitor-CSRF'],'fixture');notes.push({...saved,created_at:'2026-11-12T00:00:00Z'});result={state:'SAVED'};}
-      else result=notes.filter(n=>n.dataset_id===url.split('=')[1]);return {ok:true,json:async()=>result};}});
-  for(const file of ['model.js','heatmap.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../../web/monitor',file),'utf8'),context);
+      else result=notes.filter(n=>n.dataset_id===url.split('=')[1]);if(holdCapture&&url.startsWith('/api/live/view?'))await new Promise(resolve=>heldCapture=resolve);return {ok:true,json:async()=>result};}});
+  for(const file of ['model.js','heatmap.js','live-model.js','capture-model.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../../web/monitor',file),'utf8'),context);
   for(let i=0;i<3;i++)await new Promise(r=>setImmediate(r));
   assert.equal(get('error').hidden,true);assert.equal(get('eventCount').textContent,'0');assert.ok(draws>0);
   await get('sessionEnd').emit('click');assert.equal(get('eventCount').textContent,'1');
@@ -132,6 +139,35 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
     assert.equal(saved,null);assert.equal(analyzed,null);assert.notEqual(get('configDialog').open,true);
     await get('first').emit('click');assert.equal(get('eventCount').textContent,'0');
     await get('play').emit('click');raf.shift()(1000);assert.equal(get('cursor').value,7);
+    get('dataMode').value='capture';await get('dataMode').emit('change');
+    assert.equal(get('dataMode').value,'capture');assert.equal(get('error').hidden,true,get('error').textContent);
+    assert.equal(get('symbolSelect').value,'ACB');assert.match(get('provenance').textContent,/101/);
+    assert.match(get('quality').textContent,/SSI/);assert.equal(get('openConfig').disabled,true);
+    assert.equal(get('exportCSV').hidden,true);assert.match(get('exportJSON').href,/api\/live\/export/);
+    get('cursor').value='3';await get('cursor').emit('input');assert.equal(get('eventCount').textContent,'0');
+    async function eventTimers(){for(const [id,t] of [...timers])if(t.ms===250){timers.delete(id);await t.fn();}for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));}
+    await eventTimers();assert.equal(get('eventCount').textContent,'0');
+    get('cursor').value='4';await get('cursor').emit('input');await eventTimers();
+    assert.equal(get('eventCount').textContent,'1');await get('events').nodes[0].emit('click');await eventTimers();
+    assert.match(get('evidence').textContent,/20/);assert.doesNotMatch(get('evidence').textContent,/40 bps/);
+    assert.equal(get('reviewForm').hidden,true);
+    get('symbolSelect').value='FPT';await get('symbolSelect').emit('change');assert.equal(get('symbolSelect').value,'FPT');
+    get('dataMode').value='history';await get('dataMode').emit('change');
+    assert.equal(get('dataMode').value,'history');assert.equal(get('symbolSelect').value,'FPT');
+    assert.match(get('quality').textContent,/DNSE/);assert.equal(get('captureActions').hidden,true);
+    const vnm=structuredClone(fpt);vnm.symbol='VNM';vnm.dataset_id='7'.repeat(64);packs.set(vnm.dataset_id,vnm);catalog.push(entry(vnm));
+    get('dataMode').value='history';await get('dataMode').emit('change');get('symbolSelect').value='VNM';await get('symbolSelect').emit('change');
+    const count=requests.filter(r=>r.url.startsWith('/api/live/view?')).length;
+    get('dataMode').value='capture';await get('dataMode').emit('change');
+    assert.equal(get('symbolSelect').value,'VNM');assert.equal(get('play').disabled,true);assert.match(get('book').textContent,/VNM/);
+    assert.equal(requests.filter(r=>r.url.startsWith('/api/live/view?')).length,count,'unknown capture symbol must not fall back to ACB');
+    get('dataMode').value='history';await get('dataMode').emit('change');get('symbolSelect').value='ACB';await get('symbolSelect').emit('change');
+    holdCapture=true;get('dataMode').value='capture';const opening=get('dataMode').emit('change');
+    for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));assert.equal(typeof heldCapture,'function');
+    get('dataMode').value='history';await get('dataMode').emit('change');heldCapture();await opening;
+    assert.equal(get('dataMode').value,'history');assert.match(get('quality').textContent,/DNSE/);
+    assert.equal(get('captureActions').hidden,true,'late capture responses cannot overwrite a history view');
+    assert.equal(requests.some(r=>r.method==='POST'),false);
     return;
   }
   get('note').value='fixture review';await get('reviewForm').emit('submit',{preventDefault(){}});assert.equal(saved.note,'fixture review');

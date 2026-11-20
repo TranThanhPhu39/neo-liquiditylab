@@ -31,7 +31,9 @@ def check(origin,password,*,public_read=False):
         code,body=get('/api/live/status');anonymous=json.loads(body)
         assert code==200 and anonymous['read_only'] and anonymous['csrf'] is None
         assert get('/admin')[0]==401
-    assert get('/dashboard',True)[0]==200
+    code,dashboard=get('/dashboard',True)
+    assert code==200 and b'id="dataMode"' in dashboard and b'id="captureRun"' in dashboard
+    assert b'href="/realtime"' not in dashboard and b'<iframe' not in dashboard
     assert get('/realtime',True)[0]==200
     code,body=get('/api/live/status',True);state=json.loads(body)
     assert code==200 and state['hosted'] and password not in body.decode()

@@ -1,6 +1,8 @@
 # NEO LiquidityLab
 
-**Xem công khai — 20/11/2026:** [dashboard lịch sử](https://neo-liquiditylab-monitor.onrender.com/dashboard) và [trang SSI](https://neo-liquiditylab-monitor.onrender.com/realtime) không yêu cầu đăng nhập khi bật `MONITOR_PUBLIC_READ=true` trên Render. Ghi chú riêng không xuất hiện với người xem; quyền lưu ghi chú và thay cấu hình vẫn dành cho chủ dự án qua `/admin`. Không cần tài khoản ChatGPT. Xem [quyền truy cập hiện tại](docs/online_monitor.md).
+**Một dashboard chung — 20/11/2026:** dùng [dashboard](https://neo-liquiditylab-monitor.onrender.com/dashboard), chọn **Lịch sử** hoặc **Theo dõi gần nhất** trên cùng giao diện heatmap, bubbles, sổ lệnh và replay. Không còn điều hướng riêng theo DNSE/SSI; tên nguồn chỉ nằm trong thông tin chất lượng. Mã được giữ khi đổi chế độ; nếu chưa có bản thu thì báo rõ. Link `/realtime` cũ chuyển về dashboard chung. [Cách sử dụng và giới hạn](docs/unified_dashboard.md).
+
+**Xem công khai — 20/11/2026:** [dashboard chung](https://neo-liquiditylab-monitor.onrender.com/dashboard) không yêu cầu đăng nhập khi bật `MONITOR_PUBLIC_READ=true` trên Render. Ghi chú riêng không xuất hiện với người xem; quyền lưu ghi chú và thay cấu hình vẫn dành cho chủ dự án qua `/admin`. Không cần tài khoản ChatGPT. Xem [quyền truy cập hiện tại](docs/online_monitor.md).
 
 **Khôi phục lịch — 18/11/2026:** đến 13:29, GitHub chưa tạo run cron hôm nay. Đã dispatch SSI lúc 13:31 (web nhận quote/trade thật) và DNSE lúc 13:35 sau khi làm mới catalog mã hóa 1.517 mã. Đã cài Windows guard kiểm tra GitHub mỗi 5 phút trong giờ thu, chống trùng/giới hạn retry và tự làm mới danh mục DNSE theo ngày. Lịch REST cuối ngày giữ mốc 15:15, thêm kiểm tra mỗi 30 phút để tránh bỏ lỡ khi tác vụ cũ còn chạy. **Máy phải bật và đăng nhập để các lịch Windows hoạt động**; chưa bảo đảm cron GitHub phát đúng giờ hoặc phục hồi realtime phần phiên đã lỡ. Xem [lịch dự phòng và cách kiểm tra](docs/independent_collection_schedule.md).
 

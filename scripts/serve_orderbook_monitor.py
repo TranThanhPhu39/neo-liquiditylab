@@ -27,9 +27,9 @@ import zlib
 ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/html'), '/index.html': ('index.html', 'text/html'),
           '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'),
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript')}
-ASSETS.update({'/realtime':('realtime.html','text/html'),'/realtime/':('realtime.html','text/html'),'/live.js':('live.js','text/javascript'),'/live.css':('live.css','text/css'),'/live-model.js':('live-model.js','text/javascript')})
+ASSETS.update({'/realtime':('index.html','text/html'),'/realtime/':('index.html','text/html'),'/live-model.js':('live-model.js','text/javascript'),'/capture-model.js':('capture-model.js','text/javascript')})
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v7-public'
+APPLICATION_VERSION='offline-monitor-v8-unified'
 
 
 class ReviewStore:
@@ -259,6 +259,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.valid_host():
             return self.send_json({'error': 'INVALID_HOST'}, 403)
         route = urlsplit(self.path)
+        if route.path in ('/realtime','/realtime/'):
+            self.send_response(303);self.send_header('Location','/dashboard?view=capture');self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
         try:
             if route.path in ASSETS:
                 name, content_type = ASSETS[route.path]

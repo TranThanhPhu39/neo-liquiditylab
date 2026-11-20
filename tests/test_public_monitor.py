@@ -52,7 +52,7 @@ def public_monitor(tmp_path):
 
 def test_public_pages_and_read_apis_do_not_challenge_or_reveal_csrf(public_monitor):
     server,get,did=public_monitor
-    for path in ('/','/dashboard','/index.html','/realtime','/realtime/','/app.js','/live.js',
+    for path in ('/','/dashboard','/index.html','/app.js','/capture-model.js','/live-model.js',
                  '/model.js','/style.css','/api/hosting','/api/datasets','/api/live/status','/api/live/runs',
                  '/api/trades?dataset_id='+did):
         code,headers,body=get(path)
@@ -65,6 +65,13 @@ def test_public_pages_and_read_apis_do_not_challenge_or_reveal_csrf(public_monit
     for path in ('/.env','/favicon.ico','/api/unknown'):
         code,headers,_=get(path)
         assert code==404 and 'WWW-Authenticate' not in headers
+    for path in ('/realtime','/realtime/'):
+        code,headers,_=get(path)
+        assert code==303 and headers['Location']=='/dashboard?view=capture'
+        assert 'WWW-Authenticate' not in headers
+    html=get('/dashboard')[2]
+    assert b'id="dataMode"' in html and b'id="captureRun"' in html
+    assert b'href="/realtime"' not in html and b'<iframe' not in html
     assert get('/dashboard',headers={'Host':'evil.example'})[0]==403
 
 
