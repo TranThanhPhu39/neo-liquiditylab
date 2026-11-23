@@ -115,6 +115,7 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
       else if(url.startsWith('/api/live/view?')){const symbol=new URLSearchParams(url.split('?')[1]).get('symbol');result={run_id:'9'.repeat(32),dataset_id:'8'.repeat(64),day:d.day,symbol,total:108,frames:d.frames.map((f,i)=>({...structuredClone(f),index:100+i,units:'UNVERIFIED_SSI_QUOTE',connection:1,source_time:f.time,features:{...f.features,eligible:false,reason:'UNVERIFIED_UNITS'}})),trades:[],events:[],reset:true,unit_status:'UNVERIFIED',price_unit:'SSI_SOURCE_PRICE',volume_unit:'SSI_SOURCE_QUANTITY'};}
       else if(url.startsWith('/api/live/events?')){const at=new URLSearchParams(url.split('?')[1]).get('at'),patch=d.event_patches.filter(p=>M.time(d.frames[p.at_index].time)<=M.time(at)).at(-1);result=patch?[{...patch.event,start_index:102,detected_index:104,last_index:100+patch.at_index,observed_at:d.frames[patch.at_index].time,detected_received_at:d.frames[4].time}]:[];}
       else if(url.startsWith('/api/live/reviews?'))result=[];
+      else if(url.startsWith('/api/research/breakout?'))result={state:'READY',symbol:'ACB',day:d.day,cutoff:d.frames[0].time,reference:{day:'2026-11-10',price:'21000',kind:'STORED_TRADE_HIGH',notice:'Mức thăm dò'},episodes:[],groups:[],chart:[]};
       else if(url.startsWith('/api/trades?'))result=tradeData(packs.get(url.split('=')[1]));
       else if(url.startsWith('/api/dataset?'))result=packs.get(url.split('=')[1]);
       else if(url.startsWith('/api/watchlist?'))result=[{symbol:'ACB',bid:'21000',ask:'21050',time:d.frames[0].time,status:'VERIFIED',dataset_id:d.dataset_id,features:{bid_depth:100,ask_depth:900}}];
@@ -122,8 +123,11 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
       else if(url==='/api/analyze'){analyzed=JSON.parse(options.body);const p=structuredClone(d);p.dataset_id='c'.repeat(64);packs.set(p.dataset_id,p);catalog=[{...entry(d),archived:true},entry(p),entry(fpt)];result=entry(p);}
       else if(options.method==='POST'){saved=JSON.parse(options.body);assert.equal(options.headers['X-Monitor-CSRF'],'fixture');notes.push({...saved,created_at:'2026-11-12T00:00:00Z'});result={state:'SAVED'};}
       else result=notes.filter(n=>n.dataset_id===url.split('=')[1]);if(holdCapture&&url.startsWith('/api/live/view?'))await new Promise(resolve=>heldCapture=resolve);return {ok:true,json:async()=>result};}});
-  for(const file of ['model.js','heatmap.js','live-model.js','capture-model.js','http.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../../web/monitor',file),'utf8'),context);
+  for(const file of ['model.js','heatmap.js','live-model.js','capture-model.js','http.js','breakout.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../../web/monitor',file),'utf8'),context);
   for(let i=0;i<3;i++)await new Promise(r=>setImmediate(r));
+  assert.equal(get('breakoutRun').disabled,false);
+  await get('breakoutRun').emit('click');assert.equal(get('breakoutResult').hidden,false);
+  assert.match(get('breakoutReference').textContent,/Mức thăm dò/);
   assert.equal(get('error').hidden,true);assert.equal(get('eventCount').textContent,'0');assert.ok(draws>0);
   await get('sessionEnd').emit('click');assert.equal(get('eventCount').textContent,'1');
   assert.ok(arcs>0);assert.match(get('bubbleStatus').textContent,/bubbles/);

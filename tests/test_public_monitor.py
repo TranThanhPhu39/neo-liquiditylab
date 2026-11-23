@@ -16,6 +16,21 @@ class Reviews(ReviewStore):
     def analysis_revisions(self):return []
 
 
+def test_public_breakout_research_is_read_only_and_uses_shared_resource_budget(public_monitor):
+    server,request,did=public_monitor
+    server.trades=lambda value:dict(symbol='ACB',day='2026-11-19',trades=[])
+    path='/api/research/breakout?dataset_id='+did+'&cutoff=2026-11-19T07:00:00Z&reference_price=100'
+    status,headers,raw=request(path)
+    assert status==200 and json.loads(raw)['state']=='NO_OBSERVED_TRADES'
+    assert b'PRIVATE OWNER NOTE' not in raw
+    assert request('/breakout.js')[0]==200
+    server.heavy.acquire()
+    try:assert request(path)[0]==503
+    finally:server.heavy.release()
+    assert request(path.replace('reference_price=100','reference_price=NaN'))[0]==404
+    assert request('/api/research/breakout',method='POST',body='{}')[0]==401
+
+
 @pytest.fixture
 def public_monitor(tmp_path):
     password='fixture-owner-password-32-characters'

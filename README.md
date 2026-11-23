@@ -1,5 +1,7 @@
 # NEO LiquidityLab
 
+**Nghiên cứu vượt đỉnh — 23/11/2026:** trong **Phân tích mã**, mở **Nghiên cứu vượt đỉnh phiên trước** để xem lần giá khớp vượt mức tham chiếu, giá quan sát sau 5/15 phút và sổ lệnh có trước lần vượt. Có lựa chọn nhập đỉnh đã kiểm tra, dùng cutoff replay và xuất JSON. Cần giao dịch khớp riêng; đỉnh từ giao dịch đã lưu chỉ là mức thăm dò. [Hướng dẫn](docs/breakout_research.md).
+
 **Xử lý máy chủ bận/phục hồi — 20/11/2026:** dashboard nhận biết riêng `DATA_RESTORING_RETRY`, `SERVER_BUSY_RETRY` và lỗi kết nối; hiển thị trạng thái chờ, tự thử lại có giới hạn và gộp các yêu cầu GET trùng. Không tự gửi lại yêu cầu lưu ghi chú. Backend chia sẻ giới hạn xử lý giữa phục hồi checkpoint và truy vấn nặng, giải phóng payload checkpoint sau khi cài, và xuất hồ sơ từ metadata thay vì tải cả replay vào RAM. [Cách dùng dashboard](docs/unified_dashboard.md).
 
 Bổ sung giảm RAM: phản hồi danh mục 25.796 bộ dữ liệu giảm từ khoảng 29,1 MB xuống 8,1 MB và được truyền từng mục; metadata chi tiết vẫn nằm trong API bộ dữ liệu. Checkpoint giải mã qua tệp tạm, Parquet đọc theo batch không prefetch nhiều, bộ đệm quote trên web giữ 2.000 quan sát/mã và phát lại phần cũ từ Parquet. Không xóa, lấy mẫu hoặc thay đổi giá trị dữ liệu gốc.
@@ -400,4 +402,8 @@ Tài liệu: [quyết định dùng DNSE](docs/data_source_decision.md), [kiến
 
 
 
+
+# Nghiên cứu phản ứng sau lần vượt đỉnh
+
+Trong **Phân tích mã**, mở **Nghiên cứu vượt đỉnh phiên trước** để xem giá khớp vượt mức tham chiếu, kết quả quan sát sau 5/15 phút và sổ lệnh có trước lần vượt. Dùng **Lịch sử** và mã/ngày có giao dịch khớp riêng; đỉnh từ giao dịch đã lưu có nhãn thăm dò, có thể nhập đỉnh phiên trước đã kiểm tra. Kết quả là nghiên cứu hồi tố, chưa phải tín hiệu giao dịch hoặc nến ngày đóng cửa xác nhận. [Hướng dẫn và giới hạn](docs/breakout_research.md).
 

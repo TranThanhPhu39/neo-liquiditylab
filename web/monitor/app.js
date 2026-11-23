@@ -28,11 +28,16 @@
     if(isCapture())captureState();
   }});
   const api=(path,options={})=>http.request(path,options);
+  const breakoutUI=typeof MonitorBreakout==='undefined'?null:MonitorBreakout.create({document,api,
+    context:()=>({data,capture:isCapture(),cutoff:data?.frames[index]?.time}),
+    onEnd:()=>{if(data){stop();setIndex(data.frames.length-1);}},
+    onSeek:t=>{if(data){stop();setIndex(M.indexAt(data,M.time(t)));$('heatmap').scrollIntoView({behavior:'smooth',block:'center'});}}});
   function stop(){playing=false;$('play').textContent='▶ Phát lại';}
   function table(headers,rows){const t=document.createElement('table'),h=document.createElement('thead'),tr=document.createElement('tr');for(const v of headers)tr.append(text('th',v));h.append(tr);t.append(h);const body=document.createElement('tbody');for(const values of rows){const r=document.createElement('tr');for(const v of values){const td=document.createElement('td');if(typeof v==='object'&&v!==null)td.append(v);else td.textContent=v;r.append(td);}body.append(r);}t.append(body);return t;}
   function detail(box,label,value){const r=text('div','','detail-row');r.append(text('span',label),text('strong',String(value)));box.append(r);}
   function title(e){return (names[e.type]||e.type)+(e.type==='DEPTH_DROP'?' · phía '+(e.side==='bid'?'mua':'bán'):'');}
   function modeControls(){
+    breakoutUI?.sync();
     $('dataMode').value=mode;for(const id of ['captureRunLabel','captureActions'])$(id).hidden=!isCapture();
     for(const id of ['marketExchange','marketSearch'])$(id).disabled=isCapture();
     $('openConfig').disabled=isCapture()||readOnly;
@@ -63,6 +68,7 @@
   }
   function emptyCapture(message){
     data=null;tradePack=null;selected=null;notes=[];allEvents=[];stop();
+    breakoutUI?.sync();
     for(const id of ['spread','bidDepth','askDepth','clock','sourceClock','position'])$(id).textContent='—';
     $('play').disabled=true;$('cursor').disabled=true;$('eventCount').textContent='—';$('reviewForm').hidden=true;
     for(const id of ['events','watchEvents','evidence','comparison','quality','watchQuality'])$(id).replaceChildren();
@@ -155,7 +161,7 @@
     $('pageLabel').textContent=labels[next][0];$('title').textContent=labels[next][1]+(next==='analysis'&&data?' '+data.symbol:'');$('pageDescription').textContent=labels[next][2];
     if(next==='watch'&&data){updateWatch();renderInventory();}if(next==='review')loadLibrary();if(next==='analysis')paint();
   }
-  async function refreshCatalog(){const epoch=pollEpoch,r=await api('/api/datasets');if(isCapture()||epoch!==pollEpoch)return;if(!['offline-monitor-v3-bubbles','offline-monitor-v4-parquet','offline-monitor-v5-market','offline-monitor-v6-relative','offline-monitor-v7-public','offline-monitor-v8-unified','offline-monitor-v9-recovery','offline-monitor-v10-bounded'].includes(r.application_version))throw Error('Giao diện và server chưa đồng bộ phiên bản. Hãy tải lại trang sau khi cập nhật ứng dụng.');csrf=r.csrf;readOnly=Boolean(r.read_only);catalog=r.datasets;
+  async function refreshCatalog(){const epoch=pollEpoch,r=await api('/api/datasets');if(isCapture()||epoch!==pollEpoch)return;if(!['offline-monitor-v3-bubbles','offline-monitor-v4-parquet','offline-monitor-v5-market','offline-monitor-v6-relative','offline-monitor-v7-public','offline-monitor-v8-unified','offline-monitor-v9-recovery','offline-monitor-v10-bounded','offline-monitor-v11-breakout'].includes(r.application_version))throw Error('Giao diện và server chưa đồng bộ phiên bản. Hãy tải lại trang sau khi cập nhật ứng dụng.');csrf=r.csrf;readOnly=Boolean(r.read_only);catalog=r.datasets;
     const days=[...new Set(currentEntries().map(e=>e.day))].sort().reverse();if(!days.length)throw Error('Chưa có bộ dữ liệu lịch sử để hiển thị.');
     setOptions('daySelect',days.map(d=>[d,dayLabel(d)]),data?.day||days[0]);
     setOptions('libraryDay',[['all','Tất cả'],...days.map(d=>[d,dayLabel(d)])],$('libraryDay').value||'all');
@@ -169,7 +175,7 @@
   function symbolOptions(selected){if(isCapture())return captureOptions(selected,$('daySelect').value,$('captureRun').value);const choices=marketEntries().filter(e=>e.observations);setOptions('symbolSelect',choices.map(e=>[e.symbol,e.symbol+' · '+(e.exchange||'HOSE')]),choices.some(e=>e.symbol===selected)?selected:choices[0]?.symbol);}
   function renderInventory(){if(isCapture())return;const all=marketEntries();marketPage=Math.min(marketPage,Math.max(0,Math.ceil(all.length/50)-1));const entries=marketRows();$('inventory').replaceChildren(table(['Ngày','Mã / Sàn','Quan sát đã lưu','Sự kiện cả phiên','Phạm vi / dữ liệu',''],entries.map(e=>[dayLabel(e.day),e.symbol+' · '+(e.exchange||'HOSE'),fmt(e.observations),e.market_observation?'Tính khi mở mã':fmt(Object.values(e.event_counts||{}).reduce((a,b)=>a+b,0)),!e.observations?'Nguồn không trả quan sát · không suy ra khối lượng 0':e.market_observation?'D1/D2 tương đối · D3 giữ khóa':'Có đầu vào xác minh',e.observations?button('Mở',()=>load(e.dataset_id,{page:'analysis'})):'Chưa có sổ lệnh'])));$('marketPageLabel').textContent=`${all.length} mã khớp · ${all.filter(e=>e.observations).length} có quan sát · trang ${marketPage+1}/${Math.max(1,Math.ceil(all.length/50))}`;$('marketPrev').disabled=marketPage===0;$('marketNext').disabled=(marketPage+1)*50>=all.length;}
   async function choose(){if(isCapture()){following=false;captureOptions($('symbolSelect').value,$('daySelect').value,$('captureRun').value);await loadCapture();return;}const symbol=$('symbolSelect').value||data?.symbol||'ACB';symbolOptions(symbol);renderSide();renderInventory();const entry=currentEntries().find(e=>e.day===$('daySelect').value&&e.symbol===$('symbolSelect').value);if(entry?.observations)await load(entry.dataset_id);else showError('Bộ lọc không có mã với quan sát đã lưu. Đổi mã hoặc sàn; không coi phần thiếu là khối lượng 0.');}
-  async function load(id,options={}){const token=++generation;stop();data=null;tradePack=null;tradeError='';chartLayout=null;selected=options.eventId||null;$('error').hidden=true;$('play').disabled=true;$('cursor').disabled=true;$('reviewForm').hidden=true;$('connection').textContent='Đang đọc dữ liệu…';$('bubbleStatus').textContent='Đang đọc dữ liệu khớp…';
+  async function load(id,options={}){const token=++generation;stop();data=null;breakoutUI?.sync();tradePack=null;tradeError='';chartLayout=null;selected=options.eventId||null;$('error').hidden=true;$('play').disabled=true;$('cursor').disabled=true;$('reviewForm').hidden=true;$('connection').textContent='Đang đọc dữ liệu…';$('bubbleStatus').textContent='Đang đọc dữ liệu khớp…';
     if(isCapture()){mode='history';pollEpoch++;captureEpoch++;captureEvents++;clearTimeout(captureTimer);clearTimeout(eventTimer);modeControls();}
     for(const n of ['spread','bidDepth','askDepth','clock','sourceClock','position'])$(n).textContent='—';$('eventCount').textContent='0';$('events').replaceChildren();$('evidence').replaceChildren();$('book').textContent='Đang tải…';$('heatmap').width=$('heatmap').width;
     try{const pack=await api('/api/dataset?dataset_id='+encodeURIComponent(id));if(token!==generation)return;const [review,trades]=await Promise.all([api('/api/reviews?dataset_id='+encodeURIComponent(id)),api('/api/trades?dataset_id='+encodeURIComponent(id)).catch(e=>({error:e.message}))]);if(token!==generation)return;
@@ -267,7 +273,7 @@
     const status=$('bubbleStatus');status.textContent=tradeError?'Không tải được bubbles: '+tradeError:!tradePack||tradePack.state==='NOT_COLLECTED'?'Chưa có tập giao dịch đã tải. Không suy ra khối lượng khớp bằng 0.':!$('showBubbles').checked?'Đã ẩn volume bubbles.':`${fmt(bubbles.length)} bubbles · ${fmt(bubbles.reduce((n,b)=>n+b.qty,0))} CP trong cửa sổ sau lọc · chỉ đến con trỏ. `+(bubbles.length?'':'Phát lại hoặc tua đến cuối phiên để xem. ')+(neutral?'Màu xám: đơn vị chưa xác minh đầy đủ; hệ số schema giá ×1.000, lượng ×10. ':'')+(tradePack.quality.volume_reconciliation==='RECONCILED_TO_LAST_REPORTED_CUMULATIVE'?'Đối soát cả bộ: khớp bộ đếm lũy kế.':'Đối soát cả bộ chưa khớp; dữ liệu có thể thiếu hoặc không cộng được.');
     $('bubbleFirst').disabled=!tradePack?.trades.length;
   }
-  function render(){if(!data)return;const f=data.frames[index],events=eventsAt(data,index),shown=filtered(events);$('clock').textContent=clock(f.time);$('sourceClock').textContent=data.symbol+' · '+clock(f.time).slice(0,8);$('position').textContent=`${fmt(index+1)} / ${fmt(data.frames.length)} quan sát`;$('watchQualityClock').textContent=clock(f.time).slice(0,8);$('watchTime').value=clock(f.time).slice(0,8);
+  function render(){breakoutUI?.sync();if(!data)return;const f=data.frames[index],events=eventsAt(data,index),shown=filtered(events);$('clock').textContent=clock(f.time);$('sourceClock').textContent=data.symbol+' · '+clock(f.time).slice(0,8);$('position').textContent=`${fmt(index+1)} / ${fmt(data.frames.length)} quan sát`;$('watchQualityClock').textContent=clock(f.time).slice(0,8);$('watchTime').value=clock(f.time).slice(0,8);
     $('spread').textContent=fmt(f.features.spread_bps,2);$('bidDepth').textContent=fmt(f.features.bid_depth);$('askDepth').textContent=fmt(f.features.ask_depth);$('eventCount').textContent=observationOnly()?'—':fmt(events.length);$('detectorState').textContent=observationOnly()?'Chỉ quan sát · chưa đánh giá':(relative()?'D1/D2 tương đối · ':'')+(states[f.features.detector_state]||f.features.detector_state);$('bookQuality').textContent=f.features.eligible?'SPREAD ĐỦ ĐẦU VÀO':reasons[f.features.reason]||'CHƯA ĐỦ ĐIỀU KIỆN';
     $('book').replaceChildren(table(['Mức','Lượng mua','Giá mua','Giá bán','Lượng bán'],Array.from({length:isCapture()?Math.max(f.bids.length,f.asks.length,3):3},(_,i)=>[i+1,fmt(f.bids[i]?.[1]),fmt(f.bids[i]?.[0]),fmt(f.asks[i]?.[0]),fmt(f.asks[i]?.[1])])));$('bookUnits').textContent='Schema VND/CP · '+(f.units==='EMPIRICALLY_VERIFIED'?'Có bằng chứng đơn vị trong phạm vi nguồn.':'Chưa xác minh độc lập; không dùng như kết quả tài chính đã nghiệm thu.');
     $('filterCount').textContent=`${shown.length} / ${events.length} sự kiện đã biết · không lộ các sự kiện tương lai`;eventButtons($('events'),shown);eventButtons($('watchEvents'),events.slice(0,8));renderEvidence(events);quality($('quality'));quality($('watchQuality'));paint();

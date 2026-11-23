@@ -125,7 +125,7 @@ class CloudHandler(Handler):
         if self.server.public_read:
             public_api={'/api/hosting','/api/datasets','/api/dataset','/api/reviews','/api/trades','/api/library',
                         '/api/watchlist','/api/export','/api/live/status','/api/live/runs','/api/live/view',
-                        '/api/live/events','/api/live/reviews','/api/live/export'}
+                        '/api/live/events','/api/live/reviews','/api/live/export','/api/research/breakout'}
             if route.path in ('/admin','/api/review-history'):
                 if not self.authenticated():return
                 if route.path=='/admin':
@@ -157,7 +157,7 @@ class CloudHandler(Handler):
             except (ValueError,KeyError,OSError):return self.send_json({'error':'DATA_NOT_READY_OR_INVALID'},404)
             finally:self.server.heavy.release()
         # Serialize expensive history/analysis requests on small free instances.
-        heavy=route.path in ('/api/watchlist','/api/library','/api/export','/api/trades','/api/live/view','/api/live/events','/api/live/reviews','/api/live/export')
+        heavy=route.path in ('/api/watchlist','/api/library','/api/export','/api/trades','/api/live/view','/api/live/events','/api/live/reviews','/api/live/export','/api/research/breakout')
         if heavy and not self.server.heavy.acquire(blocking=False):return self.resource_busy()
         try:return super().do_GET()
         except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)

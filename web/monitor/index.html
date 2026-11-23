@@ -2,7 +2,7 @@
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Theo dõi, phát lại và rà soát sự kiện thanh khoản trong một dashboard sổ lệnh.">
 <title>LiquidityLab · Theo dõi và rà soát sự kiện</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/style.css">
-<script src="/model.js" defer></script><script src="/heatmap.js" defer></script><script src="/live-model.js" defer></script><script src="/capture-model.js" defer></script><script src="/http.js" defer></script><script src="/app.js" defer></script></head>
+<script src="/model.js" defer></script><script src="/heatmap.js" defer></script><script src="/live-model.js" defer></script><script src="/capture-model.js" defer></script><script src="/http.js" defer></script><script src="/breakout.js" defer></script><script src="/app.js" defer></script></head>
 <body><aside class="sidebar">
   <a class="brand" href="/" aria-label="LiquidityLab"><span class="logo">▥</span><span>LiquidityLab<small>ORDER BOOK OBSERVATORY</small></span></a>
   <span class="eyebrow">KHÔNG GIAN QUAN SÁT</span>
@@ -26,6 +26,13 @@
   </section>
 
   <section id="analysisScreen" class="screen">
+    <details id="breakoutPanel" class="panel breakout-panel">
+      <summary><strong>Nghiên cứu vượt đỉnh phiên trước</strong><span class="pill">GIÁ KHỚP · 5 / 15 PHÚT</span></summary>
+      <p>Đánh dấu lần giá khớp đi từ không cao hơn lên cao hơn mức tham chiếu trong phiên. Đây là lần vượt quan sát được, chưa phải nến ngày đóng cửa xác nhận.</p>
+      <div class="breakout-controls"><label>Ngày tham chiếu<input id="breakoutDay" type="date"><small>Để trống: ngày làm việc trước; kiểm tra lịch nghỉ.</small></label><label>Đỉnh phiên trước (VNĐ)<input id="breakoutPrice" type="number" min="1" max="1000000000" step="any" placeholder="Để trống: đỉnh giao dịch đã lưu"><small>Nhập giá đã kiểm tra, ví dụ 30000; không nhập 30.</small></label><button id="breakoutRun" class="outline" type="button">Phân tích tới con trỏ</button><button id="breakoutEnd" class="outline" type="button">Đến cuối dữ liệu và phân tích</button><button id="breakoutExport" class="outline" type="button" hidden>Tải nghiên cứu JSON</button></div>
+      <p id="breakoutStatus" class="subtle" role="status" aria-live="polite">Mở nghiên cứu trên dữ liệu lịch sử. Kết quả chỉ dùng dữ liệu đến mốc đã chọn.</p>
+      <div id="breakoutResult" hidden><div id="breakoutReference" class="warning"></div><canvas id="breakoutChart" role="img" aria-label="Giá khớp quan sát theo phút, mức tham chiếu và các lần vượt đến mốc nghiên cứu"></canvas><p class="chart-foot">Nét giá nối giá khớp cuối mỗi phút có giao dịch; vạch mảnh là cao–thấp của các giao dịch đã lưu trong phút. Ngắt nét khi thiếu phút. Đường ngang là mức tham chiếu, chấm tròn là lần vượt được giữ lại.</p><div id="breakoutGroups" class="table-scroll"></div><p class="chart-foot">So sánh mô tả trên cùng mẫu; chưa chứng minh sổ lệnh cải thiện dự báo. Nhóm sổ lệnh dùng imbalance top 3 &gt; 0 và spread không cao hơn median 10 phút trước, tối thiểu 5 giây có mẫu. Không phải tín hiệu mua/bán.</p><div id="breakoutEpisodes" class="table-scroll"></div><p class="chart-foot">Hai lần vượt được giữ cách nhau ít nhất 15 phút để giảm cửa sổ chồng lấn. “Trên mức tại mốc” chỉ xét giá khớp gần mốc 5/15 phút, không khẳng định giữ trên mức suốt khoảng đó. Khoảng thưa/thiếu không được tính vào mẫu so sánh đầy đủ; phần trăm biến động là từ giá khớp lần vượt, chưa tính chi phí và không phải lợi nhuận thực thi. Phạm vi chỉ gồm phiên liên tục.</p></div>
+    </details>
     <section class="metrics"><div class="metric"><span>Spread quan sát</span><strong id="spread">—</strong><small>Chênh lệch mua–bán · bps</small></div><div class="metric"><span>Khối lượng chờ mua</span><strong id="bidDepth">—</strong><small>Top 3 · Đọc cùng nhãn đơn vị</small></div><div class="metric"><span>Khối lượng chờ bán</span><strong id="askDepth">—</strong><small>Top 3 · Đọc cùng nhãn đơn vị</small></div><div class="metric"><span>Sự kiện đã phát hiện</span><strong id="eventCount">0</strong><small id="detectorState">Đang đọc dữ liệu</small></div></section>
     <div class="workspace"><div class="visual-column">
       <section class="panel heat-panel"><div class="panel-heading"><div><h2>Thanh khoản theo giá và thời gian</h2><p>Giá tuyệt đối · Màu là lượng chờ, không phải khối lượng đã khớp.</p></div><span class="pill dark-pill" id="sourceClock">—</span></div>

@@ -28,8 +28,9 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
           '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'),
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript'),'/http.js':('http.js','text/javascript')}
 ASSETS.update({'/realtime':('index.html','text/html'),'/realtime/':('index.html','text/html'),'/live-model.js':('live-model.js','text/javascript'),'/capture-model.js':('capture-model.js','text/javascript')})
+ASSETS['/breakout.js']=('breakout.js','text/javascript')
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v10-bounded'
+APPLICATION_VERSION='offline-monitor-v11-breakout'
 
 
 class ReviewStore:
@@ -337,6 +338,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.dataset(dataset_id)
                 return self.send_json([] if self.read_only() else self.server.reviews.read(dataset_id))
             if route.path=='/api/trades':return self.send_json(self.server.trades(dataset_id))
+            if route.path=='/api/research/breakout':
+                from src.monitoring.breakout_store import research
+                return self.send_json(research(self.server,dataset_id,params.get('cutoff',[''])[0],
+                    params.get('reference_price',[None])[0],params.get('reference_day',[None])[0]))
             if route.path=='/api/library':return self.send_json(self.server.library(include_reviews=False) if self.read_only() else self.server.library())
             if route.path=='/api/watchlist':
                 return self.send_json(self.server.watchlist(params.get('day',[''])[0],params.get('cutoff',[''])[0],
