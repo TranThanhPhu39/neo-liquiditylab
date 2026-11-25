@@ -64,7 +64,19 @@ def run(day, *, session='day', root=ROOT, export=True, now=None, publish_web=Non
             save()
             result['current_step']='collect'
             if complete_archive(folder/'history.db',day,session):
-                result['collection_state']='ALREADY_COMPLETE_NO_NETWORK'
+                from scripts.recheck_empty_dnse_day import archive_info, recheck, promote
+                if archive_info(folder)['empty']:
+                    checked=recheck(day,root=root,session=session)
+                    result['source_recheck']=checked
+                    result['collection_state']=checked['state']
+                    if checked['state']!='RECOVERED_STAGED':
+                        report_dnse_missing.make_report(day,session=session,root=root)
+                        raise ValueError('DNSE_DAY_SOURCE_EMPTY_AFTER_RECHECK' if checked['state']=='SOURCE_EMPTY_AFTER_RECHECK'
+                                         else 'DNSE_DAY_RECOVERY_NOT_COMPLETE')
+                    promote(day,checked,root=root,session=session)
+                    result['collection_state']='RECOVERED_NONEMPTY_ARCHIVE'
+                else:
+                    result['collection_state']='ALREADY_COMPLETE_NO_NETWORK'
             else:
                 collected=collect_dnse_history.run(day,root=root,session=session)
                 result['collection_state']=collected['state']
@@ -81,24 +93,37 @@ def run(day, *, session='day', root=ROOT, export=True, now=None, publish_web=Non
             result['current_step']='report_missing'
             report_dnse_missing.make_report(day,session=session,root=root)
             result['completed_steps'].append('report_missing')
+            result['raw_quote_count']=raw['raw_quote_count_verified']
+            result['symbols_with_records']=raw['symbols_with_records']
+            if not raw['raw_quote_count_verified']:
+                raise ValueError('DNSE_DAY_SOURCE_EMPTY_ALL_SYMBOLS')
             save()
             result['current_step']='normalize'
-            normalized=normalize_dnse_history.run(root=root)
+            if (root/'data/compact/catalog.json').exists():
+                from scripts.update_dnse_parquet import run as update_parquet
+                def progress(step):
+                    result['current_step']=step
+                    result['completed_steps'].append(step)
+                    save()
+                normalized,audited,finance=update_parquet(day,root=root,progress=progress)
+            else:
+                normalized=normalize_dnse_history.run(root=root)
+                audited=None
             if normalized['state']!='COMPLETED' or normalized['quarantined_occurrences']:
                 raise ValueError('NORMALIZATION_REQUIRES_REVIEW')
-            result['completed_steps'].append('normalize')
+            if 'normalize' not in result['completed_steps']:result['completed_steps'].append('normalize')
             save()
             result['current_step']='audit_normalized'
-            audited=audit_dnse_normalized.audit(root=root,export=export)
+            if audited is None:audited=audit_dnse_normalized.audit(root=root,export=export)
             if audited['state']!='VERIFIED':
                 raise ValueError('NORMALIZED_AUDIT_NOT_VERIFIED')
-            result['completed_steps'].append('audit_normalized')
+            if 'audit_normalized' not in result['completed_steps']:result['completed_steps'].append('audit_normalized')
             save()
             result['current_step']='finance_checks'
-            finance=audit_dnse_normalized.validate_finance(root=root)
+            if 'finance_checks' not in result['completed_steps']:finance=audit_dnse_normalized.validate_finance(root=root)
             if finance['state']!='PASSED':
                 raise ValueError('FINANCE_CHECKS_FAILED')
-            result['completed_steps'].append('finance_checks')
+            if 'finance_checks' not in result['completed_steps']:result['completed_steps'].append('finance_checks')
             # Replace the current manifest; older optional exports may still exist,
             # but must not be advertised as exports of the newly updated database.
             files={'database':audited['database']}
@@ -114,14 +139,15 @@ def run(day, *, session='day', root=ROOT, export=True, now=None, publish_web=Non
                 'quarantined':normalized['quarantined_occurrences'],
                 'unit_scope_counts':normalized['unit_scope_counts'],
                 'files':files,'audit_report':'report/dnse_normalization_audit.json',
-                'finance_checks':finance,'exports_refreshed':export})
+                'finance_checks':finance,'exports_refreshed':export and audited.get('storage')!='PARQUET',
+                'storage':audited.get('storage','SQLITE')})
             if publish_web:
                 result['current_step']='publish_web'
                 save()
                 from scripts.publish_dnse_web import publish_samples
                 result['web_publication']=publish_samples(root)
                 result['completed_steps'].append('publish_web')
-            result.update(state='COMPLETED',current_step=None,dashboard_database='data/processed/dnse/normalized.db')
+            result.update(state='COMPLETED',current_step=None,dashboard_database=audited['database']['path'])
             save()
         except (Exception,KeyboardInterrupt) as error:
             result['state']='INTERRUPTED_RESUMABLE' if isinstance(error,KeyboardInterrupt) else 'FAILED_RESUMABLE'

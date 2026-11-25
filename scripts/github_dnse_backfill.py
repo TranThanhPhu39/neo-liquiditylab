@@ -72,13 +72,16 @@ def run_backfill(day, session, key, *, root=ROOT, max_requests=6000,
                   date_local=day,session=session,source='REST_HISTORY',units_verified=False,
                   financial_eligible=False,realtime_recovered=False,checkpoint=None,
                   restored_checkpoint=None)
+    recovery_database = None
 
     def save(value, audit=None):
         write_json(reports/'status.json', value)
         write_json(reports/'audit.json', audit or dict(state='PARTIAL_NOT_AUDITED'))
         if (folder/'universe.json').exists():
             write_json(reports/'universe.json', json.loads((folder/'universe.json').read_text(encoding='utf-8')))
-        return store.publish(partition, database, reports,
+        # A bounded recovery may pause before promotion. Persist that staged DB
+        # so the next runner resumes its pages instead of restoring the empty DB.
+        return store.publish(partition, recovery_database or database, reports,
                              os.getenv('GITHUB_RUN_ID','manual'), os.getenv('GITHUB_RUN_ATTEMPT','1'))
 
     last_checkpoint = time.monotonic()
@@ -96,6 +99,18 @@ def run_backfill(day, session, key, *, root=ROOT, max_requests=6000,
                 result['restored_checkpoint'] = store.restore(partition, database, reports/'restored'/uuid.uuid4().hex)
             if database.exists():
                 restore_universe(database, folder)
+                from scripts.recheck_empty_dnse_day import archive_info, recheck, promote
+                if archive_info(folder)['empty']:
+                    checked_empty = recheck(day, root=root, session=session, client=client,
+                                            max_requests=max_requests, max_seconds=max_seconds)
+                    result['source_recheck'] = checked_empty
+                    if checked_empty['state'] != 'RECOVERED_STAGED':
+                        if checked_empty['state'] == 'PAUSED_RESUMABLE':
+                            from scripts.recheck_empty_dnse_day import raw_folder
+                            recovery_database = raw_folder(root/checked_empty['attempt_root'], day, session)/'history.db'
+                        raise ValueError('DNSE_DAY_SOURCE_EMPTY_AFTER_RECHECK' if checked_empty['state']=='SOURCE_EMPTY_AFTER_RECHECK'
+                                         else 'DNSE_DAY_RECOVERY_NOT_COMPLETE')
+                    promote(day, checked_empty, root=root, session=session)
             collected = collect_dnse_history.run(day,root=root,session=session,client=client,
                 max_requests=max_requests,max_seconds=max_seconds,progress_hook=progress)
             result['collection_state'] = collected['state']
@@ -109,6 +124,8 @@ def run_backfill(day, session, key, *, root=ROOT, max_requests=6000,
                 checked = audit_dnse_history.audit(day,root=root,session=session)
                 if checked['sqlite_integrity'] != 'ok' or not checked['all_symbols_fully_paginated']:
                     raise ValueError('REST_HISTORY_AUDIT_FAILED')
+                if not checked['raw_quote_count_verified']:
+                    raise ValueError('DNSE_DAY_SOURCE_EMPTY_ALL_SYMBOLS')
                 result['state'] = 'REST_BACKFILL_COMPLETED'
                 result['audit'] = {k:checked[k] for k in ('sqlite_integrity','all_symbols_fully_paginated',
                     'page_checksums_verified','raw_quote_count_verified','symbols_with_records')}

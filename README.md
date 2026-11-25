@@ -1,5 +1,15 @@
 # NEO LiquidityLab
 
+**Tải bù ngày toàn dữ liệu rỗng — 25/11/2026:** một ngày hết trang nhưng không có bản ghi cho bất kỳ mã nào sẽ báo lỗi thiếu dữ liệu nguồn, không báo hoàn tất và không chuẩn hóa thành sổ lệnh 0. Lần chạy lại `scripts.update_dnse_day` kiểm tra mới tối đa ba mã thanh khoản cao; kết quả rỗng được nghỉ 30 phút trước lần kiểm tra tiếp. Khi nguồn có dữ liệu trở lại, hệ thống tải lại toàn danh mục trong kho riêng, audit rồi mới thay kho đang dùng; giữ nguyên kho rỗng và phần chuẩn hóa dở để đối chiếu. Luồng REST dự phòng trên GitHub áp dụng cùng quy tắc. Việc hết trang chỉ xác nhận đã đọc hết phần API trả về, không bảo đảm nguồn cung cấp đủ cả phiên.
+
+Để chủ động kiểm tra lại **toàn danh mục** của một ngày đã lưu toàn dữ liệu rỗng:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.recheck_empty_dnse_day --date 2026-11-24 --full-scan
+```
+
+Lệnh lưu riêng lần thử và audit; mã thoát khác 0 nếu nguồn vẫn rỗng hoặc tải chưa xong. Sau khi có kết quả `RECOVERED_STAGED`, chạy lại `scripts.update_dnse_day --date 2026-11-24 --no-export` để cài bản đã audit, chuẩn hóa và xuất dữ liệu theo cấu hình hiện có. Không xóa dữ liệu gốc.
+
 **Sửa RAM truy vấn snapshot — 25/11/2026:** bảng theo dõi dùng hai bước: tìm vị trí snapshot theo thời gian/id rồi đọc payload bằng Parquet batch, thay vì tải cả lịch sử để chọn một dòng. Giữ nguyên quy tắc cutoff, tie-break, đơn vị, null và số 0. Danh mục và trạng thái hosting dùng chung giới hạn tác vụ nặng với recovery. Trên cùng kho web 28.834 bộ dữ liệu, đỉnh RAM trong phép thử cục bộ giảm từ khoảng 710 MB xuống 210 MB. Workflow `Monitor real-history memory check` kiểm tra image Linux với giới hạn cứng 512 MiB và gói lịch sử mã hóa đã có; không thay lịch thu hoặc nâng gói Render.
 
 **Nghiên cứu vượt đỉnh — 23/11/2026:** trong **Phân tích mã**, mở **Nghiên cứu vượt đỉnh phiên trước** để xem lần giá khớp vượt mức tham chiếu, giá quan sát sau 5/15 phút và sổ lệnh có trước lần vượt. Có lựa chọn nhập đỉnh đã kiểm tra, dùng cutoff replay và xuất JSON. Cần giao dịch khớp riêng; đỉnh từ giao dịch đã lưu chỉ là mức thăm dò. [Hướng dẫn](docs/breakout_research.md).

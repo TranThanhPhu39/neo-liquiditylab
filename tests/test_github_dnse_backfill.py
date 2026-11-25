@@ -96,6 +96,47 @@ def test_network_failure_is_failed_durable_and_safe(tmp_path,store,monkeypatch):
     assert runner.exit_code(result)==1
 
 
+def test_all_empty_checkpoint_is_failure_and_rechecks_on_fresh_runner(tmp_path, store):
+    class EmptyClient(Client):
+        def get(self, path, params):
+            observation = super().get(path, params)
+            if path != '/instruments':
+                observation['payload'] = {'quotes': []}
+            return observation
+    first = backfill.run_backfill(DAY, 'day', b'x'*32, root=tmp_path/'one', client=EmptyClient(), store=store)
+    assert first['state'] == 'FAILED_REST_BACKFILL'
+    assert first['error_code'] == 'DNSE_DAY_SOURCE_EMPTY_ALL_SYMBOLS'
+    assert first['raw_quote_count'] == 0 and first['checkpoint']
+    client = Client()
+    recovered = backfill.run_backfill(DAY, 'day', b'x'*32, root=tmp_path/'two', client=client, store=store)
+    assert recovered['state'] == 'REST_BACKFILL_COMPLETED'
+    assert recovered['raw_quote_count'] == 2
+    assert recovered['source_recheck']['state'] == 'RECOVERED_INSTALLED'
+    assert recovered['audit']['raw_quote_count_verified'] == 2
+    assert not any(path == '/instruments' for path, _ in client.calls)
+
+
+def test_paused_empty_day_recovery_checkpoints_new_pages_for_next_runner(tmp_path, store):
+    class EmptyClient(Client):
+        def get(self, path, params):
+            observation = super().get(path, params)
+            if path != '/instruments':
+                observation['payload'] = {'quotes': []}
+            return observation
+    backfill.run_backfill(DAY, 'day', b'x'*32, root=tmp_path/'one', client=EmptyClient(), store=store)
+    paused = backfill.run_backfill(DAY, 'day', b'x'*32, root=tmp_path/'two', client=Client(), store=store, max_requests=1)
+    assert paused['state'] == 'FAILED_REST_BACKFILL'
+    assert paused['source_recheck']['state'] == 'PAUSED_RESUMABLE'
+    _, saved = store.latest[DAY+'-day']
+    with closing(sqlite3.connect(saved)) as db:
+        assert db.execute('SELECT sum(quote_count) FROM pages').fetchone()[0] == 1
+    client = Client()
+    resumed = backfill.run_backfill(DAY, 'day', b'x'*32, root=tmp_path/'three', client=client, store=store)
+    assert resumed['state'] == 'REST_BACKFILL_COMPLETED'
+    assert resumed['audit']['raw_quote_count_verified'] == 2
+    assert all('/ACB/' not in path for path, _ in client.calls)
+
+
 def test_checkpoint_failure_cannot_report_success(tmp_path,store,monkeypatch):
     def fail(*args):
         raise RuntimeError('synthetic private message')
