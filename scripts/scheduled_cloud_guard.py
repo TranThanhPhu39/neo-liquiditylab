@@ -104,7 +104,8 @@ def run(root=ROOT, now=None, api=None, refresh=ensure_catalog, start_check=None)
         if any(r['state'] == 'FAILED_RESUMABLE' for r in result['providers'].values()):
             result['state'] = 'FAILED_RESUMABLE'
         elif result.get('ssi_start_check',{}).get('deadline_passed') and (
-                not result['ssi_start_check'].get('worker_start_verified') or result['ssi_start_check'].get('late')):
+                not result['ssi_start_check'].get('worker_start_verified') or result['ssi_start_check'].get('late') or
+                (result['ssi_start_check'].get('data_start_deadline_passed') and not result['ssi_start_check'].get('quotes_observed_for_all_symbols'))):
             result['state']='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START'
         write_json(root/'report/automation/cloud_dispatch_status.json', result)
     return result

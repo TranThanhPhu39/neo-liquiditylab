@@ -1,5 +1,5 @@
 """Read public collector telemetry; a dispatch or queued job is never data proof."""
-from datetime import datetime
+from datetime import datetime,timedelta
 import json
 from urllib.request import urlopen
 
@@ -12,6 +12,7 @@ def evaluate(status, now, session, p):
     window=plan(now,session,p)
     result=dict(state='WORKER_START_NOT_VERIFIED',session=session,day=window['day'],
                 deadline_passed=now>=datetime.fromisoformat(window['coverage_from']),
+                data_start_deadline_passed=now>=datetime.fromisoformat(window['coverage_from'])+timedelta(minutes=2),
                 worker_start_verified=False,market_coverage_verified=False,realtime_backfill_available=False)
     stamp=status.get('first_connected_at')
     if not stamp or not status.get('active'):return result

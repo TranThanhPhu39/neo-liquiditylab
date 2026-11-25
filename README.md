@@ -2,6 +2,8 @@
 
 **Khởi động SSI và theo dõi gap — 25/11/2026:** cron chuẩn bị runner lúc 08:17/12:12; Windows guard dự phòng chạy từ 08:15, mỗi 5 phút. Giờ bắt đầu thu giữ 08:50/12:45. Guard phân biệt xếp hàng với kết nối thật, xử lý run chưa chạy của phiên cũ, giới hạn thử lại và giữ ngày dự kiến của dispatch. Worker có heartbeat, first connection và thống kê gap theo nguyên nhân/thời lượng; gap làm mới token vẫn mang nhãn partial. Windows cần máy bật, có mạng và đăng nhập; chưa bảo đảm cron cloud đúng giờ khi máy tắt. Xem [lịch dự phòng và cách nghiệm thu](docs/independent_collection_schedule.md).
 
+Bộ thu SSI trên máy kiểm tra từ **08:52/12:47** khi thiếu bằng chứng cloud đang thu; lưu Parquet riêng, checkpoint mã hóa mỗi 15 phút và thử lại upload bị lỡ. Giữ máy không Sleep. Local không ghi đè relay GitHub; dữ liệu dự phòng lên web qua chu kỳ khôi phục checkpoint, có độ trễ. Kiểm tra lịch bằng `.\.venv\Scripts\python.exe -m scripts.install_ssi_local_task --verify-only`; dừng riêng local bằng `data/control/STOP_SSI_LOCAL`.
+
 **Tải bù ngày toàn dữ liệu rỗng — 25/11/2026:** một ngày hết trang nhưng không có bản ghi cho bất kỳ mã nào sẽ báo lỗi thiếu dữ liệu nguồn, không báo hoàn tất và không chuẩn hóa thành sổ lệnh 0. Lần chạy lại `scripts.update_dnse_day` kiểm tra mới tối đa ba mã thanh khoản cao; kết quả rỗng được nghỉ 30 phút trước lần kiểm tra tiếp. Khi nguồn có dữ liệu trở lại, hệ thống tải lại toàn danh mục trong kho riêng, audit rồi mới thay kho đang dùng; giữ nguyên kho rỗng và phần chuẩn hóa dở để đối chiếu. Luồng REST dự phòng trên GitHub áp dụng cùng quy tắc. Việc hết trang chỉ xác nhận đã đọc hết phần API trả về, không bảo đảm nguồn cung cấp đủ cả phiên.
 
 Để chủ động kiểm tra lại **toàn danh mục** của một ngày đã lưu toàn dữ liệu rỗng:

@@ -71,6 +71,22 @@ def guard(now,api,root=None,flags=None):
                 worker_start_verified=False,market_coverage_verified=False,cancelled_expired_queued_runs=cancelled)
 
 
+def checked_guard(now,api,*,root=None,flags=None,start_check=None):
+    from config.settings import ROOT
+    from scripts.check_ssi_start import check
+    result=guard(now,api,root=root,flags=flags)
+    if result.get('session'):
+        proof=(start_check or check)(now,result['session'],root=root or ROOT)
+        result['start_check']=proof
+        if proof.get('deadline_passed') and (not proof.get('worker_start_verified') or proof.get('late') or
+                (proof.get('data_start_deadline_passed') and not proof.get('quotes_observed_for_all_symbols'))):
+            result['dispatch_state']=result['state']
+            result['state']='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START'
+    return result
+
+
 if __name__=='__main__':
     if os.getenv('GITHUB_REPOSITORY')!=REPOSITORY or os.getenv('GITHUB_REF')!='refs/heads/main':raise ValueError('SSI_GUARD_REPOSITORY_REQUIRED')
-    print(json.dumps(guard(datetime.now(LOCAL),GitHubAPI(),flags={name:os.getenv(name) for name in ('SSI_REALTIME_ENABLED','SSI_REALTIME_STORAGE_APPROVED')})))
+    result=checked_guard(datetime.now(LOCAL),GitHubAPI(),flags={name:os.getenv(name) for name in ('SSI_REALTIME_ENABLED','SSI_REALTIME_STORAGE_APPROVED')})
+    print(json.dumps(result))
+    raise SystemExit(1 if result['state']=='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START' else 0)

@@ -9,6 +9,7 @@ Kiểm tra ngày 18/11 lúc 13:29 giờ Việt Nam: SSI, DNSE và SSI guard đ�
 | GitHub cron SSI/DNSE | SSI prewarm 08:17 và 12:12; DNSE giữ lịch hiện có | Nguồn lịch chính, có thể trễ/thiếu sự kiện |
 | Windows Realtime Dispatch Guard | Thứ Hai–Sáu, 08:15–15:35, mỗi 5 phút; thêm lúc đăng nhập | Kiểm tra/kích hoạt GitHub qua workflow_dispatch bằng đồng hồ Windows |
 | Windows DNSE Daily Fallback | Thứ Hai–Sáu, từ 15:15 lặp mỗi 30 phút trong 8 giờ; thêm lúc đăng nhập | Tải bù ngày đã đóng, chuẩn hóa/audit, xuất bản theo chính sách hiện có |
+| Windows SSI Local Session Fallback | Thứ Hai–Sáu, từ 08:52 lặp mỗi 5 phút đến 15:12; thêm lúc đăng nhập | Thu SSI trực tiếp trên máy khi thiếu bằng chứng cloud hoạt động; cửa sổ chiều bắt đầu 12:47 |
 
 Guard Windows chỉ phát lệnh khởi động khi không có collector queued/running, không quá hai lần thử trong cửa sổ phiên và cách lần thất bại gần nhất ít nhất 10 phút. Giữ cờ tắt/stop file và lịch nghỉ được cấu hình. SSI/DNSE xử lý độc lập: lỗi một nguồn không chặn kiểm tra nguồn kia.
 
@@ -26,6 +27,12 @@ Ngày mới chưa đến 15:15 không được tải như một ngày hoàn ch�
 
 Windows guard cần máy này bật, có mạng và người dùng hiện tại đăng nhập. Các bộ thu sau khi đã khởi động tiếp tục chạy trên runner GitHub đến hết cửa sổ phiên, độc lập với việc giữ cửa sổ terminal mở. Cơ chế này không giải quyết việc kích hoạt khi máy đã tắt trước giờ phiên; muốn độc lập hoàn toàn cần một bộ lập lịch bên ngoài luôn hoạt động. Không tạo dịch vụ trả phí hoặc đưa GitHub token sang bên thứ ba trong thay đổi này.
 
+**Bộ thu local được người dùng chấp thuận ngày 25/11:** giữ máy bật, có mạng, không Sleep và đăng nhập từ 08:15 đến 15:10; cần chờ upload cuối phiên hoàn tất nếu sắp tắt máy. Khi cloud có kết nối mới đúng phiên và đã nhận dữ liệu sau giờ mở cửa, local không mở thêm bản thu. Nếu thiếu bằng chứng đó, local thu cùng ba mã bằng khóa SSI trên máy đến 11:35/15:10. Local tự giữ máy thức trong lúc đang thu, giữ nguyên đơn vị/clock/gap và lưu Parquet dưới `data/realtime/ssi/<ngày>/<run_id>`.
+
+Local không gửi vào luồng relay đang do GitHub ghi. Mỗi 15 phút và cuối phiên, bản thu local được mã hóa bằng khóa khôi phục hiện có, upload lên Releases theo session `morning-local`/`afternoon-local`, kiểm tra giải mã và Parquet. Backend khôi phục các bản thu riêng qua chu kỳ checkpoint; đây là lịch sử dự phòng có thể trễ khoảng một chu kỳ upload cộng một chu kỳ recovery, không phải luồng trực tiếp 5 giây. Bản relay GitHub đang hoạt động vẫn được ưu tiên trên web; các bản thu không bị ghép thành một phiên đủ giả tạo.
+
+Khi GitHub không truy cập được, Parquet vẫn tiếp tục lưu trên máy theo cờ bật local đã được chấp thuận. Bản upload lỗi giữ báo cáo riêng theo `run_id`, rồi được thử lại lúc task tiếp tục hoạt động, kể cả ngoài giờ thu. Repo báo cờ thu tắt thì không bắt đầu bản thu mới; `data/control/STOP_SSI_LOCAL` dừng riêng local. Sau hai lần thu kết thúc sớm trong cùng phiên, cần kiểm tra nguyên nhân trước khi thử thêm.
+
 Task dùng Interactive/Limited, không lưu mật khẩu vào Task Scheduler. GitHub credential được đọc từ cơ chế Git đã có của người dùng; không nhúng token vào file task, command line, source hoặc log. Không có API giao dịch.
 
 ## Cài và kiểm tra
@@ -35,6 +42,7 @@ Task dùng Interactive/Limited, không lưu mật khẩu vào Task Scheduler. Gi
 .\.venv\Scripts\python.exe -m scripts.install_dnse_day_task
 .\.venv\Scripts\python.exe -m scripts.install_cloud_guard_task --verify-only
 .\.venv\Scripts\python.exe -m scripts.install_dnse_day_task --verify-only
+.\.venv\Scripts\python.exe -m scripts.install_ssi_local_task --verify-only
 ```
 
 Chạy kiểm tra ngay (không tạo bản trùng khi collector đang chạy):
@@ -48,6 +56,10 @@ Báo cáo hoạt động:
 - `report/automation/cloud_dispatch_status.json`: kết quả kiểm tra/kích hoạt từng provider.
 - `report/automation/cloud_dispatch_entry.json`: thời gian task thực sự bắt đầu/kết thúc và đường dẫn log.
 - `report/automation/logs/cloud_guard_YYYY-MM-DD.log`: log an toàn của launcher chạy ẩn; không chứa khóa.
+- `report/automation/ssi_local_task_registration.json`: lịch dự phòng SSI thực đã đăng ký.
+- `report/automation/ssi_local_task_last.json`: kết quả lần gọi task local gần nhất.
+- `report/automation/ssi-local/<ngày>-<phiên>.json`: heartbeat, phạm vi thu, chất lượng và kết quả checkpoint.
+- `report/automation/ssi-local-archives/<run_id>.json`: từng bản thu và hàng đợi upload giữ qua những lần thử.
 - `report/automation/cloud_dispatch_task_registration.json`: lịch Windows thực đã đăng ký.
 - `report/automation/dnse_task_registration.json`: lịch cuối ngày và các mốc lặp.
 - `report/dnse_ws_catalog_preparation.json`: ngày danh mục thật và tag checkpoint mã hóa.

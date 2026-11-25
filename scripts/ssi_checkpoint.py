@@ -119,7 +119,8 @@ class SSICheckpoints:
         unpack(assets,self.key,context)
         release=self.api.request('POST',self.base+'/releases',dict(tag_name=tag,target_commitish='main',
             name='Encrypted SSI '+('session' if final else 'temporary checkpoint')+' '+manifest['day']+' '+session,
-            draft=True,prerelease=True,body='AES-GCM encrypted Parquet capture. No credentials or plaintext market payload. Source Actions run '+str(run_id)))
+            draft=True,prerelease=True,body='AES-GCM encrypted Parquet capture. No credentials or plaintext market payload. '+
+                ('Source Windows local capture ' if session.endswith('-local') else 'Source Actions run ')+str(run_id)))
         upload=release['upload_url'].split('{')[0]
         for name,data in assets.items():
             self.api.request('POST',upload+'?name='+quote(name,safe=''),data=data,content_type='application/octet-stream')

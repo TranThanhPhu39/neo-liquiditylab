@@ -124,3 +124,21 @@ def test_queued_dispatch_reports_attention_when_start_is_not_verified_after_open
                      refresh=lambda *a:dict(state='CATALOG_PREPARED_AND_ENCRYPTED'),start_check=probe)
     assert result['state']=='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START'
     assert result['providers']['ssi']['queue_only']
+
+
+def test_github_guard_also_fails_when_only_a_queued_job_exists_after_open():
+    from scripts.ssi_schedule_guard import checked_guard
+    api=API([queued(created_at='2026-11-26T08:59:00+07:00')])
+    result=checked_guard(clock('2026-11-26T09:05:00+07:00'),api,
+        start_check=lambda *a,**kw:dict(state='WORKER_START_NOT_VERIFIED',deadline_passed=True,worker_start_verified=False))
+    assert result['state']=='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START'
+    assert result['dispatch_state']=='COLLECTOR_ALREADY_ACTIVE' and not api.posts
+
+
+def test_connected_without_quotes_for_all_symbols_after_grace_is_not_data_proof():
+    from scripts.ssi_schedule_guard import checked_guard
+    api=API([queued(status='in_progress')])
+    result=checked_guard(clock('2026-11-26T09:05:00+07:00'),api,
+        start_check=lambda *a,**kw:dict(worker_start_verified=True,deadline_passed=True,
+            data_start_deadline_passed=True,quotes_observed_for_all_symbols=False))
+    assert result['state']=='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START'

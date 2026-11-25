@@ -3,6 +3,7 @@
   "timezone": "Asia/Ho_Chi_Minh",
   "symbols": ["ACB", "FPT", "HPG"],
   "guard_lead_minutes": 35,
+  "local_fallback_enabled": true,
   "schedule_utc": {"17 1 * * 1-5": "morning", "12 5 * * 1-5": "afternoon", "37 1 * * 1-5": "morning", "37 5 * * 1-5": "afternoon"},
   "sessions": {
     "morning": {"capture_from": "08:50", "coverage_from": "09:00", "close": "11:35"},
