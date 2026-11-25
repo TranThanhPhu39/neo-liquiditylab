@@ -1,0 +1,37 @@
+name: Monitor real-history memory check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  memory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Build production image
+        run: docker build -t monitor-memory:check .
+      - name: Run real encrypted history with a hard memory limit
+        env:
+          LIQUIDITYLAB_STATE_KEY: ${{ secrets.LIQUIDITYLAB_STATE_KEY }}
+          MONITOR_SEED_TAG: monitor-web-seed-20261123-2489ea9ba909
+          SSI_RECOVERY_TAGS_JSON: '["ssi-ws-2026-11-25-afternoon-20261125080959556819-45554009561-1"]'
+        run: |
+          test -n "$LIQUIDITYLAB_STATE_KEY"
+          docker run --detach --name monitor-memory --memory=512m --memory-swap=512m --cpus=1 --publish 127.0.0.1:10000:10000 --env LIQUIDITYLAB_STATE_KEY --env MONITOR_SEED_TAG --env SSI_RECOVERY_TAGS_JSON --env MONITOR_PUBLIC_ORIGIN=http://127.0.0.1:10000 --env MONITOR_PUBLIC_READ=true --env MONITOR_WEB_PASSWORD=fixture-web-password-32-characters --env MONITOR_INGEST_TOKEN=fixture-ingest-token-32-characters monitor-memory:check
+          python -m scripts.check_monitor_memory
+          test "$(docker inspect --format '{{.State.OOMKilled}}' monitor-memory)" = false
+          test "$(docker inspect --format '{{.RestartCount}}' monitor-memory)" = 0
+          echo 'Peak container memory in bytes:'
+          docker exec monitor-memory cat /sys/fs/cgroup/memory.peak
+      - name: Safe runtime diagnostics and cleanup
+        if: always()
+        run: |
+          docker inspect --format 'Running={{.State.Running}} OOMKilled={{.State.OOMKilled}} ExitCode={{.State.ExitCode}} Restarts={{.RestartCount}}' monitor-memory || true
+          docker logs --tail 20 monitor-memory || true
+          docker rm --force monitor-memory || true

@@ -86,7 +86,7 @@ class MarketHistory:
 
     def entry(self,dataset_id):return next((e for e in self.index() if e['dataset_id']==dataset_id),None)
 
-    def table(self,entry,symbols=None,cutoff=None):
+    def scan(self,entry,symbols=None,cutoff=None):
         import pyarrow.dataset as ds
         p=confined(self.root,entry['market_file'])
         if not p.exists():p=self.remote_file(entry)
@@ -96,7 +96,14 @@ class MarketHistory:
             self._checked.add(identity)
         condition=ds.field('symbol').isin(symbols or [entry['symbol']])
         if cutoff is not None:condition=condition & (ds.field('source_time')<=stamp(cutoff))
-        return ds.dataset(p,format='parquet').to_table(filter=condition)
+        return ds.dataset(p,format='parquet').scanner(filter=condition,batch_size=128,
+            batch_readahead=0,fragment_readahead=0,use_threads=False,
+            fragment_scan_options=ds.ParquetFragmentScanOptions(pre_buffer=False))
+
+    def table(self,entry,symbols=None,cutoff=None):
+        import pyarrow as pa
+        scanner=self.scan(entry,symbols,cutoff)
+        return pa.Table.from_batches(list(scanner.to_batches()),schema=scanner.projected_schema)
 
     def remote_file(self,entry):
         """Restore at most two encrypted day bundles; no broker credentials."""
@@ -192,11 +199,12 @@ class MarketHistory:
         for e in entries:
             if e['observations']:grouped.setdefault(e['market_file'],[]).append(e)
         for group in grouped.values():
-            table=self.table(group[0],[e['symbol'] for e in group],cutoff)
-            # Columnar grouping keeps only the last row per symbol at this cutoff.
-            import pyarrow as pa
-            table=table.sort_by([('source_time','ascending'),('source_order','ascending')])
-            symbols=table.column('symbol').to_pylist();indices={s:i for i,s in enumerate(symbols)}
-            for r in table.take(pa.array(list(indices.values()),type=pa.int64())).to_pylist():
-                r['provider']='dnse';result[r['symbol']]=r
+            # Watchlists need one snapshot, not all records for 50 symbols.
+            # Physical row order is not a completeness/chronology guarantee.
+            keys={}
+            for batch in self.scan(group[0],[e['symbol'] for e in group],cutoff).to_batches():
+                for r in batch.to_pylist():
+                    symbol=r['symbol'];key=(r['source_time'],r['source_order'])
+                    if symbol not in keys or key>keys[symbol]:
+                        keys[symbol]=key;r['provider']='dnse';result[symbol]=r
         return result

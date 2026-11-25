@@ -73,6 +73,32 @@ def test_catalog_cannot_escape_storage_root(tmp_path):
     with pytest.raises(ValueError,match='UNSAFE'):confined(tmp_path,'../private/.env')
 
 
+def test_cutoff_lookup_keeps_physical_order_ties_and_payload_without_loading_history(tmp_path,monkeypatch):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from datetime import timedelta
+    _,folder=compact(tmp_path)
+    store=ParquetHistory(tmp_path/'data/compact/catalog.json')
+    path=next(p for p in folder.glob('quotes-*.parquet') if 'ACB' in pq.read_table(p,columns=['symbol']).column('symbol').to_pylist())
+    table=pq.read_table(path);template=next(r for r in table.to_pylist() if r['symbol']=='ACB')
+    point=datetime.fromisoformat('2026-11-11T11:29:59+07:00')
+    rows=[]
+    # Deliberately nonchronological physical rows, tied source timestamps,
+    # future row first and a selected row in a later Parquet row group.
+    for rid,delta in ((20,1),(11,0),(19,0),(12,-1)):
+        row=dict(template,id=rid,source_timestamp_utc=point+timedelta(seconds=delta))
+        record=json.loads(row['record_json']);record.update(test_marker=rid,bid_vol_1=0,bid_vol_2=None)
+        row['record_json']=json.dumps(record).encode();rows.append(row)
+    pq.write_table(pa.Table.from_pylist(rows,schema=table.schema),path,row_group_size=2)
+    monkeypatch.setattr(store,'rows',lambda *a:(_ for _ in ()).throw(AssertionError('Full-history read')))
+    selected=store.at_row('ACB','2026-11-11',point)
+    assert selected['id']==19 and json.loads(selected['record_json'])['test_marker']==19
+    actual=store.reconstruct_at(['ACB','MISSING','ACB'],'2026-11-11',point)
+    assert set(actual)=={'ACB'} and actual['ACB']['bid_vol_1']==0 and actual['ACB']['bid_vol_2'] is None
+    assert store.at_row('ACB','2026-11-11',point-timedelta(seconds=2)) is None
+    assert not store._cache
+
+
 def test_large_event_history_is_losslessly_parquet_backed_and_legacy_replay_still_reads(tmp_path):
     from src.data_pipeline.parquet_replay import encode,identity
     import pyarrow as pa

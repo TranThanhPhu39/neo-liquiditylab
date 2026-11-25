@@ -30,7 +30,7 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
 ASSETS.update({'/realtime':('index.html','text/html'),'/realtime/':('index.html','text/html'),'/live-model.js':('live-model.js','text/javascript'),'/capture-model.js':('capture-model.js','text/javascript')})
 ASSETS['/breakout.js']=('breakout.js','text/javascript')
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
-APPLICATION_VERSION='offline-monitor-v11-breakout'
+APPLICATION_VERSION='offline-monitor-v12-streamed-cutoff'
 
 
 class ReviewStore:

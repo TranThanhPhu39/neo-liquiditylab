@@ -112,14 +112,16 @@ class ParquetHistory:
                 for r in sorted(self.metadata(day)['manual_checks'], key=lambda r: r['session']) if r['symbol'] == symbol]
 
     def rows(self, symbol, day):
-        import pyarrow.dataset as ds
+        import pyarrow.parquet as pq
         key = (symbol, day)
         if key not in self._cache:
             group = hashlib.sha256(symbol.encode()).digest()[0] % 4
             path = self.folder(day) / f'quotes-{group}.parquet'
             if path.exists():
-                table = ds.dataset(path, format='parquet').to_table(filter=ds.field('symbol') == symbol)
-                rows = table.sort_by([('source_timestamp_utc', 'ascending'), ('id', 'ascending')]).to_pylist()
+                rows=[]
+                for batch in pq.ParquetFile(path).iter_batches(batch_size=128,use_threads=False):
+                    rows.extend(r for r in batch.to_pylist() if r['symbol']==symbol)
+                rows.sort(key=lambda r:(r['source_timestamp_utc'],r['id']))
             else:
                 rows = []
             self._cache[key] = rows
@@ -138,18 +140,60 @@ class ParquetHistory:
                     financial_eligible=sum(r['financial_eligible'] for r in rows) if rows else None)
 
     def at_row(self, symbol, day, at):
+        return self._latest_rows([symbol],day,at).get(symbol)
+
+    def _latest_rows(self, symbols, day, at):
+        """One row per symbol at the cutoff; never load/cache a day's payloads.
+
+        Source timestamps can tie or be physically unordered. Keep the same
+        (source time, id) ordering used by rows(), without sorting a full table.
+        """
+        import pyarrow.parquet as pq
         from src.data_pipeline.dnse_history import day_bounds, utc_text
         start, end = day_bounds(day)
         utc_text(at)  # Enforce aware clocks, including for an empty symbol.
         if not start <= at.astimezone(timezone.utc) < end:
             raise ValueError('Cutoff must belong to the selected source day')
-        rows = self.rows(symbol, day)
-        i = bisect_right([r['source_timestamp_utc'] for r in rows], at) - 1
-        return rows[i] if i >= 0 else None
+        grouped={};latest={};keys={}
+        for symbol in dict.fromkeys(symbols):
+            group=hashlib.sha256(symbol.encode()).digest()[0]%4
+            grouped.setdefault(group,[]).append(symbol)
+        for group,requested in grouped.items():
+            path=self.folder(day)/f'quotes-{group}.parquet'
+            if not path.exists():continue
+            source=pq.ParquetFile(path);selected={};offset=0
+            for batch in source.iter_batches(batch_size=512,use_threads=False,
+                    columns=['symbol','source_timestamp_utc','id']):
+                for i,row in enumerate(batch.to_pylist()):
+                    symbol=row['symbol'];key=(row['source_timestamp_utc'],row['id'])
+                    if symbol in requested and row['source_timestamp_utc']<=at and (symbol not in keys or key>keys[symbol]):
+                        selected[symbol]=offset+i;keys[symbol]=key
+                offset+=batch.num_rows
+            if not selected:continue
+            # Dataset filters can decode a whole large record_json row group
+            # before filtering. Parquet iter_batches bounds the actual decoder.
+            positions={position:symbol for symbol,position in selected.items()};offset=0
+            for group_index in range(source.metadata.num_row_groups):
+                end=offset+source.metadata.row_group(group_index).num_rows
+                wanted={p:s for p,s in positions.items() if offset<=p<end}
+                if wanted:
+                    point=offset
+                    for batch in source.iter_batches(batch_size=128,row_groups=[group_index],use_threads=False):
+                        for p,symbol in list(wanted.items()):
+                            if point<=p<point+batch.num_rows:
+                                row=batch.slice(p-point,1).to_pylist()[0]
+                                if (row['symbol']!=symbol or (row['source_timestamp_utc'],row['id'])!=keys[symbol]):
+                                    raise ValueError('COMPACT_CUTOFF_ROW_CHANGED')
+                                latest[symbol]=row;del wanted[p]
+                        point+=batch.num_rows
+                        if not wanted:break
+                offset=end
+        return latest
 
     def reconstruct_at(self, symbols, day, at):
-        return {s: json.loads(r['record_json']) for s in dict.fromkeys(symbols)
-                if (r := self.at_row(s, day, at)) is not None}
+        if not symbols:return {}
+        rows=self._latest_rows(symbols,day,at)
+        return {s:json.loads(rows[s]['record_json']) for s in dict.fromkeys(symbols) if s in rows}
 
     def sampled_records(self, symbol, day, at, limit=600):
         if not 2 <= limit <= 1200:

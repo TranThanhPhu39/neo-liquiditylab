@@ -136,15 +136,20 @@ class CloudHandler(Handler):
         elif not self.authenticated():return
         if route.path=='/api/hosting':
             r=self.server.recovery
-            entries=[] if r and not r.seed_ready else self.server.index()
-            latest=max((e['day'] for e in entries),default=None)
-            current=[e for e in entries if e['day']==latest and not e.get('archived')]
-            return self.send_json(dict(hosted=True,collection_control='SSI_GITHUB_AND_WINDOWS_DNSE_DAILY',
-                latest_history_day=latest,market_scope='ALL_CATALOG_SYMBOLS' if any(e.get('market_observation') for e in entries) else 'THREE_VERIFIED_SYMBOLS',
-                latest_catalog_symbols=len(current),latest_symbols_with_observations=sum(bool(e.get('observations')) for e in current),
-                recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(self.server.index()),
-                persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews),
-                public_read=self.server.public_read,read_only=self.read_only()))
+            ready=not r or r.seed_ready
+            if ready and not self.server.heavy.acquire(blocking=False):return self.resource_busy()
+            try:
+                entries=self.server.index() if ready else []
+                latest=max((e['day'] for e in entries),default=None)
+                current=[e for e in entries if e['day']==latest and not e.get('archived')]
+                return self.send_json(dict(hosted=True,collection_control='SSI_GITHUB_AND_WINDOWS_DNSE_DAILY',
+                    latest_history_day=latest,market_scope='ALL_CATALOG_SYMBOLS' if any(e.get('market_observation') for e in entries) else 'THREE_VERIFIED_SYMBOLS',
+                    latest_catalog_symbols=len(current),latest_symbols_with_observations=sum(bool(e.get('observations')) for e in current),
+                    recovery_state=r.state if r else 'NOT_CONFIGURED',seed_ready=r.seed_ready if r else bool(entries),
+                    persistent_reviews=not isinstance(self.server.reviews,UnconfiguredReviews),
+                    public_read=self.server.public_read,read_only=self.read_only()))
+            finally:
+                if ready:self.server.heavy.release()
         if (self.server.recovery and not self.server.recovery.seed_ready and route.path.startswith('/api/') and
             not route.path.startswith('/api/live/') and route.path!='/api/review-history'):
             return self.send_json({'error':'DATA_RESTORING_RETRY'},503)
@@ -157,7 +162,7 @@ class CloudHandler(Handler):
             except (ValueError,KeyError,OSError):return self.send_json({'error':'DATA_NOT_READY_OR_INVALID'},404)
             finally:self.server.heavy.release()
         # Serialize expensive history/analysis requests on small free instances.
-        heavy=route.path in ('/api/watchlist','/api/library','/api/export','/api/trades','/api/live/view','/api/live/events','/api/live/reviews','/api/live/export','/api/research/breakout')
+        heavy=route.path in ('/api/datasets','/api/reviews','/api/watchlist','/api/library','/api/export','/api/trades','/api/live/view','/api/live/events','/api/live/reviews','/api/live/export','/api/research/breakout')
         if heavy and not self.server.heavy.acquire(blocking=False):return self.resource_busy()
         try:return super().do_GET()
         except RuntimeError:return self.send_json({'error':'PERSISTENT_STORAGE_UNAVAILABLE'},503)
@@ -243,10 +248,11 @@ class CloudHandler(Handler):
             return self.send_json({'error':'COLLECTION_MANAGED_BY_GITHUB_SCHEDULE'},403)
         if self.path in ('/api/reviews','/api/live/reviews','/api/analyze') and isinstance(self.server.reviews,UnconfiguredReviews):
             return self.send_json({'error':'PERSISTENT_REVIEWS_NOT_CONFIGURED'},503)
-        if self.path=='/api/analyze' and not self.server.heavy.acquire(blocking=False):return self.send_json({'error':'SERVER_BUSY_RETRY'},503)
+        heavy=self.path in ('/api/analyze','/api/reviews','/api/live/reviews')
+        if heavy and not self.server.heavy.acquire(blocking=False):return self.resource_busy()
         try:return super().do_POST()
         finally:
-            if self.path=='/api/analyze':self.server.heavy.release()
+            if heavy:self.server.heavy.release()
 
 
 def load_secret_file(secret_file):

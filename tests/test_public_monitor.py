@@ -16,6 +16,21 @@ class Reviews(ReviewStore):
     def analysis_revisions(self):return []
 
 
+def test_catalog_and_hosting_do_not_overlap_recovery_or_other_heavy_reads(public_monitor):
+    server,request,did=public_monitor
+    server.heavy.acquire()
+    try:
+        for path in ('/api/datasets','/api/hosting','/api/reviews?dataset_id='+did):
+            assert request(path)[0]==503
+        assert request('/healthz')[0]==200
+        server.recovery=SimpleNamespace(seed_ready=False,state='RECOVERING',close=lambda:None)
+        assert request('/api/hosting')[0]==200
+    finally:
+        server.recovery=None;server.heavy.release()
+    assert request('/api/datasets')[0]==200
+    assert request('/api/hosting')[0]==200
+
+
 def test_public_breakout_research_is_read_only_and_uses_shared_resource_budget(public_monitor):
     server,request,did=public_monitor
     server.trades=lambda value:dict(symbol='ACB',day='2026-11-19',trades=[])

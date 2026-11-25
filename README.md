@@ -1,5 +1,7 @@
 # NEO LiquidityLab
 
+**Sửa RAM truy vấn snapshot — 25/11/2026:** bảng theo dõi dùng hai bước: tìm vị trí snapshot theo thời gian/id rồi đọc payload bằng Parquet batch, thay vì tải cả lịch sử để chọn một dòng. Giữ nguyên quy tắc cutoff, tie-break, đơn vị, null và số 0. Danh mục và trạng thái hosting dùng chung giới hạn tác vụ nặng với recovery. Trên cùng kho web 28.834 bộ dữ liệu, đỉnh RAM trong phép thử cục bộ giảm từ khoảng 710 MB xuống 210 MB. Workflow `Monitor real-history memory check` kiểm tra image Linux với giới hạn cứng 512 MiB và gói lịch sử mã hóa đã có; không thay lịch thu hoặc nâng gói Render.
+
 **Nghiên cứu vượt đỉnh — 23/11/2026:** trong **Phân tích mã**, mở **Nghiên cứu vượt đỉnh phiên trước** để xem lần giá khớp vượt mức tham chiếu, giá quan sát sau 5/15 phút và sổ lệnh có trước lần vượt. Có lựa chọn nhập đỉnh đã kiểm tra, dùng cutoff replay và xuất JSON. Cần giao dịch khớp riêng; đỉnh từ giao dịch đã lưu chỉ là mức thăm dò. [Hướng dẫn](docs/breakout_research.md).
 
 **Xử lý máy chủ bận/phục hồi — 20/11/2026:** dashboard nhận biết riêng `DATA_RESTORING_RETRY`, `SERVER_BUSY_RETRY` và lỗi kết nối; hiển thị trạng thái chờ, tự thử lại có giới hạn và gộp các yêu cầu GET trùng. Không tự gửi lại yêu cầu lưu ghi chú. Backend chia sẻ giới hạn xử lý giữa phục hồi checkpoint và truy vấn nặng, giải phóng payload checkpoint sau khi cài, và xuất hồ sơ từ metadata thay vì tải cả replay vào RAM. [Cách dùng dashboard](docs/unified_dashboard.md).

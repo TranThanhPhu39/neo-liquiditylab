@@ -18,6 +18,21 @@ from tests.test_storage_compaction import prepare as storage
 from tests.test_event_monitor import record
 
 
+def test_watch_latest_selection_preserves_ties_null_zero_without_materializing_table(tmp_path,monkeypatch):
+    from datetime import datetime,timezone
+    import pyarrow as pa
+    store=MarketHistory(tmp_path);when=datetime(2026,11,23,3,tzinfo=timezone.utc)
+    rows=[dict(symbol='ACB',source_time=when,source_order=i,bid_vol_1=q,ask_vol_1=None)
+          for i,q in ((9,0),(2,100),(7,200))]
+    source=pa.Table.from_pylist(rows)
+    from types import SimpleNamespace
+    monkeypatch.setattr(store,'scan',lambda *a:SimpleNamespace(to_batches=lambda:source.to_batches(max_chunksize=1)))
+    monkeypatch.setattr(store,'table',lambda *a:(_ for _ in ()).throw(AssertionError('Full table read')))
+    found=store.at([dict(symbol='ACB',observations=3,market_file='fixture')],when.isoformat())
+    assert found['ACB']['source_order']==9 and found['ACB']['bid_vol_1']==0
+    assert found['ACB']['ask_vol_1'] is None
+
+
 @pytest.fixture
 def market(tmp_path):
     source=storage(tmp_path)
