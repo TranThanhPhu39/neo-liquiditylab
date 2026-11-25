@@ -87,7 +87,8 @@ def test_collect_guard_requires_approval_and_secrets_before_source_access(tmp_pa
 
 def test_workflow_has_separate_crons_guarded_modes_and_no_raw_artifact_upload():
     text=(ROOT/'.github/workflows/ssi-realtime.yml').read_text()
-    assert "37 1 * * 1-5" in text and "37 5 * * 1-5" in text
+    assert "17 1 * * 1-5" in text and "12 5 * * 1-5" in text
+    assert 'SSI_COLLECTION_DATE' in text and 'collection_date:' in text
     assert 'SSI_REALTIME_ENABLED' in text and 'SSI_REALTIME_STORAGE_APPROVED' in text
     assert 'upload-artifact' not in text and 'secrets.SSI_API_SECRET' in text
     network=text.split('  network:',1)[1].split('  collector:',1)[0]

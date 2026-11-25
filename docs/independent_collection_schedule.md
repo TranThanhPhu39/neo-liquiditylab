@@ -6,11 +6,17 @@ Kiểm tra ngày 18/11 lúc 13:29 giờ Việt Nam: SSI, DNSE và SSI guard đ�
 
 | Lớp | Lịch giờ Việt Nam | Vai trò |
 | --- | --- | --- |
-| GitHub cron SSI/DNSE | Giữ các mốc hiện có | Nguồn lịch chính, có thể trễ/thiếu sự kiện |
-| Windows Realtime Dispatch Guard | Thứ Hai–Sáu, 08:35–15:35, mỗi 5 phút; thêm lúc đăng nhập | Kiểm tra/kích hoạt GitHub qua workflow_dispatch bằng đồng hồ Windows |
+| GitHub cron SSI/DNSE | SSI prewarm 08:17 và 12:12; DNSE giữ lịch hiện có | Nguồn lịch chính, có thể trễ/thiếu sự kiện |
+| Windows Realtime Dispatch Guard | Thứ Hai–Sáu, 08:15–15:35, mỗi 5 phút; thêm lúc đăng nhập | Kiểm tra/kích hoạt GitHub qua workflow_dispatch bằng đồng hồ Windows |
 | Windows DNSE Daily Fallback | Thứ Hai–Sáu, từ 15:15 lặp mỗi 30 phút trong 8 giờ; thêm lúc đăng nhập | Tải bù ngày đã đóng, chuẩn hóa/audit, xuất bản theo chính sách hiện có |
 
 Guard Windows chỉ phát lệnh khởi động khi không có collector queued/running, không quá hai lần thử trong cửa sổ phiên và cách lần thất bại gần nhất ít nhất 10 phút. Giữ cờ tắt/stop file và lịch nghỉ được cấu hình. SSI/DNSE xử lý độc lập: lỗi một nguồn không chặn kiểm tra nguồn kia.
+
+**Sửa missed-start SSI ngày 25/11:** mở cửa sổ prewarm trước giờ thu 35 phút, thêm ngày dự kiến vào dispatch; worker từ chối dispatch sang ngày khác hoặc quá sớm so với cửa sổ. Run network/smoke không chặn collector. Run chưa chạy của phiên cũ được hủy để giải phóng hàng đợi; run đang ghi không bị hủy. Một run của phiên hiện tại còn xếp hàng quá 15 phút được thử thay thế sau giờ bắt đầu thu, trong giới hạn hai lần thử. Việc vừa hủy run xếp hàng không bắt chờ thêm cooldown thất bại.
+
+`queued`/`in_progress` chỉ là trạng thái GitHub. Guard ghi riêng `worker_start_verified=false` cho đến khi kiểm tra `/api/live/status` thấy relay mới, phiên/ngày đúng và đã kết nối. Sau 09:00/13:00, thiếu bằng chứng khởi động hoặc đã bắt đầu trễ sẽ trả trạng thái cần chú ý và mã thoát khác 0. Nhận quote của cả ba mã cũng chưa xác nhận đầy đủ mọi tick trong phiên.
+
+Worker vẫn thu từ 08:50/12:45; mốc prewarm chỉ dành cho chuẩn bị runner. Báo cáo worker cập nhật heartbeat mỗi phút, ghi first connection, first quote từng mã, số gap theo nguyên nhân và thời lượng ngắt đã quan sát. Các lần nối lại để làm mới token vẫn được giữ là gap; không đổi `PARTIAL_CONNECTION_GAPS` thành kết quả đủ phiên.
 
 DNSE được làm mới danh mục từ REST và lưu checkpoint danh mục mã hóa trước khi kích hoạt nếu chưa có catalog đã xuất bản của ngày hiện tại. Không kéo dài tuổi catalog bằng cách đổi ngày trên danh sách cũ. Vì vậy lỗi danh mục hết hạn bảy ngày được tránh bằng tải thật, không gỡ kiểm tra tuổi dữ liệu.
 
@@ -40,6 +46,8 @@ Chạy kiểm tra ngay (không tạo bản trùng khi collector đang chạy):
 Báo cáo hoạt động:
 
 - `report/automation/cloud_dispatch_status.json`: kết quả kiểm tra/kích hoạt từng provider.
+- `report/automation/cloud_dispatch_entry.json`: thời gian task thực sự bắt đầu/kết thúc và đường dẫn log.
+- `report/automation/logs/cloud_guard_YYYY-MM-DD.log`: log an toàn của launcher chạy ẩn; không chứa khóa.
 - `report/automation/cloud_dispatch_task_registration.json`: lịch Windows thực đã đăng ký.
 - `report/automation/dnse_task_registration.json`: lịch cuối ngày và các mốc lặp.
 - `report/dnse_ws_catalog_preparation.json`: ngày danh mục thật và tag checkpoint mã hóa.

@@ -3,8 +3,8 @@ run-name: SSI ${{ inputs.mode || 'scheduled' }} ${{ inputs.session || github.eve
 
 on:
   schedule:
-    - cron: '37 1 * * 1-5' # 08:37 Vietnam; capture 08:50-11:35
-    - cron: '37 5 * * 1-5' # 12:37 Vietnam; capture 12:45-15:10
+    - cron: '17 1 * * 1-5' # 08:17 Vietnam prewarm; capture 08:50-11:35
+    - cron: '12 5 * * 1-5' # 12:12 Vietnam prewarm; capture 12:45-15:10
   workflow_dispatch:
     inputs:
       mode:
@@ -21,6 +21,10 @@ on:
         description: Smoke duration (10-120 seconds)
         type: number
         default: 60
+      collection_date:
+        description: Intended Vietnam date YYYY-MM-DD; rejects a dispatch delayed into another day
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -78,6 +82,7 @@ jobs:
           MODE: ${{ inputs.mode || 'collect' }}
           SESSION: ${{ inputs.session || 'morning' }}
           SMOKE_SECONDS: ${{ inputs.seconds || '60' }}
+          SSI_COLLECTION_DATE: ${{ inputs.collection_date || '' }}
         run: python -m scripts.github_ssi_realtime --mode "$MODE" --session "$SESSION" --seconds "$SMOKE_SECONDS"
       - name: Write safe operational summary
         if: always()

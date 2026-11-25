@@ -13,6 +13,7 @@ from src.data_providers.ssi_stream import collect, SYMBOLS
 from src.data_pipeline.ssi_live_store import LiveJournal,run_folder,iter_records,atomic
 from src.data_pipeline.ssi_live_normalization import load_contract,normalize_quote,normalize_trade,select_session_flag,serial
 from src.monitoring.events import OfflineEngine
+from src.monitoring.ssi_health import ConnectionHealth
 
 
 class SSILive:
@@ -21,6 +22,7 @@ class SSILive:
         self.lock=threading.RLock();self.thread=None;self.stop_event=threading.Event();self.journal=None
         self.state='IDLE';self.reason=None;self.connection=0;self.last_received=None;self.last_quote=None
         self.first_connected_at=None
+        self.connection_health=ConnectionHealth()
         self.frames={s:deque(maxlen=15000) for s in SYMBOLS};self.trades={s:deque(maxlen=30000) for s in SYMBOLS}
         self.patches={s:[] for s in SYMBOLS};self.counts={s:0 for s in SYMBOLS};self.flags={}
         self.engines={};self.event_times={};self.quote_total=0;self.trade_total=0;self.rejected=0;self.gaps=0
@@ -45,6 +47,7 @@ class SSILive:
             self.stale_symbols=set()
             self.last_received=self.last_quote=None;self.reason=None;self.state='STARTING'
             self.first_connected_at=None
+            self.connection_health=ConnectionHealth()
             self.journal.manifest.update(unit_contract=self.contract,normalization_version='ssi-live-observation-v2',detector_parameters={s:e.config_hash for s,e in self.engines.items()})
             atomic(self.journal.manifest_path,self.journal.manifest)
             self.thread=threading.Thread(target=self._run,args=(symbols,seconds),daemon=True,name='ssi-data-collector')
@@ -92,6 +95,7 @@ class SSILive:
             if state=='CONNECTING':self.connection=info['connection'];self.flags={}
             self.state=state;self.reason=info.get('reason')
             now=datetime.now(timezone.utc).isoformat();patches={}
+            self.connection_health.state(state,self.reason,self.connection)
             if state=='CONNECTED_WAITING_DATA' and self.first_connected_at is None:self.first_connected_at=now
             if state in ('DISCONNECTED','RECONNECTING','FAILED','STOPPED'):
                 self.flags={}
@@ -138,6 +142,7 @@ class SSILive:
                     self.frames[symbol].append(frame);self.counts[symbol]+=1;self.quote_total+=1
                     self.stale_symbols.discard(symbol)
                     self.last_quote=observation['received_at'];self.state='RECEIVING'
+                    self.connection_health.quote(symbol,observation['received_at'])
                 elif kind=='TRADE':
                     trade=normalize_trade(observation,self.contract,identity)
                     trade['capture_ordinal']=self.journal.ordinal+1
@@ -173,6 +178,7 @@ class SSILive:
             return dict(state=self.state,active=bool(self.thread and self.thread.is_alive()),run_id=self.journal.run_id if self.journal else None,
                 reason=self.reason,connection=self.connection,quote_age_seconds=round(age,2) if age is not None else None,
                 first_connected_at=self.first_connected_at,
+                connection_health=self.connection_health.status(),
                 stale=age is not None and age>15,last_received=self.last_received,quotes=self.quote_total,trades=self.trade_total,
                 rejected=self.rejected,gaps=self.gaps,stale_symbols=sorted(self.stale_symbols),unit_status='EMPIRICALLY_VERIFIED' if all_verified else 'PARTIALLY_VERIFIED' if verified_symbols else 'UNVERIFIED',
                 verified_quote_symbols=verified_symbols,trade_unit_status=self.contract.get('trade_status','UNVERIFIED'),

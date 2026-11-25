@@ -85,12 +85,25 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         if os.getenv('GITHUB_EVENT_NAME')=='schedule':
             session=p['schedule_utc'].get(os.getenv('SSI_SCHEDULE_CRON'))
         window=plan(datetime.now(LOCAL),session,p)
+        expected=os.getenv('SSI_COLLECTION_DATE')
+        if expected and expected!=window['day']:
+            result=dict(state='FAILED_EXPECTED_COLLECTION_DATE_MISMATCH',intended_date=expected,plan=window,realtime_recovered=False)
+            atomic(report,result);return result
         if window['non_trading_date']:
             result=dict(state='NOT_SCHEDULED_NON_TRADING_DATE',plan=window);atomic(report,result);return result
         if window['closed']:
             result=dict(state='FAILED_SESSION_WINDOW_ALREADY_CLOSED',plan=window,realtime_recovered=False);atomic(report,result);return result
         start=datetime.fromisoformat(window['capture_from'])
-        while datetime.now(LOCAL)<start:time.sleep(min(5,(start-datetime.now(LOCAL)).total_seconds()))
+        if (start-datetime.now(LOCAL)).total_seconds()>p.get('guard_lead_minutes',35)*60:
+            result=dict(state='FAILED_BEFORE_SESSION_START_WINDOW',plan=window,realtime_recovered=False)
+            atomic(report,result);return result
+        last_wait_log=0
+        while datetime.now(LOCAL)<start:
+            if time.monotonic()-last_wait_log>=60:
+                waiting=dict(state='WAITING_CAPTURE_START',plan=window,heartbeat_at_utc=datetime.now(timezone.utc).isoformat(),
+                             worker_start_verified=False,market_coverage_verified=False)
+                atomic(report,waiting);print(json.dumps(waiting),flush=True);last_wait_log=time.monotonic()
+            time.sleep(min(5,max(0,(start-datetime.now(LOCAL)).total_seconds())))
         window=plan(datetime.now(LOCAL),session,p)
         seconds=max(0,int((datetime.fromisoformat(window['close'])-datetime.now(LOCAL)).total_seconds()))
         if seconds<10:
@@ -118,7 +131,12 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         service.thread.join(timeout=1)
         if stopped:service.stop()
         if time.monotonic()-last_log>=60:
-            s=service.status();print(json.dumps({k:s[k] for k in ('state','quotes','trades','gaps','rejected','persisted_records')}),flush=True);last_log=time.monotonic()
+            s=service.status()
+            result.update(capture=s,heartbeat_at_utc=datetime.now(timezone.utc).isoformat(),
+                          worker_start_verified=bool(s.get('first_connected_at')),market_coverage_verified=False)
+            atomic(report,result)
+            print(json.dumps({k:s[k] for k in ('state','quotes','trades','gaps','rejected','persisted_records','first_connected_at','connection_health')}),flush=True)
+            last_log=time.monotonic()
         if time.monotonic()>=next_checkpoint:
             try:checkpoints.append(store.publish(service,session,run_id,attempt))
             except Exception as error:storage_errors.append(type(error).__name__)

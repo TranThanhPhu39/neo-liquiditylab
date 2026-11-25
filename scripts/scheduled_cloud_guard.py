@@ -71,18 +71,21 @@ def error_code(error):
     return code if re.fullmatch(r'[A-Z0-9_]{1,90}', code) else type(error).__name__
 
 
-def run(root=ROOT, now=None, api=None, refresh=ensure_catalog):
+def run(root=ROOT, now=None, api=None, refresh=ensure_catalog, start_check=None):
     now = now or datetime.now(LOCAL)
     if now.tzinfo is None:raise ValueError('CLOUD_GUARD_AWARE_CLOCK_REQUIRED')
     now = now.astimezone(LOCAL)
     result = dict(state='CHECKED', checked_at_local=now.isoformat(), independent_clock='WINDOWS_TASK_SCHEDULER',
                   requires_computer_on_and_user_logged_in=True, providers={})
+    def finish(value):
+        write_json(root/'report/automation/cloud_dispatch_status.json',value)
+        return value
     if (root/'data/control/STOP_GITHUB_DISPATCH').exists():
-        return dict(result, state='STOPPED')
+        return finish(dict(result, state='STOPPED'))
     p = policy(root)
     if now.weekday() >= 5 or now.date().isoformat() in p.get('excluded_dates', []):
-        return dict(result, state='NON_TRADING_DATE')
-    if not 8 <= now.hour <= 15:return dict(result, state='OUTSIDE_COLLECTION_WINDOW')
+        return finish(dict(result, state='NON_TRADING_DATE'))
+    if not 8 <= now.hour <= 15:return finish(dict(result, state='OUTSIDE_COLLECTION_WINDOW'))
     with exclusive_job(root/'data/control/cloud-dispatch.lock'):
         client = api or GitHubAPI()
         for provider, check in [('ssi', lambda: ssi_guard(now, client, root=root)),
@@ -90,8 +93,19 @@ def run(root=ROOT, now=None, api=None, refresh=ensure_catalog):
             try:result['providers'][provider] = check()
             except Exception as error:
                 result['providers'][provider] = dict(state='FAILED_RESUMABLE', error_code=error_code(error))
+            if provider=='ssi' and result['providers'][provider].get('session'):
+                probe=start_check
+                if probe is None and root.resolve()==ROOT.resolve():
+                    from scripts.check_ssi_start import check as probe
+                if probe:
+                    try:result['ssi_start_check']=probe(now,result['providers'][provider]['session'],root=root)
+                    except Exception as error:result['ssi_start_check']=dict(state='START_TELEMETRY_UNAVAILABLE',error_code=error_code(error))
+            finish(dict(result,state='CHECKING_PROVIDERS'))
         if any(r['state'] == 'FAILED_RESUMABLE' for r in result['providers'].values()):
             result['state'] = 'FAILED_RESUMABLE'
+        elif result.get('ssi_start_check',{}).get('deadline_passed') and (
+                not result['ssi_start_check'].get('worker_start_verified') or result['ssi_start_check'].get('late')):
+            result['state']='ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START'
         write_json(root/'report/automation/cloud_dispatch_status.json', result)
     return result
 
@@ -100,4 +114,4 @@ if __name__ == '__main__':
     try:result = run()
     except Exception as error:result = dict(state='FAILED_RESUMABLE', error_code=error_code(error))
     print(json.dumps(result), flush=True)
-    raise SystemExit(1 if result['state'] == 'FAILED_RESUMABLE' else 0)
+    raise SystemExit(1 if result['state'] in ('FAILED_RESUMABLE','ATTENTION_REQUIRED_MISSED_OR_UNVERIFIED_SSI_START') else 0)
