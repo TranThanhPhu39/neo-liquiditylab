@@ -90,6 +90,18 @@ def test_full_retry_all_empty_does_not_install_or_invent_zero_books(tmp_path):
     assert (folder / 'history.db').read_bytes() == before
 
 
+def test_full_day_recovery_preserves_separate_morning_partition(tmp_path, quote):
+    folder = empty_archive(tmp_path)
+    morning = folder / 'morning'
+    morning.mkdir()
+    (morning / 'independent-raw-evidence').write_bytes(b'keep exact morning evidence')
+    result = retry.recheck(DAY, root=tmp_path, client=API(quote), now=NOW)
+    retry.promote(DAY, result, root=tmp_path)
+    assert (morning / 'independent-raw-evidence').read_bytes() == b'keep exact morning evidence'
+    backup = tmp_path / result['previous_archive']
+    assert (backup / 'morning/independent-raw-evidence').read_bytes() == b'keep exact morning evidence'
+
+
 def test_retry_cannot_replace_sources_of_existing_canonical_day(tmp_path, quote):
     folder = empty_archive(tmp_path)
     before = (folder / 'history.db').read_bytes()

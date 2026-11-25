@@ -4,6 +4,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import shutil
 import sqlite3
 from uuid import uuid4
 
@@ -129,18 +130,24 @@ def promote(day, result, *, root=ROOT, session='day'):
     audit = audit_dnse_history.audit(day, root=attempt, session=session)
     if not audit['all_symbols_fully_paginated'] or not audit['raw_quote_count_verified']:
         raise ValueError('RECHECK_PROMOTION_AUDIT_FAILED')
-    catalog = root / 'data/compact/catalog.json'
-    if catalog.exists():
-        # Do not replace source evidence already referenced by canonical Parquet.
-        content = json.loads(catalog.read_text(encoding='utf-8'))
-        if any(entry.get('day') == day for entry in content.get('quote_days', [])):
-            raise ValueError('RECHECK_CANONICAL_DAY_ALREADY_EXISTS')
     backup = attempt / 'previous-empty-archive'
     work = root / 'data/processed/dnse/work' / day
     # All paths are resolved and fenced before directory moves on Windows.
     for path in (source, recovered, backup, work):
         path.resolve().relative_to(root)
-    with exclusive_job(root / 'data/control/dnse_history.lock'):
+    with exclusive_job(root / 'data/control/dnse-compaction.lock'), exclusive_job(root / 'data/control/dnse_history.lock'):
+        if not archive_info(source)['empty']:
+            raise ValueError('RECHECK_PROMOTION_PRECONDITION_FAILED')
+        catalog = root / 'data/compact/catalog.json'
+        if catalog.exists():
+            # Recheck under the publication lock: no canonical source is replaced.
+            content = json.loads(catalog.read_text(encoding='utf-8'))
+            if any(entry.get('day') == day for entry in content.get('quote_days', [])):
+                raise ValueError('RECHECK_CANONICAL_DAY_ALREADY_EXISTS')
+        # A full-day archive can contain an independently collected morning.
+        # Preserve its discoverable path as well as the untouched backup copy.
+        if session == 'day' and (source / 'morning').exists() and not (recovered / 'morning').exists():
+            shutil.copytree(source / 'morning', recovered / 'morning')
         saved_work = attempt / 'previous-normalization-work'
         if work.exists():
             work.rename(saved_work)
