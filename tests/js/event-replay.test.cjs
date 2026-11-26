@@ -100,10 +100,11 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
   get('window').value='900';get('scale').value='250000';get('speed').value='60';get('error').hidden=true;
   get('showBubbles').checked=true;get('bubbleGroup').value='1';get('bubbleMin').value='0';get('bubbleScale').value='10000';
   const nav=['watch','analysis','review'].map(page=>{const e=new Element();e.dataset.page=page;return e;});
-  const d=data(),fpt=structuredClone(d);fpt.symbol='FPT';fpt.dataset_id='f'.repeat(64);fpt.event_patches=[];
+  const d=data();for(const f of d.frames)f.units='EMPIRICALLY_VERIFIED';
+  const fpt=structuredClone(d);fpt.symbol='FPT';fpt.dataset_id='f'.repeat(64);fpt.event_patches=[];
   for(const f of fpt.frames){f.units='ASSUMED_SHARED_SCHEMA';f.features.eligible=false;f.features.reason='UNVERIFIED_UNITS';f.features.detector_state='INHIBITED';}
   const packs=new Map([[d.dataset_id,d],[fpt.dataset_id,fpt]]);
-  const entry=p=>({dataset_id:p.dataset_id,symbol:p.symbol,day:p.day,observations:p.frames.length,event_counts:{SPREAD_WIDENING:p.event_patches.length?1:0}});
+  const entry=p=>({dataset_id:p.dataset_id,symbol:p.symbol,day:p.day,observations:p.frames.length,event_counts:{SPREAD_WIDENING:p.event_patches.length?1:0},quality:{unit_counts:{[p.frames[0].units]:p.frames.length}}});
   let catalog=[entry(d),entry(fpt)];
   const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:q=>q==='[data-page]'?nav:[]},window:{devicePixelRatio:1},ResizeObserver:class{observe(){}},requestAnimationFrame:fn=>raf.push(fn),performance:{now:()=>0},Intl,Date,console,URLSearchParams,
     setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
@@ -129,6 +130,10 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
   await get('breakoutRun').emit('click');assert.equal(get('breakoutResult').hidden,false);
   assert.match(get('breakoutReference').textContent,/Mức thăm dò/);
   assert.equal(get('error').hidden,true);assert.equal(get('eventCount').textContent,'0');assert.ok(draws>0);
+  assert.equal(get('unitWarning').hidden,true);
+  assert.match(get('sideWatch').textContent,/ACB/);
+  for(const id of ['sideWatch','quality','bookUnits','inventory'])assert.doesNotMatch(get(id).textContent,/xác minh|EMPIRICALLY_VERIFIED/i);
+  assert.equal(get('bookUnits').textContent,'Giá theo đồng · Lượng theo cổ phiếu');
   await get('sessionEnd').emit('click');assert.equal(get('eventCount').textContent,'1');
   assert.ok(arcs>0);assert.match(get('bubbleStatus').textContent,/bubbles/);
   const was=arcs;get('showBubbles').checked=false;await get('showBubbles').emit('change');assert.equal(arcs,was);assert.match(get('bubbleStatus').textContent,/Đã ẩn/);
@@ -147,6 +152,8 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
     assert.equal(get('dataMode').value,'capture');assert.equal(get('error').hidden,true,get('error').textContent);
     assert.equal(get('symbolSelect').value,'ACB');assert.match(get('provenance').textContent,/101/);
     assert.match(get('quality').textContent,/SSI/);assert.equal(get('openConfig').disabled,true);
+    assert.doesNotMatch(get('quality').textContent,/UNVERIFIED_SSI_QUOTE|xác minh/i);
+    assert.equal(get('bookUnits').textContent,'Giá theo đơn vị nguồn · Lượng theo đơn vị nguồn');
     assert.equal(get('exportCSV').hidden,true);assert.match(get('exportJSON').href,/api\/live\/export/);
     get('cursor').value='3';await get('cursor').emit('input');assert.equal(get('eventCount').textContent,'0');
     async function eventTimers(){for(const [id,t] of [...timers])if(t.ms===250){timers.delete(id);await t.fn();}for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));}
@@ -179,7 +186,7 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
   await get('play').emit('click');raf.shift()(1000);assert.equal(get('cursor').value,7);assert.equal(get('eventCount').textContent,'1');
   get('eventType').value='DEPTH_DROP';await get('eventType').emit('change');assert.equal(get('events').nodes[0].className,'empty-text');
   get('eventType').value='all';await get('eventType').emit('change');
-  await nav[0].emit('click');await new Promise(r=>setImmediate(r));assert.equal(get('watchScreen').hidden,false);assert.match(get('watchTable').textContent,/ACB/);
+  await nav[0].emit('click');await new Promise(r=>setImmediate(r));assert.equal(get('watchScreen').hidden,false);assert.match(get('watchTable').textContent,/ACB.*Đủ đầu vào phân tích/);
   await nav[2].emit('click');await new Promise(r=>setImmediate(r));assert.equal(get('reviewScreen').hidden,false);assert.match(get('libraryTable').textContent,/fixture review/);
   get('librarySearch').value='no matching note';await get('librarySearch').emit('input');assert.match(get('libraryStatus').textContent,/0 hồ sơ/);
   get('librarySearch').value='';await get('librarySearch').emit('input');
@@ -187,5 +194,5 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
   get('cfgMultiplier').value='2';get('cfgIncrease').value='2';get('cfgDepth').value='50';get('cfgImbalance').value='80';get('cfgDuration').value='5';
   await get('configForm').emit('submit',{preventDefault(){}});assert.equal(analyzed.parameters.duration_seconds,5);assert.equal(analyzed.parameters.depth_drop,'0.5');
   assert.equal(catalog.find(e=>e.dataset_id===d.dataset_id).archived,true);assert.equal(notes[0].dataset_id,d.dataset_id);
-  get('symbolSelect').value='FPT';await get('symbolSelect').emit('change');assert.equal(get('eventCount').textContent,'0');assert.equal(get('unitWarning').hidden,false);assert.match(get('bookUnits').textContent,/Chưa xác minh/);
+  get('symbolSelect').value='FPT';await get('symbolSelect').emit('change');assert.equal(get('eventCount').textContent,'0');assert.equal(get('unitWarning').hidden,false);assert.match(get('bookUnits').textContent,/Quy đổi để quan sát/);
 });
