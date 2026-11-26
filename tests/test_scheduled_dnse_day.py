@@ -97,3 +97,19 @@ def test_failed_old_raw_day_does_not_block_new_day(local_root,monkeypatch):
     result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
     assert calls==['2026-11-05','2026-11-06'] and result['state']=='FAILED_RESUMABLE'
     assert result['monitor_publication']['state']=='COMPLETED'
+
+
+def test_failed_old_day_cannot_block_retry_of_already_normalized_day(local_root,monkeypatch):
+    from scripts import publish_dnse_web,publish_daily_monitor
+    report=local_root/'report'
+    report.mkdir()
+    (report/'dnse_update_2026-11-06_day.json').write_text(json.dumps(dict(
+        state='COMPLETED',completed_steps=scheduled.update_dnse_day.STEPS)))
+    monkeypatch.setattr(scheduled.update_dnse_day,'run',lambda *args,**kwargs:dict(
+        state='FAILED_RESUMABLE',error_code='DNSE_DAY_SOURCE_EMPTY_AFTER_RECHECK'))
+    monkeypatch.setattr(publish_dnse_web,'publish_samples',lambda root:dict(state='PUBLIC_SAMPLES_PUSHED'))
+    monkeypatch.setattr(publish_daily_monitor,'run',lambda root:dict(state='COMPLETED',day='2026-11-06'))
+    result=scheduled.run(local_root,clock('2026-11-06T16:00:00'))
+    assert result['state']=='FAILED_RESUMABLE' and result['due_dates']==['2026-11-05']
+    assert result['monitor_publication']['day']=='2026-11-06'
+    assert not result['pages_publication_pending']

@@ -1,5 +1,7 @@
 # NEO LiquidityLab
 
+**Nghiệm thu dữ liệu theo ngày.** Lịch Windows sau phiên ghi kết quả tại `report/automation/daily-delivery/<ngày>.json`. Báo cáo đối chiếu dữ liệu gốc, Parquet, checkpoint và dữ liệu thực sự đọc được trên dashboard. Trạng thái chuyển dữ liệu và độ đầy đủ của phiên được ghi riêng. Để kiểm tra lại một ngày, chạy `.\.venv\Scripts\python.exe -m scripts.audit_daily_delivery --date 2026-11-25`. [Cách đọc báo cáo](docs/independent_collection_schedule.md#nghiệm-thu-dữ-liệu-theo-ngày).
+
 **Khởi động SSI và theo dõi gap — 25/11/2026:** cron chuẩn bị runner lúc 08:17/12:12; Windows guard dự phòng chạy từ 08:15, mỗi 5 phút. Giờ bắt đầu thu giữ 08:50/12:45. Guard phân biệt xếp hàng với kết nối thật, xử lý run chưa chạy của phiên cũ, giới hạn thử lại và giữ ngày dự kiến của dispatch. Worker có heartbeat, first connection và thống kê gap theo nguyên nhân/thời lượng; gap làm mới token vẫn mang nhãn partial. Windows cần máy bật, có mạng và đăng nhập; chưa bảo đảm cron cloud đúng giờ khi máy tắt. Xem [lịch dự phòng và cách nghiệm thu](docs/independent_collection_schedule.md).
 
 Bộ thu SSI trên máy kiểm tra từ **08:52/12:47** khi thiếu bằng chứng cloud đang thu; lưu Parquet riêng, checkpoint mã hóa mỗi 15 phút và thử lại upload bị lỡ. Giữ máy không Sleep. Local không ghi đè relay GitHub; dữ liệu dự phòng lên web qua chu kỳ khôi phục checkpoint, có độ trễ. Kiểm tra lịch bằng `.\.venv\Scripts\python.exe -m scripts.install_ssi_local_task --verify-only`; dừng riêng local bằng `data/control/STOP_SSI_LOCAL`.

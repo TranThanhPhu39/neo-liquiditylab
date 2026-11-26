@@ -74,3 +74,15 @@ Tạm dừng kích hoạt GitHub bằng cách tạo `data/control/STOP_GITHUB_DI
 - Chạy thử task Windows lúc 13:41: LastTaskResult=0, cả hai provider COLLECTOR_ALREADY_ACTIVE, không tạo run trùng.
 - Bộ kiểm thử liên quan: 75/75 đạt tại máy.
 - Phần phiên sáng và đầu phiên chiều bị lỡ không được tuyên bố đã phục hồi realtime. Lịch tải REST cuối ngày là dữ liệu lịch sử riêng, tùy API hỗ trợ và không phục hồi receipt/gap WebSocket đã bỏ lỡ.
+
+## Nghiệm thu dữ liệu theo ngày
+
+Sau khi lịch Windows hoàn tất lượt tải/bù DNSE và cập nhật dashboard, nó chạy kiểm tra cho ngày giao dịch đóng gần nhất, kể cả khi có ngày tải lỗi. Kết quả ghi vào `report/automation/daily-delivery/YYYY-MM-DD.json`. Có thể kiểm tra lại bất kỳ ngày nào đã lưu bằng lệnh sau.
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.audit_daily_delivery --date 2026-11-25
+```
+
+- DNSE đối chiếu số quan sát gốc, dòng liên kết và snapshot Parquet. Báo cáo xác nhận checkpoint đã giải mã và đối chiếu từng mã trên dashboard với bản chiếu, gồm mã có quan sát, mã thiếu và một số replay mở trực tiếp.
+- SSI ghi riêng phiên sáng, phiên chiều và nguồn GitHub/Windows. Mỗi checkpoint được tải, giải mã và kiểm tra các dòng Parquet trước khi đối chiếu số quote/trade và mở lại bản thu trên web.
+- `processing_state` phản ánh kết quả chuyển dữ liệu. `market_coverage` ghi tình trạng phiên, kể cả khi bản thu partial chuyển lên web thành công. Mã `NO_DATA_RETURNED` là thiếu quan sát từ nguồn. Phiên chưa đóng hoặc đang phục hồi sẽ có trạng thái chờ.

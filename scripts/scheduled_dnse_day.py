@@ -72,14 +72,17 @@ def run(root=ROOT,now=None):
                 result['state']='FAILED_RESUMABLE'
         else:
             if result['state']!='FAILED_RESUMABLE':result['state']='COMPLETED' if result['state']!='DISABLED' else 'DISABLED'
-        can_publish=(result['state']=='COMPLETED' or
-            result['state']=='FAILED_RESUMABLE' and any(r['state']=='COMPLETED' for r in result['runs']))
+        newly_audited = any(item['state']=='COMPLETED' for item in result['runs'])
+        has_audited_days = result['already_completed'] or newly_audited
+        can_publish = (result['state'] != 'DISABLED'
+                       and result.get('error_code') != 'REST_STOP_REQUESTED'
+                       and bool(has_audited_days))
         if can_publish:
             def publication_failed(error):
                 code=str(error)
                 result.update(state='FAILED_RESUMABLE',error_code=code if re.fullmatch('[A-Z0-9_]{1,90}',code) else type(error).__name__)
             try:
-                if result['publish_web'] and (result['due_dates'] or result['pages_publication_pending']):
+                if result['publish_web'] and (newly_audited or result['pages_publication_pending']):
                     result['pages_publication_pending']=True
                     write_json(root/'report/automation/dnse_local_schedule_result.json',result)
                     from scripts.publish_dnse_web import publish_samples
