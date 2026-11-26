@@ -54,8 +54,12 @@ const MonitorHeatmap = (() => {
     ctx.restore(); ctx.font = '10px Segoe UI, Arial'; ctx.fillStyle = '#9bad9e';
     ctx.textAlign = 'right';
     for (let i = 0; i <= 5; i++) { const p = low + (high - low) * i / 5, yy = y(p); ctx.fillText(number(p), left - 10, yy + 3); ctx.strokeStyle = '#a4bca214'; ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(w - right, yy); ctx.stroke(); }
+    for (let i = 0; i <= 4; i++) {
+      const t = geometry.start + (geometry.stop - geometry.start) * i / 4;
+      ctx.textAlign = i === 4 ? 'right' : 'center';
+      ctx.fillText(clock(t), x(t), h - 12);
+    }
     ctx.textAlign = 'center';
-    for (let i = 0; i <= 4; i++) { const t = geometry.start + (geometry.stop - geometry.start) * i / 4; ctx.fillText(clock(t), x(t), h - 12); }
     if (!prices.length) { ctx.fillStyle = '#bbc6bd'; ctx.fillText('Chưa có mức giá hợp lệ tại thời điểm này.', w / 2, h / 2); }
     return {x, y, left, iw, w, h,hits};
   }
