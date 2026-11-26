@@ -353,8 +353,17 @@ def main():
             selected -= timedelta(days=1)
         if selected.isoformat() < config['start_date']:
             return
-    print(json.dumps(audit(args.date or selected.isoformat()),ensure_ascii=True))
+    day = args.date or selected.isoformat()
+    try:
+        result = audit(day)
+    except RuntimeError as error:
+        if str(error) != 'ANOTHER_COLLECTION_JOB_IS_RUNNING':
+            raise
+        print(json.dumps(dict(date=day,state='DAILY_DELIVERY_AUDIT_ALREADY_RUNNING')))
+        return 0 if args.scheduled else 1
+    print(json.dumps(result,ensure_ascii=True))
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
