@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="LiquidityLab giúp quan sát thanh khoản sổ lệnh theo thời gian, xem giao dịch khớp và phát lại sự kiện cùng bằng chứng.">
-  <meta name="theme-color" content="#f4f5ef">
+  <meta name="theme-color" content="#f6f5f8">
   <meta property="og:title" content="LiquidityLab · Quan sát sổ lệnh theo thời gian">
   <meta property="og:description" content="Heatmap, volume bubbles và replay để tìm hiểu diễn biến thanh khoản cổ phiếu Việt Nam.">
   <meta property="og:type" content="website">
@@ -22,14 +22,14 @@
     <main id="noi-dung">
       <section class="hero" aria-labelledby="hero-title">
         <div>
-          <span class="eyebrow">Sổ lệnh · Thanh khoản · Cổ phiếu Việt Nam</span>
-          <h1 id="hero-title">Nhìn thanh khoản.<br> <span>Hiểu diễn biến.</span></h1>
-          <p>Theo dõi lượng chờ theo giá và thời gian, đặt giao dịch khớp vào cùng bối cảnh, rồi quay lại từng sự kiện để kiểm tra bằng chứng.</p>
+          <span class="eyebrow">Cổ phiếu Việt Nam</span>
+          <h1 id="hero-title">Quan sát thanh khoản <span>sổ lệnh.</span></h1>
+          <p>Xem lượng chờ theo từng mức giá, đối chiếu giao dịch khớp và phát lại diễn biến để kiểm tra sự kiện.</p>
           <div class="actions"><a class="button primary" href="/dashboard">Mở dashboard <span aria-hidden="true">→</span></a><a class="button" href="#cach-doc">Xem cách đọc</a></div>
           <p class="hint">Xem dashboard và dữ liệu công khai · Không cần đăng nhập.</p>
         </div>
         <div class="preview">
-          <div class="preview-top"><strong>ORDER BOOK OBSERVATORY</strong><span class="demo-label">HÌNH MINH HỌA · DỮ LIỆU GIẢ LẬP</span></div>
+          <div class="preview-top"><strong>Heatmap sổ lệnh</strong><span class="demo-label">DỮ LIỆU MINH HỌA</span></div>
           <svg viewBox="0 0 540 340" role="img" aria-labelledby="chart-title chart-description">
             <title id="chart-title">Minh họa heatmap và volume bubbles</title>
             <desc id="chart-description">Các dải màu biểu diễn lượng chờ mua và bán; vòng tròn biểu diễn giao dịch khớp. Đây là hình giải thích, không phải dữ liệu thị trường.</desc>
@@ -50,19 +50,19 @@
       </section>
       <div class="scope" aria-label="Phạm vi sản phẩm"><div><strong>HOSE · HNX · UPCOM</strong><small>Lịch sử theo danh mục DNSE · Detector đã xác minh: ACB/FPT/HPG</small></div><div><strong>Giá × Thời gian × Khối lượng</strong><small>Đặt sổ lệnh trong diễn biến của phiên</small></div><div><strong>Quan sát → Replay → Rà soát</strong><small>Mỗi nhận định đi cùng bằng chứng</small></div></div>
       <section id="tinh-nang" aria-labelledby="features-title">
-        <div class="section-title"><div><span class="eyebrow">Một bối cảnh, nhiều lớp quan sát</span><h2 id="features-title">Từ một mức giá<br>đến cả diễn biến.</h2></div><p>LiquidityLab lưu lại những gì đã quan sát để bạn kiểm tra sự thay đổi, thời điểm xuất hiện và giới hạn của dữ liệu.</p></div>
+        <div class="section-title"><h2 id="features-title">Ba cách đọc diễn biến</h2></div>
         <div class="features">
-          <article class="card"><span class="card-num">01 / QUAN SÁT</span><h3>Heatmap sổ lệnh</h3><p>Nhìn lượng chờ ở từng mức giá theo thời gian. Vệt màu giúp xác định nơi thanh khoản xuất hiện, duy trì hoặc suy giảm trong phần độ sâu được quan sát.</p><span class="tag">Màu = lượng đang chờ</span></article>
-          <article class="card"><span class="card-num">02 / ĐỐI CHIẾU</span><h3>Volume bubbles</h3><p>Đặt các giao dịch đã khớp lên cùng trục giá–thời gian. Phân biệt lượng đã giao dịch với lượng còn chờ, thay vì suy giao dịch từ thay đổi sổ lệnh.</p><span class="tag">Tròn = giao dịch đã khớp</span></article>
-          <article class="card"><span class="card-num">03 / GIẢI THÍCH</span><h3>Sự kiện & bằng chứng</h3><p>Rà soát spread mở rộng, lượng chờ suy giảm hoặc mất cân bằng theo quy tắc. Tua lại thời điểm liên quan, xem điều kiện phát hiện và lưu nhận xét.</p><span class="tag">Quy tắc thử nghiệm · Có điều kiện</span></article>
+          <article class="card"><h3>Heatmap sổ lệnh</h3><p>Dùng màu để theo dõi lượng chờ mua và bán ở từng mức giá theo thời gian.</p></article>
+          <article class="card"><h3>Volume bubbles</h3><p>Xem vị trí và khối lượng của giao dịch đã khớp ngay trên trục giá và thời gian.</p></article>
+          <article class="card"><h3>Sự kiện & bằng chứng</h3><p>Phát lại lúc spread mở rộng, lượng chờ giảm hoặc mất cân bằng. Xem điều kiện phát hiện và lưu nhận xét.</p></article>
         </div>
       </section>
       <section class="workflow" id="cach-doc" aria-labelledby="workflow-title">
-        <div class="workflow-top"><div><span class="eyebrow">Bắt đầu với một câu hỏi cụ thể</span><h2 id="workflow-title">“Điều gì đã xảy ra quanh mức giá này?”</h2></div><a class="button" href="/dashboard">Vào không gian phân tích ↗</a></div>
+        <div class="workflow-top"><h2 id="workflow-title">Cách xem lại một phiên</h2><a class="button" href="/dashboard">Vào phân tích ↗</a></div>
         <div class="steps"><div><div class="step-head"><span class="step-num">1</span>Chọn mã và chế độ xem</div><p>Mở dashboard chung, chọn Lịch sử hoặc Theo dõi gần nhất. Đọc thời gian và chất lượng trước khi phân tích.</p></div><div><div class="step-head"><span class="step-num">2</span>Đọc heatmap cùng bubbles</div><p>Tìm một vùng giá đáng chú ý, rồi xem lượng chờ và giao dịch khớp thay đổi như thế nào quanh vùng đó.</p></div><div><div class="step-head"><span class="step-num">3</span>Replay và lưu bằng chứng</div><p>Tua đến trước và sau sự kiện. Đối chiếu số liệu, kiểm tra khoảng thiếu và ghi lại kết luận của bạn.</p></div></div>
       </section>
       <section class="faq" id="gioi-han" aria-labelledby="limits-title">
-        <div><span class="eyebrow">Hiểu đúng trước khi sử dụng</span><h2 id="limits-title">Phạm vi rõ ràng.<br>Quan sát có cơ sở.</h2><p class="faq-intro">Sản phẩm đồ án đang được hoàn thiện. Mỗi biểu đồ cần được đọc cùng nguồn dữ liệu và trạng thái xác minh.</p></div>
+        <div><h2 id="limits-title">Phạm vi dữ liệu</h2><p class="faq-intro">Xem nguồn, thời điểm và trạng thái xác minh của từng bản thu trong dashboard.</p></div>
         <div>
           <details open><summary>Trang giới thiệu và dashboard khác nhau thế nào?</summary><p>Trang giới thiệu trình bày mục đích dự án. Dashboard cho phép xem dữ liệu, heatmap và replay mà không cần đăng nhập. Ghi chú riêng và quyền chỉnh sửa dành cho chủ dự án.</p></details>
           <details><summary>Web có dữ liệu realtime chưa?</summary><p>Đã triển khai bộ thu SSI trên GitHub và kết nối chuyển dữ liệu sang web theo batch. Vận hành live trọn phiên còn cần nghiệm thu; ngoài cửa sổ thu hoặc khi mất kết nối, giao diện phải hiển thị dữ liệu cũ và khoảng ngắt.</p></details>
@@ -70,7 +70,7 @@
           <details><summary>Sự kiện có phải tín hiệu mua bán hoặc bằng chứng thao túng?</summary><p>Sự kiện là điểm bắt đầu cho việc kiểm tra theo quy tắc thử nghiệm. Detector chỉ mở khi đủ điều kiện về phiên, đơn vị và chất lượng; kết quả không tự xác định người đặt lệnh, hành vi thao túng hay lợi nhuận tương lai.</p></details>
         </div>
       </section>
-      <section class="bottom-cta" aria-label="Mở dashboard"><div><h2>Đặt diễn biến vào đúng bối cảnh.</h2><p>Khám phá dữ liệu đã lưu, phát lại sự kiện và ghi lại điều bạn quan sát.</p></div><a class="button primary" href="/dashboard">Mở dashboard →</a></section>
+      <section class="bottom-cta" aria-label="Mở dashboard"><div><h2>Xem lại sổ lệnh</h2><p>Chọn ngày, chọn mã và bấm Phát lại ngay dưới biểu đồ.</p></div><a class="button primary" href="/dashboard">Mở dashboard →</a></section>
     </main>
     <footer><span>LiquidityLab · Đồ án UEL 2026–2027</span><span>Hình minh họa sử dụng dữ liệu giả lập · <a href="#gioi-han">Đọc phạm vi sử dụng</a></span></footer>
   </div>

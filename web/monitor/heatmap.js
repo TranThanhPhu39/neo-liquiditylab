@@ -60,12 +60,13 @@ const MonitorHeatmap = (() => {
     return {x, y, left, iw, w, h,hits};
   }
   function timeline(canvas,data,index,events){
-    const w=Math.max(300,canvas.getBoundingClientRect().width),h=70,ratio=Math.min(2,window.devicePixelRatio||1);
-    canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#f4f7f2';c.fillRect(0,0,w,h);
+    const bounds=canvas.getBoundingClientRect(), w=Math.max(240,bounds.width), h=Math.max(26,bounds.height||70);
+    const ratio=Math.min(2,window.devicePixelRatio||1), rail=Math.min(20,h*.21), height=Math.min(12,h*.18);
+    canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#f5f5f7';c.fillRect(0,0,w,h);
     const start=EventReplay.time(data.frames[0].time),stop=EventReplay.time(data.frames.at(-1).time),now=EventReplay.time(data.frames[index].time),x=t=>12+(t-start)/Math.max(1,stop-start)*(w-24);
-    c.fillStyle='#e1e9dd';c.fillRect(12,20,w-24,12);c.fillStyle='#789888';c.fillRect(12,20,Math.max(0,x(now)-12),12);
-    for(const e of events){c.fillStyle=({SPREAD_WIDENING:'#516d96',DEPTH_DROP:'#b9763a',IMBALANCE_PERSISTENCE:'#398779'})[e.type]||'#657367';c.fillRect(x(EventReplay.time(e.detected_at))-1,10,2,30);}
-    c.fillStyle='#263f33';c.fillRect(x(now)-1,5,2,40);c.font='9px Segoe UI,Arial';c.fillStyle='#788879';c.textAlign='left';c.fillText(clock(start),12,60);c.textAlign='right';c.fillText(clock(stop),w-12,60);
+    c.fillStyle='#dcdde4';c.fillRect(12,rail,w-24,height);c.fillStyle='#9290bc';c.fillRect(12,rail,Math.max(0,x(now)-12),height);
+    for(const e of events){c.fillStyle=({SPREAD_WIDENING:'#516d96',DEPTH_DROP:'#b9763a',IMBALANCE_PERSISTENCE:'#398779'})[e.type]||'#657367';c.fillRect(x(EventReplay.time(e.detected_at))-1,rail-2,2,height+4);}
+    c.fillStyle='#302b66';c.fillRect(x(now)-1,rail-3,2,height+6);c.font='9px Segoe UI,Arial';c.fillStyle='#575766';c.textAlign='left';c.fillText(clock(start),12,h-4);c.textAlign='right';c.fillText(clock(stop),w-12,h-4);
   }
   return {draw,timeline};
 })();

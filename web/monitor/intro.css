@@ -3,3 +3,41 @@
     @media(max-width:940px){.wrap{padding:0 25px}.hero{gap:25px;padding-top:48px}.hero h1{font-size:48px;letter-spacing:-2px}.hero p{font-size:14px}.nav-links{gap:17px}.faq{gap:35px}.card{padding:22px}.preview{padding:14px}}
     @media(max-width:720px){.nav-links>a:not(.button){display:none}.nav-links .button{padding:9px 12px;font-size:11px}.brand{font-size:19px}.hero{grid-template-columns:1fr;padding:44px 0 36px;gap:34px}.hero h1{font-size:51px}.hero p{max-width:520px}.hero h1 br{display:none}.scope{margin-bottom:46px;gap:12px}.scope>div{padding:0 12px}.scope strong{font-size:12px}.scope small{font-size:10px}.section-title{display:block}.section-title p{margin-top:17px}h2{font-size:29px}.features{grid-template-columns:1fr}.card h3{margin-top:12px}.card .tag{margin-top:18px}.workflow{margin:43px 0;padding:25px}.workflow-top{display:block}.workflow-top .button{margin-top:23px}.steps{grid-template-columns:1fr;gap:24px}.faq{grid-template-columns:1fr;gap:18px;padding-bottom:35px}.faq-intro{max-width:none}.bottom-cta{align-items:flex-start;flex-direction:column;gap:20px}footer{flex-wrap:wrap}.demo-label{font-size:8px}}
     @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button{transition:none}}
+/* Shared color and surface treatment with the monitor workspace. */
+:root {
+  --ink: #24232c;
+  --muted: #605f70;
+  --line: #e5e3eb;
+  --soft: #eeebf6;
+  --accent: #302952;
+}
+body { background: #f6f5f8; }
+.mark, .button.primary { background: var(--accent); }
+.hero { padding-block: clamp(36px, 6vw, 76px) clamp(30px, 5vw, 62px); }
+.hero h1 { max-width: 10em; margin-block: 14px 18px; letter-spacing: -.055em; }
+.hero h1 span { color: #6a5b83; }
+.hero p { line-height: 1.7; }
+.actions { margin-top: 24px; }
+.button { border-color: #d6d0df; border-radius: 8px; }
+.button.primary { border-color: var(--accent); }
+.button:hover { background: #eeebf6; }
+.button.primary:hover { background: #453661; }
+.preview { border-radius: 14px; box-shadow: 0 12px 36px #22202e14; }
+.scope { margin-bottom: clamp(34px, 6vw, 72px); }
+.card, .workflow, .bottom-cta {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.card h3 { margin-top: 0; }
+.workflow { margin-block: clamp(36px, 6vw, 70px); }
+.workflow h2, .section-title h2, .faq h2 { margin-top: 0; }
+.steps { border-color: var(--line); }
+.step-num { color: var(--accent); background: #f4f1f8; border-color: #e5dfee; }
+.steps p { color: var(--muted); }
+.bottom-cta { padding-inline: clamp(18px, 4vw, 42px); margin-bottom: 26px; }
+@media (max-width: 720px) {
+  .hero h1 { font-size: clamp(40px, 9vw, 51px); }
+  .scope { grid-template-columns: 1fr; }
+  .scope > div, .scope > div:first-child { border-left: 0; padding-inline: 0; }
+}

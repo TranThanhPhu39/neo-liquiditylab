@@ -32,14 +32,32 @@
     context:()=>({data,capture:isCapture(),cutoff:data?.frames[index]?.time}),
     onEnd:()=>{if(data){stop();setIndex(data.frames.length-1);}},
     onSeek:t=>{if(data){stop();setIndex(M.indexAt(data,M.time(t)));$('heatmap').scrollIntoView({behavior:'smooth',block:'center'});}}});
-  function stop(){playing=false;$('play').textContent='▶ Phát lại';}
+  function playbackLabel(){
+    $('play').textContent=playing?'Ⅱ Tạm dừng':'▶ Phát lại';
+    $('play').title=(playing?'Tạm dừng':'Phát lại')+' (Space)';
+  }
+  function stop(){playing=false;playbackLabel();}
+  function togglePlayback(){
+    if(!data||$('play').disabled)return;
+    if(playing){stop();return;}
+    if(index===data.frames.length-1)setIndex(0);
+    if(isCapture()&&following){
+      following=false;captureEpoch++;captureEvents++;captureState();
+    }
+    playing=true;
+    origin=M.time(data.frames[index].time);
+    wall=performance.now();
+    playbackLabel();
+  }
   function table(headers,rows){const t=document.createElement('table'),h=document.createElement('thead'),tr=document.createElement('tr');for(const v of headers)tr.append(text('th',v));h.append(tr);t.append(h);const body=document.createElement('tbody');for(const values of rows){const r=document.createElement('tr');for(const v of values){const td=document.createElement('td');if(typeof v==='object'&&v!==null)td.append(v);else td.textContent=v;r.append(td);}body.append(r);}t.append(body);return t;}
   function detail(box,label,value){const r=text('div','','detail-row');r.append(text('span',label),text('strong',String(value)));box.append(r);}
   function title(e){return (names[e.type]||e.type)+(e.type==='DEPTH_DROP'?' · phía '+(e.side==='bid'?'mua':'bán'):'');}
   function modeControls(){
     breakoutUI?.sync();
-    $('dataMode').value=mode;for(const id of ['captureRunLabel','captureActions'])$(id).hidden=!isCapture();
+    $('dataMode').value=mode;for(const id of ['captureRunLabel','captureActions','captureTools'])$(id).hidden=!isCapture();
     for(const id of ['marketExchange','marketSearch'])$(id).disabled=isCapture();
+    $('marketFilters').hidden=isCapture();
+    $('modeStatus').hidden=!isCapture();
     $('openConfig').disabled=isCapture()||readOnly;
     for(const id of ['libraryFilters','archiveToggle'])$(id).hidden=isCapture();
     $('replayScope').textContent=isCapture()?'Đang xem một đoạn bản thu theo đồng hồ nhận. Tua/tạm dừng chỉ đổi màn hình; bộ thu vẫn lưu. Dùng Đoạn trước/Đoạn sau để tải phần khác.':'Sự kiện, peak và trạng thái kết thúc sau con trỏ được ẩn. Thư viện và xuất hồ sơ là xem hồi tố cả phiên.';
@@ -155,10 +173,15 @@
   }
   function currentEntries(){return catalog.filter(e=>!e.archived);}
   function setOptions(id,options,value){const el=$(id);el.replaceChildren();for(const [v,label] of options){const o=text('option',label);o.value=v;el.append(o);}el.value=value;}
-  function setPage(next){page=next;if(next!=='analysis')stop();for(const p of ['watch','analysis','review'])$(p+'Screen').hidden=p!==next;
-    for(const b of document.querySelectorAll('[data-page]'))b.classList.toggle('active',b.dataset.page===next);
+  function setPage(next){const changed=page!==next;page=next;if(next!=='analysis')stop();for(const p of ['watch','analysis','review'])$(p+'Screen').hidden=p!==next;
+    for(const b of document.querySelectorAll('[data-page]')){
+      const active=b.dataset.page===next;
+      b.classList.toggle('active',active);
+      b.setAttribute('aria-current',active?'page':'false');
+    }
     const labels={watch:['Theo dõi','Danh sách theo dõi','Xem trạng thái các mã tại cùng một mốc nguồn.'],analysis:['Phân tích mã','Phân tích sổ lệnh','Heatmap, replay và bằng chứng của từng sự kiện.'],review:['Rà soát & ghi chú','Thư viện sự kiện','Tìm lại diễn biến, xem nhận xét và xuất hồ sơ hồi tố.']};
     $('pageLabel').textContent=labels[next][0];$('title').textContent=labels[next][1]+(next==='analysis'&&data?' '+data.symbol:'');$('pageDescription').textContent=labels[next][2];
+    if(changed)window.scrollTo?.(0,0);
     if(next==='watch'&&data){updateWatch();renderInventory();}if(next==='review')loadLibrary();if(next==='analysis')paint();
   }
   async function refreshCatalog(){const epoch=pollEpoch,r=await api('/api/datasets');if(isCapture()||epoch!==pollEpoch)return;if(!['offline-monitor-v3-bubbles','offline-monitor-v4-parquet','offline-monitor-v5-market','offline-monitor-v6-relative','offline-monitor-v7-public','offline-monitor-v8-unified','offline-monitor-v9-recovery','offline-monitor-v10-bounded','offline-monitor-v11-breakout','offline-monitor-v12-streamed-cutoff'].includes(r.application_version))throw Error('Giao diện và server chưa đồng bộ phiên bản. Hãy tải lại trang sau khi cập nhật ứng dụng.');csrf=r.csrf;readOnly=Boolean(r.read_only);catalog=r.datasets;
@@ -295,7 +318,55 @@
   $('pauseCapture').addEventListener('click',()=>{following=false;captureEpoch++;captureEvents++;clearTimeout(eventTimer);eventTimer=null;stop();captureState();if(data)render();});
   $('followLatest').addEventListener('click',async()=>{try{const epoch=pollEpoch;captureStatus=await api('/api/live/status');captureRuns=await api('/api/live/runs');if(!isCapture()||epoch!==pollEpoch)return;const run=captureRuns.find(r=>r.run_id===captureStatus.run_id)||captureRuns[0];following=true;captureOptions($('symbolSelect').value,run?.day,run?.run_id);await loadCapture();}catch(e){showError(e.message);}});
   for(const [id,direction] of [['captureEarlier',-1],['captureLater',1]])$(id).addEventListener('click',()=>{if(!isCapture()||!data)return;following=false;const start=direction<0?Math.max(0,data.frames[0].index-5000):Math.min(capture.window.total-1,data.frames.at(-1).index+1);loadCapture(start).catch(e=>showError(e.message));});
-  $('play').addEventListener('click',()=>{if(!data)return;if(playing)return stop();if(index===data.frames.length-1)setIndex(0);playing=true;origin=M.time(data.frames[index].time);wall=performance.now();$('play').textContent='Ⅱ Tạm dừng';});
+  $('play').addEventListener('click',togglePlayback);
+  document.addEventListener?.('keydown',event=>{
+    if(event.code!=='Space'||event.repeat||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey||
+      page!=='analysis'||!data||$('play').disabled||document.querySelector?.('dialog[open], .tool-popover[open]')||
+      event.target?.closest?.('button, input, select, textarea, summary, a, [contenteditable]:not([contenteditable="false"])'))return;
+    event.preventDefault();
+    togglePlayback();
+  });
+  const compactMenu=window.matchMedia?.('(max-width: 900px)');
+  let menuPreference=null;
+  try{
+    const saved=window.localStorage?.getItem('liquiditylab.menu');
+    if(saved==='compact'||saved==='expanded')menuPreference=saved==='compact';
+  }catch(_){}
+  let menuCollapsed=false;
+  function resizeMenu(collapsed){
+    menuCollapsed=collapsed;
+    $('mainSidebar').dataset.collapsed=String(collapsed);
+    const toggle=$('menuToggle'),label=collapsed?'Mở rộng menu':'Thu gọn menu';
+    toggle.setAttribute('aria-expanded',String(!collapsed));
+    toggle.setAttribute('aria-label',label);
+    toggle.title=label;
+  }
+  resizeMenu(menuPreference??Boolean(compactMenu?.matches));
+  $('menuToggle').addEventListener('click',()=>{
+    resizeMenu(!menuCollapsed);
+    menuPreference=menuCollapsed;
+    try{window.localStorage?.setItem('liquiditylab.menu',menuCollapsed?'compact':'expanded');}catch(_){}
+  });
+  compactMenu?.addEventListener?.('change',event=>{if(menuPreference===null)resizeMenu(event.matches);});
+  const popovers=['marketFilters','chartSettings','replayOptions','captureTools'];
+  for(const id of popovers){
+    const disclosure=$(id);
+    disclosure.addEventListener('keydown',event=>{
+      if(event.key!=='Escape'||!disclosure.open)return;
+      disclosure.open=false;
+      disclosure.querySelector('summary')?.focus();
+    });
+    disclosure.addEventListener('toggle',()=>{
+      if(!disclosure.open)return;
+      for(const other of popovers)if(other!==id)$(other).open=false;
+    });
+  }
+  document.addEventListener?.('pointerdown',event=>{
+    for(const id of popovers){
+      const disclosure=$(id);
+      if(disclosure.open&&!disclosure.contains(event.target))disclosure.open=false;
+    }
+  });
   $('cursor').addEventListener('input',()=>{if(data){stop();setIndex($('cursor').value);}});
   for(const [id,d] of [['prev',-1],['next',1]])$(id).addEventListener('click',()=>{if(data){stop();setIndex(index+d);}});
   $('first').addEventListener('click',()=>{if(data){stop();setIndex(0);}});

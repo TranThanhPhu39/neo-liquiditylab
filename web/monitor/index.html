@@ -3,20 +3,48 @@
 <meta name="description" content="Theo dõi, phát lại và rà soát sự kiện thanh khoản trong một dashboard sổ lệnh.">
 <title>LiquidityLab · Theo dõi và rà soát sự kiện</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/style.css">
 <script src="/model.js" defer></script><script src="/heatmap.js" defer></script><script src="/live-model.js" defer></script><script src="/capture-model.js" defer></script><script src="/http.js" defer></script><script src="/breakout.js" defer></script><script src="/app.js" defer></script></head>
-<body><aside class="sidebar">
-  <a class="brand" href="/" aria-label="LiquidityLab"><span class="logo">▥</span><span>LiquidityLab<small>ORDER BOOK OBSERVATORY</small></span></a>
-  <span class="eyebrow">KHÔNG GIAN QUAN SÁT</span>
-  <nav><button class="nav-item" data-page="watch">▤ <span>Theo dõi</span></button><button class="nav-item active" data-page="analysis">◷ <span>Phân tích mã</span></button><button class="nav-item" data-page="review">▧ <span>Rà soát & ghi chú</span></button></nav>
+<body><aside class="sidebar" id="mainSidebar">
+  <div class="sidebar-head">
+    <a class="brand" href="/" aria-label="LiquidityLab"><span class="logo" aria-hidden="true">▥</span><span class="brand-name">LiquidityLab</span></a>
+    <button id="menuToggle" class="menu-toggle" type="button" aria-controls="mainNav" aria-expanded="true" aria-label="Thu gọn menu" title="Thu gọn menu"><span aria-hidden="true">‹</span></button>
+  </div>
+  <nav id="mainNav" aria-label="Điều hướng dashboard">
+    <button class="nav-item" data-page="watch" aria-label="Theo dõi" title="Theo dõi"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Theo dõi</span></button>
+    <button class="nav-item active" data-page="analysis" aria-label="Phân tích mã" title="Phân tích mã" aria-current="page"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">Phân tích mã</span></button>
+    <button class="nav-item" data-page="review" aria-label="Rà soát và ghi chú" title="Rà soát và ghi chú"><span class="nav-icon" aria-hidden="true">▧</span><span class="nav-label">Rà soát & ghi chú</span></button>
+  </nav>
   <div class="section-label">DANH SÁCH THEO DÕI</div><div id="sideWatch"></div>
-  <div class="side-note"><span class="eyebrow">MỘT KHÔNG GIAN SỔ LỆNH</span><p>Chọn mã và chế độ xem.<br>Nguồn và đồng hồ được ghi trong phần chất lượng.</p><p>Phát hiện theo quy tắc thử nghiệm. Không suy luận người đặt lệnh hoặc hành vi thao túng.</p><button id="showMethod" class="link-button">Cách đọc & giới hạn ↗</button></div>
+  <button id="showMethod" class="link-button sidebar-help" type="button" aria-label="Cách đọc và giới hạn" title="Cách đọc và giới hạn"><span aria-hidden="true">?</span><span class="nav-label">Cách đọc & giới hạn</span></button>
   <div class="side-foot"><span id="datasetInventory">Đang kiểm kê…</span><br><span id="connection">Đang kết nối…</span></div>
 </aside>
-<main><header><span>Quan sát thị trường <span class="slash">/</span> <span id="pageLabel">Phân tích mã</span></span><span class="pill" id="viewBadge">LỊCH SỬ · ĐÃ LƯU</span></header>
-  <section class="view-controls" aria-label="Chế độ dữ liệu"><label>Chế độ xem<select id="dataMode"><option value="history">Lịch sử</option><option value="capture">Theo dõi gần nhất</option></select></label><label id="captureRunLabel" hidden>Bản thu<select id="captureRun"></select></label><div id="captureActions" class="capture-actions" hidden><button id="followLatest" class="outline">Theo dõi mới nhất</button><button id="pauseCapture" class="outline">Tạm dừng màn hình</button><button id="captureEarlier" class="outline">← Đoạn trước</button><button id="captureLater" class="outline">Đoạn sau →</button></div><p id="modeStatus" class="subtle" role="status">Dữ liệu đã lưu · Chọn ngày và mã để xem lại.</p></section>
-  <div class="title-row"><div><div class="eyebrow">QUAN SÁT · PHÁT LẠI · GIẢI THÍCH</div><h1 id="title">Phân tích sổ lệnh</h1><p id="pageDescription">Xem diễn biến đã lưu và bằng chứng của từng sự kiện.</p></div><div class="dataset-controls"><label>Ngày<select id="daySelect" disabled></select></label><label>Sàn<select id="marketExchange"><option value="all">Tất cả</option><option>HOSE</option><option>HNX</option><option>UPCOM</option></select></label><label>Tìm mã<input id="marketSearch" type="search" maxlength="12" placeholder="VNM, SHS, A32…"></label><label>Mã có dữ liệu<select id="symbolSelect" disabled><option>—</option></select></label><button id="applySymbol" class="outline">Mở mã</button><label class="sr-only" for="dataset">Bộ dữ liệu</label><select id="dataset" hidden></select></div></div>
+<main><header class="workspace-header"><div class="workspace-title"><span id="pageLabel" class="sr-only">Phân tích mã</span><h1 id="title">Phân tích sổ lệnh</h1><p id="pageDescription" class="sr-only">Xem diễn biến đã lưu và bằng chứng của từng sự kiện.</p></div><span class="pill" id="viewBadge">LỊCH SỬ · ĐÃ LƯU</span></header>
+  <section class="dataset-bar" aria-label="Chọn dữ liệu">
+    <div class="dataset-controls">
+      <label>Chế độ<select id="dataMode"><option value="history">Lịch sử</option><option value="capture">Theo dõi gần nhất</option></select></label>
+      <label>Ngày<select id="daySelect" disabled></select></label>
+      <label id="captureRunLabel" hidden>Bản thu<select id="captureRun"></select></label>
+      <label>Mã<select id="symbolSelect" disabled><option>—</option></select></label>
+      <button id="applySymbol" class="outline open-symbol">Mở mã</button>
+      <details class="tool-popover market-popover" id="marketFilters">
+        <summary class="outline" title="Lọc theo mã và sàn">Lọc</summary>
+        <div class="popover-content">
+          <label>Sàn<select id="marketExchange"><option value="all">Tất cả</option><option>HOSE</option><option>HNX</option><option>UPCOM</option></select></label>
+          <label>Tìm mã<input id="marketSearch" type="search" maxlength="12" placeholder="VNM, SHS, A32…"></label>
+        </div>
+      </details>
+      <details id="captureTools" class="tool-popover capture-popover" hidden>
+        <summary class="outline">Bản thu</summary>
+        <div class="popover-content">
+          <div id="captureActions" class="capture-actions"><button id="followLatest" class="outline">Theo dõi mới nhất</button><button id="pauseCapture" class="outline">Tạm dừng theo dõi</button><button id="captureEarlier" class="outline">← Đoạn trước</button><button id="captureLater" class="outline">Đoạn sau →</button></div>
+          <p id="modeStatus" class="subtle" role="status"></p>
+        </div>
+      </details>
+      <label class="sr-only" for="dataset">Bộ dữ liệu</label><select id="dataset" hidden></select>
+    </div>
+  </section>
   <div id="error" role="alert" hidden></div>
   <div id="serverNotice" class="context" role="status" aria-live="polite" hidden></div>
-  <div class="context"><span class="context-dot"></span><span id="provenance">Đang đọc bộ dữ liệu…</span><button id="openConfig" class="link-button">Quy tắc & ngưỡng ↗</button></div>
+  <div class="context data-context"><span class="context-dot"></span><span id="provenance">Đang đọc bộ dữ liệu…</span><button id="openConfig" class="link-button">Quy tắc & ngưỡng ↗</button></div>
   <div id="unitWarning" class="warning" hidden></div>
 
   <section id="watchScreen" class="screen" hidden>
@@ -26,33 +54,49 @@
   </section>
 
   <section id="analysisScreen" class="screen">
-    <details id="breakoutPanel" class="panel breakout-panel">
+    <section class="metrics"><div class="metric"><span>Spread quan sát</span><strong id="spread">—</strong><small>Chênh lệch mua–bán · bps</small></div><div class="metric"><span>Khối lượng chờ mua</span><strong id="bidDepth">—</strong><small>Top 3 · Đọc cùng nhãn đơn vị</small></div><div class="metric"><span>Khối lượng chờ bán</span><strong id="askDepth">—</strong><small>Top 3 · Đọc cùng nhãn đơn vị</small></div><div class="metric"><span>Sự kiện đã phát hiện</span><strong id="eventCount">0</strong><small id="detectorState">Đang đọc dữ liệu</small></div></section>
+
+    <div class="workspace">
+      <div class="visual-column">
+        <section class="panel heat-panel"><div class="panel-heading"><div><h2>Heatmap sổ lệnh</h2></div><span class="pill dark-pill" id="sourceClock">—</span></div>
+        <div class="chart-toolbar"><div class="segmented"><button data-side="both" class="selected">Hai phía</button><button data-side="bids">Chờ mua</button><button data-side="asks">Chờ bán</button></div><label class="compact-label">Cửa sổ<select id="window"><option value="300">5 phút</option><option value="900" selected>15 phút</option><option value="1800">30 phút</option><option value="3600">60 phút</option></select></label><details id="chartSettings" class="tool-popover chart-settings"><summary class="outline">Hiển thị</summary><div class="popover-content"><div class="bubble-toolbar"><label class="compact-label">Đỉnh màu<select id="scale"><option value="100000">100.000 CP</option><option value="250000" selected>250.000 CP</option><option value="1000000">1.000.000 CP</option></select></label><label class="bubble-toggle"><input id="showBubbles" type="checkbox" checked> Volume bubbles · đã khớp</label><label class="compact-label">Gom cùng giá/phía<select id="bubbleGroup"><option value="1">1 giây</option><option value="5">5 giây</option><option value="10">10 giây</option></select></label><label class="compact-label">Tối thiểu<select id="bubbleMin"><option value="0">Mọi lượng</option><option value="1000">1.000 CP</option><option value="10000">10.000 CP</option><option value="50000">50.000 CP</option></select></label><label class="compact-label">Cỡ tham chiếu<select id="bubbleScale"><option value="1000">1.000 CP</option><option value="10000" selected>10.000 CP</option><option value="100000">100.000 CP</option></select></label><button id="bubbleFirst" class="outline" disabled>Tới giao dịch đầu</button></div></div></details></div>
+        <div class="canvas-wrap"><canvas id="heatmap" role="img" aria-label="Heatmap lượng chờ và volume bubbles giao dịch khớp đến con trỏ replay"></canvas><div id="hover" class="hover-info" hidden></div></div>
+        <section class="replay-panel" aria-label="Điều khiển phát lại">
+          <div class="replay-actions">
+            <div class="transport">
+              <button id="play" class="play" type="button" disabled aria-keyshortcuts="Space" title="Phát lại (Space)">▶ Phát lại</button>
+              
+              <button id="prev" type="button" aria-label="Quan sát trước" title="Quan sát trước">‹</button>
+              <button id="next" type="button" aria-label="Quan sát tiếp" title="Quan sát tiếp">›</button>
+            </div>
+            <strong class="replay-clock" id="clock" aria-label="Giờ Việt Nam">—</strong>
+            <label class="compact-label"><span class="sr-only">Tốc độ phát lại</span><select id="speed"><option value="1">1×</option><option value="10">10×</option><option value="60" selected>60×</option><option value="300">300×</option></select></label>
+            <details class="tool-popover seek-popover" id="replayOptions"><summary class="outline">Tua</summary><div class="popover-content">
+              <div class="seek-controls"><button id="first" type="button" aria-label="Về đầu" title="Về đầu">|◀</button><label>Giờ Việt Nam<input id="seekTime" type="time" step="1" value="09:15:00"></label><button id="seek" class="outline">Đến giờ</button><button id="sessionEnd" class="outline">Đến cuối đoạn</button><button id="previousEvent" class="outline">← Sự kiện trước</button><button id="nextEvent" class="outline">Sự kiện sau →</button></div>
+              <p class="subtle" id="replayScope"></p>
+            </div></details>
+          </div>
+          <div class="replay-track">
+            <label class="sr-only" for="cursor">Tua đến quan sát</label><input id="cursor" type="range" min="0" max="0" value="0" disabled>
+            <span id="position" class="subtle">—</span>
+          </div>
+          <canvas id="timeline" class="timeline" role="img" aria-label="Timeline sự kiện đã được phát hiện, bấm để tua"></canvas>
+        </section>
+      </section>
+        <details class="panel chart-notes"><summary>Cách đọc heatmap</summary><div class="bubble-legend"><span><i class="bubble-buy"></i> Khớp mua chủ động</span><span><i class="bubble-sell"></i> Khớp bán chủ động</span><span><i class="bubble-unknown"></i> Chưa rõ phía / chưa đủ xác minh đơn vị</span></div><p id="bubbleStatus" class="subtle" role="status">Đang đọc dữ liệu khớp…</p>
+        <div class="legend"><span><i class="bid-line"></i> Chờ mua</span><span><i class="ask-line"></i> Chờ bán</span><span><i class="event-line"></i> Sự kiện</span><span class="gradient-label">Đậm: lượng lớn · Ô viền: 0 thực</span></div>
+        <p class="chart-foot">Vệt là lượng chờ tại các mức đã quan sát; tròn là giao dịch đã khớp, độc lập với chênh lệch depth. Bubbles gom cùng giá/phía trong khoảng giây đã chọn, tại lần khớp cuối nhóm đến con trỏ. Diện tích theo khối lượng, bán kính giới hạn 2–26 px; di chuột đọc số chính xác. BUY/SELL là phân loại của nguồn, không nhận diện người đặt lệnh. Giá ngoài phạm vi là chưa biết, không phải 0; gạch chéo là khoảng quan sát ngắt.</p></details>
+        <details id="breakoutPanel" class="panel breakout-panel">
       <summary><strong>Nghiên cứu vượt đỉnh phiên trước</strong><span class="pill">GIÁ KHỚP · 5 / 15 PHÚT</span></summary>
       <p>Đánh dấu lần giá khớp đi từ không cao hơn lên cao hơn mức tham chiếu trong phiên. Đây là lần vượt quan sát được, chưa phải nến ngày đóng cửa xác nhận.</p>
       <div class="breakout-controls"><label>Ngày tham chiếu<input id="breakoutDay" type="date"><small>Để trống: ngày làm việc trước; kiểm tra lịch nghỉ.</small></label><label>Đỉnh phiên trước (VNĐ)<input id="breakoutPrice" type="number" min="1" max="1000000000" step="any" placeholder="Để trống: đỉnh giao dịch đã lưu"><small>Nhập giá đã kiểm tra, ví dụ 30000; không nhập 30.</small></label><button id="breakoutRun" class="outline" type="button">Phân tích tới con trỏ</button><button id="breakoutEnd" class="outline" type="button">Đến cuối dữ liệu và phân tích</button><button id="breakoutExport" class="outline" type="button" hidden>Tải nghiên cứu JSON</button></div>
       <p id="breakoutStatus" class="subtle" role="status" aria-live="polite">Mở nghiên cứu trên dữ liệu lịch sử. Kết quả chỉ dùng dữ liệu đến mốc đã chọn.</p>
       <div id="breakoutResult" hidden><div id="breakoutReference" class="warning"></div><canvas id="breakoutChart" role="img" aria-label="Giá khớp quan sát theo phút, mức tham chiếu và các lần vượt đến mốc nghiên cứu"></canvas><p class="chart-foot">Nét giá nối giá khớp cuối mỗi phút có giao dịch; vạch mảnh là cao–thấp của các giao dịch đã lưu trong phút. Ngắt nét khi thiếu phút. Đường ngang là mức tham chiếu, chấm tròn là lần vượt được giữ lại.</p><div id="breakoutGroups" class="table-scroll"></div><p class="chart-foot">So sánh mô tả trên cùng mẫu; chưa chứng minh sổ lệnh cải thiện dự báo. Nhóm sổ lệnh dùng imbalance top 3 &gt; 0 và spread không cao hơn median 10 phút trước, tối thiểu 5 giây có mẫu. Không phải tín hiệu mua/bán.</p><div id="breakoutEpisodes" class="table-scroll"></div><p class="chart-foot">Hai lần vượt được giữ cách nhau ít nhất 15 phút để giảm cửa sổ chồng lấn. “Trên mức tại mốc” chỉ xét giá khớp gần mốc 5/15 phút, không khẳng định giữ trên mức suốt khoảng đó. Khoảng thưa/thiếu không được tính vào mẫu so sánh đầy đủ; phần trăm biến động là từ giá khớp lần vượt, chưa tính chi phí và không phải lợi nhuận thực thi. Phạm vi chỉ gồm phiên liên tục.</p></div>
     </details>
-    <section class="metrics"><div class="metric"><span>Spread quan sát</span><strong id="spread">—</strong><small>Chênh lệch mua–bán · bps</small></div><div class="metric"><span>Khối lượng chờ mua</span><strong id="bidDepth">—</strong><small>Top 3 · Đọc cùng nhãn đơn vị</small></div><div class="metric"><span>Khối lượng chờ bán</span><strong id="askDepth">—</strong><small>Top 3 · Đọc cùng nhãn đơn vị</small></div><div class="metric"><span>Sự kiện đã phát hiện</span><strong id="eventCount">0</strong><small id="detectorState">Đang đọc dữ liệu</small></div></section>
-    <div class="workspace"><div class="visual-column">
-      <section class="panel heat-panel"><div class="panel-heading"><div><h2>Thanh khoản theo giá và thời gian</h2><p>Giá tuyệt đối · Màu là lượng chờ, không phải khối lượng đã khớp.</p></div><span class="pill dark-pill" id="sourceClock">—</span></div>
-        <div class="chart-toolbar"><div class="segmented"><button data-side="both" class="selected">Hai phía</button><button data-side="bids">Chờ mua</button><button data-side="asks">Chờ bán</button></div><label class="compact-label">Cửa sổ<select id="window"><option value="300">5 phút</option><option value="900" selected>15 phút</option><option value="1800">30 phút</option><option value="3600">60 phút</option></select></label><label class="compact-label">Đỉnh màu<select id="scale"><option value="100000">100.000 CP</option><option value="250000" selected>250.000 CP</option><option value="1000000">1.000.000 CP</option></select></label></div>
-        <div class="bubble-toolbar"><label class="bubble-toggle"><input id="showBubbles" type="checkbox" checked> Volume bubbles · đã khớp</label><label class="compact-label">Gom cùng giá/phía<select id="bubbleGroup"><option value="1">1 giây</option><option value="5">5 giây</option><option value="10">10 giây</option></select></label><label class="compact-label">Tối thiểu<select id="bubbleMin"><option value="0">Mọi lượng</option><option value="1000">1.000 CP</option><option value="10000">10.000 CP</option><option value="50000">50.000 CP</option></select></label><label class="compact-label">Cỡ tham chiếu<select id="bubbleScale"><option value="1000">1.000 CP</option><option value="10000" selected>10.000 CP</option><option value="100000">100.000 CP</option></select></label><button id="bubbleFirst" class="outline" disabled>Tới giao dịch đầu</button></div>
-        <div class="canvas-wrap"><canvas id="heatmap" role="img" aria-label="Heatmap lượng chờ và volume bubbles giao dịch khớp đến con trỏ replay"></canvas><div id="hover" class="hover-info" hidden></div></div>
-        <div class="bubble-legend"><span><i class="bubble-buy"></i> Khớp mua chủ động</span><span><i class="bubble-sell"></i> Khớp bán chủ động</span><span><i class="bubble-unknown"></i> Chưa rõ phía / chưa đủ xác minh đơn vị</span></div><p id="bubbleStatus" class="subtle" role="status">Đang đọc dữ liệu khớp…</p>
-        <div class="legend"><span><i class="bid-line"></i> Chờ mua</span><span><i class="ask-line"></i> Chờ bán</span><span><i class="event-line"></i> Sự kiện</span><span class="gradient-label">Đậm: lượng lớn · Ô viền: 0 thực</span></div>
-        <p class="chart-foot">Vệt là lượng chờ tại các mức đã quan sát; tròn là giao dịch đã khớp, độc lập với chênh lệch depth. Bubbles gom cùng giá/phía trong khoảng giây đã chọn, tại lần khớp cuối nhóm đến con trỏ. Diện tích theo khối lượng, bán kính giới hạn 2–26 px; di chuột đọc số chính xác. BUY/SELL là phân loại của nguồn, không nhận diện người đặt lệnh. Giá ngoài phạm vi là chưa biết, không phải 0; gạch chéo là khoảng quan sát ngắt.</p>
-      </section>
-      <section class="panel replay-panel"><div class="replay-top"><div><span class="eyebrow">ĐỒNG HỒ REPLAY · GIỜ VIỆT NAM</span><strong class="replay-clock" id="clock">—</strong></div><span id="position" class="subtle">—</span></div>
-        <canvas id="timeline" class="timeline" role="img" aria-label="Timeline sự kiện đã được phát hiện, bấm để tua"></canvas>
-        <label class="sr-only" for="cursor">Tua đến quan sát</label><input id="cursor" type="range" min="0" max="0" value="0" disabled>
-        <div class="replay-actions"><div class="transport"><button id="first" title="Về đầu">|◀</button><button id="prev" title="Quan sát trước">‹</button><button id="play" class="play" disabled>▶ Phát lại</button><button id="next" title="Quan sát tiếp">›</button></div><label class="compact-label">Tốc độ<select id="speed"><option value="1">1×</option><option value="10">10×</option><option value="60" selected>60×</option><option value="300">300×</option></select></label><button id="sessionEnd" class="outline">Đến cuối phiên / xem mọi sự kiện</button></div>
-        <div class="seek-controls"><label>Đến giờ nguồn<input id="seekTime" type="time" step="1" value="09:15:00"></label><button id="seek" class="outline">Tua đến giờ</button><button id="previousEvent" class="outline">← Sự kiện trước</button><button id="nextEvent" class="outline">Sự kiện sau →</button></div>
-        <p class="subtle" id="replayScope">Sự kiện, peak và trạng thái kết thúc sau con trỏ được ẩn. Nút “sự kiện sau” là yêu cầu chủ động tua tới một mốc lịch sử khác.</p>
-      </section>
-      <section class="panel"><div class="panel-heading"><h2>Sổ lệnh tại thời điểm đang xem</h2><span id="bookQuality" class="pill">—</span></div><div id="book" class="book-table"></div><p id="bookUnits" class="chart-foot"></p></section>
-      <section class="panel"><div class="panel-heading"><h2>Nguồn, chất lượng và phạm vi</h2><span class="pill">ĐẾN CON TRỎ</span></div><div id="quality"></div></section>
-    </div><div class="review-column">
+        <section class="panel"><div class="panel-heading"><h2>Nguồn, chất lượng và phạm vi</h2><span class="pill">ĐẾN CON TRỎ</span></div><div id="quality"></div></section>
+      </div>
+      <div class="review-column">
+        <section class="panel"><div class="panel-heading"><h2>Sổ lệnh tại thời điểm đang xem</h2><span id="bookQuality" class="pill">—</span></div><div id="book" class="book-table"></div><p id="bookUnits" class="chart-foot"></p></section>
       <section class="panel event-panel"><div class="panel-heading"><h2>Sự kiện đến thời điểm này</h2><span class="pill">D1 · D2 · D3</span></div><div class="event-filters"><select id="eventType" aria-label="Loại sự kiện"><option value="all">Mọi loại</option><option value="SPREAD_WIDENING">Spread mở rộng</option><option value="DEPTH_DROP">Depth giảm</option><option value="IMBALANCE_PERSISTENCE">Imbalance kéo dài</option></select><select id="eventState" aria-label="Trạng thái"><option value="all">Mọi trạng thái</option><option value="ACTIVE">Đang diễn ra</option><option value="RECOVERING">Đang hồi phục</option><option value="ENDED">Đã kết thúc</option><option value="INTERRUPTED">Bị ngắt</option></select><select id="eventVerdict" aria-label="Đánh giá"><option value="all">Mọi đánh giá</option><option value="unreviewed">Chưa rà soát</option><option value="useful">Hữu ích</option><option value="not_useful">Không hữu ích</option><option value="data_issue">Lỗi dữ liệu</option><option value="uncertain">Chưa đủ thông tin</option></select></div><p id="filterCount" class="subtle"></p><div id="events" class="event-list" role="list"></div></section>
       <section class="panel evidence-panel"><div class="panel-heading"><h2>Giải thích & bằng chứng</h2><a id="exportCase" class="link-button" hidden>Tải hồ sơ ↗</a></div><div id="evidence"></div><div id="comparison"></div>
         <form id="reviewForm" hidden><label for="verdict">Đánh giá đoạn diễn biến</label><select id="verdict"><option value="uncertain">Chưa đủ thông tin</option><option value="useful">Hữu ích để xem xét</option><option value="not_useful">Không hữu ích</option><option value="data_issue">Có vấn đề dữ liệu</option></select><label for="note">Ghi chú</label><textarea id="note" rows="3" maxlength="2000" placeholder="Bạn thấy gì trong dữ liệu? Điều gì chưa đủ cơ sở kết luận?"></textarea><button id="saveReview" class="save-button" type="submit">Lưu nhận xét trên máy</button><p id="reviewState" class="subtle" role="status"></p><details><summary>Lịch sử nhận xét</summary><div id="reviewHistory"></div></details></form>

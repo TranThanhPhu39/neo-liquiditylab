@@ -4,10 +4,12 @@ Từ 20/11/2026, dùng một giao diện tại **https://neo-liquiditylab-monito
 
 ## Cách dùng
 
-1. Chọn **Lịch sử** để xem các ngày đã tải và chuẩn hóa. Chọn ngày, sàn, mã rồi đọc heatmap, bubbles, sổ lệnh, replay và bằng chứng. Danh mục lịch sử vẫn bao gồm toàn thị trường theo dữ liệu thực có.
+1. Chọn **Lịch sử**, ngày và mã để mở dữ liệu. Dùng **Lọc** để tìm mã hoặc chọn sàn.
 2. Chọn **Theo dõi gần nhất** để mở bản thu và tiếp tục cập nhật khi có bản tin. Cùng biểu đồ, bộ lọc sự kiện, bảng sổ lệnh và thanh tua được sử dụng. Mã đang chọn được giữ; mã chưa có bản thu sẽ được báo thiếu, không tự đổi sang ACB hoặc thay bằng số 0. Phạm vi bộ thu hiện vẫn là ACB/FPT/HPG.
-3. Chọn ngày và **Bản thu** để xem đợt thu khác. **Tạm dừng màn hình** hoặc kéo thanh tua chỉ đổi con trỏ; không dừng collector. **Theo dõi mới nhất** quay về đợt thu gần nhất và bật cập nhật màn hình.
+3. Chọn ngày và bản thu để xem đợt thu khác. Mở menu **Bản thu** để tạm dừng theo dõi, theo dõi mới nhất hoặc chuyển đoạn. Các thao tác này chỉ điều khiển màn hình.
 4. Bản thu được tải theo đoạn: ban đầu tối đa 2.000–5.000 quan sát tùy trạng thái lưu; bộ đệm trình duyệt giữ tối đa 15.000. Dùng **Đoạn trước / Đoạn sau** để tải tiếp phần đã thu. Thanh tua và giao dịch trên biểu đồ chỉ thuộc đoạn đang tải, không phải toàn bộ phiên.
+5. Bấm **Phát lại** ngay dưới heatmap hoặc nhấn **Space** khi con trỏ không nằm trong ô nhập. Thanh tua, đồng hồ và tốc độ nằm trong cùng khung. Mục **Tua** mở các mốc theo giờ và theo sự kiện. Mục **Hiển thị** mở thang màu và tùy chọn bubbles.
+6. Nút cạnh logo thu gọn hoặc mở rộng menu. Trên máy tính, menu thu gọn còn lại các biểu tượng. Trình duyệt nhớ lựa chọn của bạn.
 
 ## Ý nghĩa trạng thái và dữ liệu
 
