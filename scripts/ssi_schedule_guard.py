@@ -13,7 +13,7 @@ QUEUED = {'queued','waiting','pending','requested'}
 
 def run_session(run, p):
     title = run.get('display_title','').lower()
-    if any(mode in title for mode in ('smoke','network')):
+    if any(mode in title for mode in ('smoke','network','market-probe')):
         return 'other'
     for session in p['sessions']:
         if session in title:return session

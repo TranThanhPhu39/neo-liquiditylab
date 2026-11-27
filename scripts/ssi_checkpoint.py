@@ -11,7 +11,7 @@ import tempfile
 from urllib.parse import quote
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from scripts.github_api import GitHubAPI,repository_path,release_asset_bytes
+from scripts.github_api import GitHubAPI,GitHubError,repository_path,release_asset_bytes
 
 CHUNK=16*1024*1024
 
@@ -94,7 +94,7 @@ class SSICheckpoints:
         self.created=[]
 
     def restore(self,tag,*,max_bytes=512*1024*1024):
-        if not re.fullmatch(r'ssi-ws-[a-z0-9-]{10,150}',tag):raise ValueError('SSI_CHECKPOINT_TAG_INVALID')
+        if not re.fullmatch(r'ssi-(?:ws|market)-[a-z0-9-]{10,150}',tag):raise ValueError('SSI_CHECKPOINT_TAG_INVALID')
         release=self.api.request('GET',self.base+'/releases/tags/'+quote(tag,safe=''))
         assets={};total=0
         for a in release['assets']:
@@ -112,13 +112,29 @@ class SSICheckpoints:
             service.journal.flush()
             manifest=json.loads(json.dumps(service.journal.manifest));status=json.loads(json.dumps(service.status()));status.pop('csrf',None)
             folder=service.journal.folder
-        stamp=datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
-        tag=f'ssi-ws-{manifest["day"]}-{session}-{stamp}-{run_id}-{attempt}'
+        market = manifest.get('capture_scope') == 'SSI_EQUITY_MARKET'
+        prefix = 'ssi-market' if market else 'ssi-ws'
+        clock = datetime.fromisoformat(manifest['created_at']) if market else datetime.now(timezone.utc)
+        stamp=clock.strftime('%Y%m%d%H%M%S%f')
+        tag=f'{prefix}-{manifest["day"]}-{session}-{stamp}-{run_id}-{attempt}'
+        if market:
+            try:
+                existing = self.api.request('GET',self.base+'/releases/tags/'+quote(tag,safe=''))
+            except GitHubError as error:
+                if error.status != 404:
+                    raise
+            else:
+                if existing.get('draft'):
+                    raise ValueError('SSI_MARKET_SEGMENT_RELEASE_NOT_PUBLISHED')
+                _,proof = self.restore(tag)
+                if proof['run_id'] != manifest['run_id'] or proof['records'] != manifest['last_ordinal']+1:
+                    raise ValueError('SSI_MARKET_SEGMENT_RELEASE_CONFLICT')
+                return dict(tag=tag,encrypted_bytes=sum(a['size'] for a in existing['assets']),final=True,verification=proof)
         context=self.repository+':'+tag;assets=pack(folder,manifest,status,self.key,context)
         # Local decrypt verifies fidelity before creating any release.
         unpack(assets,self.key,context)
         release=self.api.request('POST',self.base+'/releases',dict(tag_name=tag,target_commitish='main',
-            name='Encrypted SSI '+('session' if final else 'temporary checkpoint')+' '+manifest['day']+' '+session,
+            name='Encrypted SSI '+('market segment' if market else 'session' if final else 'temporary checkpoint')+' '+manifest['day']+' '+session,
             draft=True,prerelease=True,body='AES-GCM encrypted Parquet capture. No credentials or plaintext market payload. '+
                 ('Source Windows local capture ' if session.endswith('-local') else 'Source Actions run ')+str(run_id)))
         upload=release['upload_url'].split('{')[0]
@@ -126,6 +142,8 @@ class SSICheckpoints:
             self.api.request('POST',upload+'?name='+quote(name,safe=''),data=data,content_type='application/octet-stream')
         self.api.request('PATCH',self.base+'/releases/'+str(release['id']),{'draft':False})
         _,proof=self.restore(tag)
+        if market:
+            return dict(tag=tag,encrypted_bytes=sum(map(len,assets.values())),final=True,verification=proof)
         self.created.append(dict(tag=tag,id=release['id'],final=final))
         prune_errors=[]
         if final:

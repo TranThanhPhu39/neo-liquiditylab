@@ -15,11 +15,13 @@ FIELDS={'quote':('s','t','bids','asks'), 'trade':('s','t','p','q','si','v'),
         'market':('s','b','t','f','ce','fl','ref')}
 
 
-def requests(symbols):
+def requests(symbols, *, market=False):
     if not symbols or len(set(symbols))!=len(symbols) or any(s not in SYMBOLS for s in symbols):
         raise ValueError('SSI_LIVE_INVALID_SYMBOLS')
-    return [dict(method='SUBSCRIBE',channel='DATA',topics=[kind+'.'+symbol+('@tick' if kind!='market' else '')])
-            for symbol in symbols for kind in FIELDS]+[dict(method='SUBSCRIBE',channel='DATA',topics=['indexsummary.VNINDEX']),
+    topics = ([f'{kind}.{board}@tick' for board in ('hose','hnx','upcom') for kind in ('quote','trade')]
+              if market else [kind+'.'+symbol+'@tick' for symbol in symbols for kind in ('quote','trade')])
+    topics.extend('market.'+symbol for symbol in symbols)
+    return [dict(method='SUBSCRIBE',channel='DATA',topics=[topic]) for topic in topics]+[dict(method='SUBSCRIBE',channel='DATA',topics=['indexsummary.VNINDEX']),
                                                         dict(method='SUBSCRIBE',channel='DATA',topics=['market.hose']),
                                                         dict(method='SUBSCRIBE',channel='DATA',topics=['market.flag'])]
 
@@ -109,8 +111,29 @@ def public_record(frame,symbols,credentials=(),received_at=None):
                 received_at=received_at or datetime.now(timezone.utc).isoformat())
 
 
-async def collect(client,symbols,seconds,stop,on_record,on_state,*,connect=None,backoff=1):
-    requests(symbols)
+def market_record(frame, symbols, catalog, credentials=()):
+    topic = frame.get('topic')
+    if frame.get('channel') != 'DATA' or not isinstance(topic,str) or not topic.startswith(('quote.','trade.')):
+        return public_record(frame, symbols, credentials)
+    data = frame.get('data')
+    if not isinstance(data,dict) or not isinstance(data.get('s'),str):
+        raise ProviderError('SSI_INVALID_DATA_SCHEMA')
+    symbol = data['s']
+    board = catalog.get(symbol)
+    # These board topics can also deliver securities outside the stock catalog.
+    if not board:
+        return None
+    kind, target = topic.split('.',1)
+    target, _, interval = target.partition('@')
+    if target.upper() not in (symbol, board) or interval not in ('','tick'):
+        raise ProviderError('SSI_TOPIC_SCOPE_MISMATCH')
+    record = public_record(dict(frame, topic=f'{kind}.{symbol}@tick'), {symbol}, credentials)
+    return dict(record, exchange=board, source_topic=topic)
+
+
+async def collect(client,symbols,seconds,stop,on_record,on_state,*,connect=None,backoff=1,catalog=None):
+    subscriptions = requests(symbols, market=catalog is not None)
+    allowed = {request['topics'][0] for request in subscriptions}
     deadline=time.monotonic()+seconds;attempt=0
     context=ssl.create_default_context()
     if __import__('os').name=='nt':
@@ -126,7 +149,7 @@ async def collect(client,symbols,seconds,stop,on_record,on_state,*,connect=None,
             async with (connect or connector)(URL,ssl=context,proxy=None,open_timeout=10,close_timeout=3,
                     ping_interval=20,ping_timeout=15,max_size=262144,max_queue=32,
                     additional_headers={'Authorization':'Bearer '+client._token,'Content-Type':'application/json','Accept':'application/json'}) as ws:
-                for request in requests(symbols):await ws.send(json.dumps(request))
+                for request in subscriptions:await ws.send(json.dumps(request))
                 on_state('CONNECTED_WAITING_DATA',dict(connection=attempt))
                 while not stop.is_set() and time.monotonic()<deadline:
                     if client._expires_at<=time.time()+45:
@@ -148,11 +171,13 @@ async def collect(client,symbols,seconds,stop,on_record,on_state,*,connect=None,
                         if str(frame.get('status','')).lower() in ('error','denied','401','403','429'):
                             raise ProviderError('SSI_SUBSCRIPTION_REJECTED')
                         on_state('SUBSCRIPTION_ACK',dict(status=str(frame.get('status','UNKNOWN'))[:16]));continue
-                    try:record=public_record(frame,symbols,(client._key,client._secret,client._token))
+                    credentials = (client._key,client._secret,client._token)
+                    try:record=(market_record(frame,symbols,catalog,credentials) if catalog is not None
+                                else public_record(frame,symbols,credentials))
                     except ProviderError as error:
                         if str(error) in ('SSI_SYMBOL_SCOPE_MISMATCH','SSI_TOPIC_SCOPE_MISMATCH'):
                             p=frame.get('data') if isinstance(frame.get('data'),dict) else {}
-                            s=p.get('s');allowed={r['topics'][0] for r in requests(symbols)}
+                            s=p.get('s')
                             diagnostic=dict(topic=frame.get('topic') if frame.get('topic') in allowed else 'OUT_OF_SCOPE_TOPIC',
                                 public_board_topic=frame.get('topic') if isinstance(frame.get('topic'),str) and frame['topic'].lower() in
                                     ('market.hose','market.hnx','market.upcom','market.der','market.derivatives','market.flag') else None,

@@ -3,15 +3,15 @@ run-name: SSI ${{ inputs.mode || 'scheduled' }} ${{ inputs.session || github.eve
 
 on:
   schedule:
-    - cron: '17 1 * * 1-5' # 08:17 Vietnam prewarm; capture 08:50-11:35
+    - cron: '19 1 * * 1-5' # 08:19 Vietnam prewarm; capture 08:50-11:35
     - cron: '12 5 * * 1-5' # 12:12 Vietnam prewarm; capture 12:45-15:10
   workflow_dispatch:
     inputs:
       mode:
-        description: Network-only, bounded live smoke, or scheduled-session collection
+        description: Network-only, market subscription probe, bounded live smoke, or scheduled collection
         type: choice
         default: network
-        options: [network, smoke, collect]
+        options: [network, market-probe, smoke, collect]
       session:
         description: Vietnam session for manual collect
         type: choice

@@ -135,6 +135,17 @@ class SSIReadOnly:
             raise ValueError('SSI_SECURITY_FILTER_INVALID')
         if name == 'board' and value not in ('HOSE', 'HNX', 'UPCOM'):
             raise ValueError('SSI_BOARD_NOT_ALLOWED')
+        result = self._securities(params)
+        if any(not isinstance(row.get('symbol'), str) or not re.fullmatch(r'[A-Z0-9]{1,12}', row['symbol']) or
+               row.get('board') not in ('HOSE', 'HNX', 'UPCOM') or
+               (symbol is not None and row['symbol'] != symbol) or
+               (board is not None and row['board'] != board) for row in result):
+            raise ProviderError('SSI_SECURITIES_RESPONSE_INVALID')
+        if len({row['symbol'] for row in result}) != len(result):
+            raise ProviderError('SSI_DUPLICATE_SECURITY')
+        return result
+
+    def _securities(self, params):
         if not self._token or self._expires_at <= self._clock() + 30:
             self.authenticate()
         try:
@@ -143,13 +154,21 @@ class SSIReadOnly:
             if error.status == 401:
                 self._token, self._expires_at = None, 0
             raise
-        if not isinstance(result, list) or len(result) > 30000 or any(
-            not isinstance(row, dict) or not isinstance(row.get('symbol'), str) or
-            not re.fullmatch(r'[A-Z0-9]{1,12}', row['symbol']) or
-            row.get('board') not in ('HOSE', 'HNX', 'UPCOM') or
-            (symbol is not None and row['symbol'] != symbol) or
-            (board is not None and row['board'] != board) for row in result):
+        if not isinstance(result, list) or len(result) > 30000 or any(not isinstance(row, dict) for row in result):
             raise ProviderError('SSI_SECURITIES_RESPONSE_INVALID')
-        if len({row['symbol'] for row in result}) != len(result):
-            raise ProviderError('SSI_DUPLICATE_SECURITY')
         return result
+
+    def stock_catalog(self):
+        catalog = {}
+        for board in ('HOSE', 'HNX', 'UPCOM'):
+            # Broad board responses also contain indices, CWs, bonds and futures.
+            stocks = [row for row in self._securities({'board': board}) if row.get('stockType') == 'Stock']
+            if not stocks or any(row.get('board') != board or not isinstance(row.get('symbol'), str) or
+                                 not re.fullmatch(r'[A-Z0-9]{1,12}', row['symbol']) for row in stocks):
+                raise ProviderError('SSI_STOCK_CATALOG_INVALID')
+            for row in stocks:
+                symbol = row['symbol']
+                if symbol in catalog:
+                    raise ProviderError('SSI_DUPLICATE_SECURITY')
+                catalog[symbol] = board
+        return catalog

@@ -1,6 +1,8 @@
 """GitHub SSI session worker: bounded windows, truthful outcomes, encrypted Parquet."""
 import argparse
+import asyncio
 import base64
+from collections import Counter
 from datetime import datetime,timezone
 import json
 import os
@@ -8,11 +10,16 @@ from pathlib import Path
 import signal
 import socket
 import ssl
+import threading
 import time
 from zoneinfo import ZoneInfo
 
 from config.settings import ROOT
+from src.data_pipeline.ssi_market_archive import SSIMarketArchive
 from src.data_pipeline.ssi_live_store import atomic
+from src.data_providers.base import ProviderError
+from src.data_providers.ssi_readonly import SSIReadOnly
+from src.data_providers.ssi_stream import collect, requests
 from src.monitoring.ssi_live import SSILive
 from scripts.ssi_checkpoint import SSICheckpoints
 from src.monitoring.web_relay import RelayPublisher
@@ -53,6 +60,33 @@ def network_probe():
                 credentials_used=False,market_data_access_proven=False)
 
 
+def market_probe(seconds, symbols):
+    client = SSIReadOnly()
+    catalog = client.stock_catalog()
+    state, quotes, trades, acknowledgements = {}, Counter(), Counter(), Counter()
+
+    def receive(row):
+        if row['kind'] in ('QUOTE','TRADE'):
+            (quotes if row['kind'] == 'QUOTE' else trades)[row['exchange']] += 1
+
+    def telemetry(name, info):
+        if name == 'CONNECTED_WAITING_DATA':
+            state['connected'] = True
+        if name == 'SUBSCRIPTION_ACK':
+            acknowledgements[info['status']] += 1
+        if name in ('DISCONNECTED','FAILED'):
+            state['stream_error'] = info.get('reason')
+
+    asyncio.run(collect(client,symbols,seconds,threading.Event(),receive,telemetry,catalog=catalog))
+    required = len(requests(symbols,market=True))
+    passed = state.get('connected') and acknowledgements['ok'] >= required and not state.get('stream_error')
+    return dict(state='MARKET_PROBE_CONNECTED' if passed else 'MARKET_PROBE_FAILED',
+                catalog=dict(Counter(catalog.values())), quotes=dict(quotes), trades=dict(trades),
+                subscription_acks=dict(acknowledgements), subscriptions_requested=required,
+                recorded_or_published=False,
+                market_coverage_verified=False, **state)
+
+
 def outcome(status,window,interrupted=False):
     if interrupted:return 'FAILED_INTERRUPTED'
     if status['state']=='FAILED':return 'FAILED_SSI_COLLECTION'
@@ -72,6 +106,9 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         raise ValueError('SSI_UNEXPECTED_REPOSITORY_OR_REF')
     if mode=='network':
         result=network_probe();atomic(report,result);print(json.dumps(result),flush=True);return result
+    if mode=='market-probe':
+        if type(seconds) is not int or not 10<=seconds<=120:raise ValueError('SSI_INVALID_SMOKE_DURATION')
+        result=market_probe(seconds,policy(root)['symbols']);atomic(report,result);return result
     if mode not in ('smoke','collect'):raise ValueError('SSI_UNKNOWN_MODE')
     if os.getenv('SSI_REALTIME_STORAGE_APPROVED')!='true':raise ValueError('SSI_ENCRYPTED_STORAGE_APPROVAL_REQUIRED')
     if mode=='collect' and os.getenv('SSI_REALTIME_ENABLED')!='true':raise ValueError('SSI_SCHEDULE_NOT_ENABLED')
@@ -109,7 +146,36 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         if seconds<10:
             result=dict(state='FAILED_SESSION_WINDOW_ALREADY_CLOSED',plan=window);atomic(report,result);return result
     elif type(seconds) is not int or not 10<=seconds<=120:raise ValueError('SSI_INVALID_SMOKE_DURATION')
-    service=SSILive(root);store=SSICheckpoints(REPOSITORY,key)
+    market = None
+    market_result = dict(state='NOT_REQUESTED', archives=[], errors=[])
+    if mode == 'collect' and p.get('capture_market'):
+        try:
+            catalog = SSIReadOnly().stock_catalog()
+            if any(catalog.get(symbol) != 'HOSE' for symbol in p['symbols']):
+                raise ProviderError('SSI_WATCH_SYMBOLS_MISSING_FROM_MARKET_CATALOG')
+            market = SSIMarketArchive(root,catalog,segment_seconds=p['checkpoint_seconds'])
+            market_result['state'] = 'CAPTURING'
+        except ProviderError as error:
+            market_result.update(state='CATALOG_UNAVAILABLE', errors=[str(error)])
+
+    async def collect_both(client,symbols,duration,stop,receive,on_state):
+        def archive_and_relay(row):
+            if row['kind'] in ('QUOTE','TRADE'):
+                try:
+                    market.receive(row)
+                except (OSError,ValueError) as error:
+                    market_result['errors'].append(type(error).__name__)
+                    raise
+                if row['symbol'] not in symbols:
+                    return
+            receive(row)
+        def update_state(name, info):
+            if name == 'TICK':
+                market.tick()
+            on_state(name, info)
+        await collect(client,symbols,duration,stop,archive_and_relay,update_state,catalog=market.catalog)
+
+    service=SSILive(root,collector=collect_both if market else collect);store=SSICheckpoints(REPOSITORY,key)
     run_id=os.environ['GITHUB_RUN_ID'];attempt=os.getenv('GITHUB_RUN_ATTEMPT','1');stopped=False;checkpoints=[];storage_errors=[]
     def terminate(*args):
         nonlocal stopped
@@ -121,11 +187,37 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
     if relay_url or relay_token:
         if not relay_url or not relay_token:raise ValueError('SSI_MONITOR_RELAY_CONFIGURATION_INCOMPLETE')
         relay=RelayPublisher(service,relay_url,relay_token)
+    if window:
+        seconds=int((datetime.fromisoformat(window['close'])-datetime.now(LOCAL)).total_seconds())
+        if seconds<10:
+            result=dict(state='FAILED_SESSION_WINDOW_ALREADY_CLOSED',plan=window,realtime_recovered=False)
+            atomic(report,result);return result
     service.start(p['symbols'],seconds)
     if relay:relay.start()
     result=dict(state='COLLECTING',mode=mode,session=session,plan=window,realtime_backfill_available=False,
-        capture_run_id=service.journal.run_id,checkpoint_seconds=p['checkpoint_seconds'])
+        capture_run_id=service.journal.run_id,checkpoint_seconds=p['checkpoint_seconds'],market_capture=market_result)
+
+    failed_segments = []
+
+    def publish_market(*, final=False):
+        if not market:
+            return
+        pending = failed_segments.copy()
+        failed_segments.clear()
+        while (segment := market.take_sealed(final=final)) is not None:
+            pending.append(segment)
+        for segment in pending:
+            try:
+                saved = store.publish(segment,session,run_id,attempt,final=True)
+                proof = saved['verification']
+                market_result['archives'].append(dict(tag=saved['tag'], records=proof['records'],
+                    segment=segment.journal.manifest['segment'], verification=proof['state']))
+            except Exception as error:
+                failed_segments.append(segment)
+                market_result['errors'].append(type(error).__name__)
+        market_result.update(market.status(), unpublished_segments=len(failed_segments))
     next_checkpoint=time.monotonic()+p['checkpoint_seconds'];last_log=0
+    next_market_publish=time.monotonic()+60
     atomic(report,result)
     while service.thread.is_alive():
         service.thread.join(timeout=1)
@@ -141,6 +233,9 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
             try:checkpoints.append(store.publish(service,session,run_id,attempt))
             except Exception as error:storage_errors.append(type(error).__name__)
             next_checkpoint=time.monotonic()+p['checkpoint_seconds']
+        if market and time.monotonic()>=next_market_publish:
+            publish_market()
+            next_market_publish=time.monotonic()+60
     status=service.status();result.update(state=outcome(status,window,stopped),capture=status,checkpoint_errors=storage_errors)
     if relay:
         relay_result=relay.close();result['web_relay']=relay_result
@@ -150,13 +245,23 @@ def run(mode='smoke',session='morning',seconds=60,*,root=ROOT):
         final=store.publish(service,session,run_id,attempt,final=True)
         result.update(final_checkpoint=final,temporary_checkpoints_superseded=len(checkpoints))
     except Exception as error:result.update(state='FAILED_ENCRYPTED_STORAGE',error_code=type(error).__name__)
+    if market:
+        publish_market(final=True)
+        boards = market_result['boards']
+        market_result.update(stream_gaps=status['gaps'], market_coverage_verified=False)
+        if failed_segments or not all(row['quotes'] and row['trades'] for row in boards.values()):
+            market_result['state'] = 'PARTIAL_MARKET_CAPTURE'
+        else:
+            market_result['state'] = 'SEGMENTS_STORED_ALL_BOARDS_OBSERVED'
+    if market_result['state'] in ('CATALOG_UNAVAILABLE','PARTIAL_MARKET_CAPTURE'):
+        result['watch_capture_state']=result['state'];result['state']='PARTIAL_MARKET_CAPTURE'
     atomic(report,result)
     return result
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mode',choices=['network','smoke','collect'],default='smoke')
+    parser.add_argument('--mode',choices=['network','smoke','collect','market-probe'],default='smoke')
     parser.add_argument('--session',choices=['morning','afternoon'],default='morning')
     parser.add_argument('--seconds',type=int,default=60);a=parser.parse_args()
     try:r=run(a.mode,a.session,a.seconds)
@@ -166,7 +271,7 @@ def main():
         r=dict(state='FAILED_SSI_CLOUD_WORKER',error_code=message if re.fullmatch('[A-Z0-9_]{1,90}',message) else type(error).__name__)
         path=ROOT/'report/github/ssi_realtime_result.json';path.parent.mkdir(parents=True,exist_ok=True);atomic(path,r)
     print(json.dumps(r),flush=True)
-    return 0 if r['state'] in ('NETWORK_PREFLIGHT_PASSED','NOT_SCHEDULED_NON_TRADING_DATE','COLLECTED_ENCRYPTED_AND_RESTORE_VERIFIED','SMOKE_ENCRYPTED_AND_RESTORE_VERIFIED') else 1
+    return 0 if r['state'] in ('NETWORK_PREFLIGHT_PASSED','MARKET_PROBE_CONNECTED','NOT_SCHEDULED_NON_TRADING_DATE','COLLECTED_ENCRYPTED_AND_RESTORE_VERIFIED','SMOKE_ENCRYPTED_AND_RESTORE_VERIFIED') else 1
 
 
 if __name__=='__main__':raise SystemExit(main())

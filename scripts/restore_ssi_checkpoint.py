@@ -31,7 +31,8 @@ def install(files,*,root=ROOT):
     root=Path(root).resolve();m=json.loads(files['run/manifest.json'])
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',m['day']) or not re.fullmatch(r'[a-f0-9]{32}',m['run_id']):
         raise ValueError('SSI_UNSAFE_CAPTURE_ID')
-    target=root/'data/realtime/ssi'/m['day']/m['run_id']
+    scope='ssi-market' if m.get('capture_scope')=='SSI_EQUITY_MARKET' else 'ssi'
+    target=root/'data/realtime'/scope/m['day']/m['run_id']
     if target.exists():raise ValueError('SSI_CAPTURE_ALREADY_EXISTS_NO_OVERWRITE')
     stage=root/'data/control'/('ssi-import-'+uuid.uuid4().hex);stage.mkdir(parents=True)
     for name,data in files.items():
@@ -56,7 +57,7 @@ def main():
     if args.list:
         releases=api.request('GET',repository_path(REPOSITORY)+'/releases?per_page=100')
         print(json.dumps([dict(tag=r['tag_name'],url=r['html_url'],name=r['name']) for r in releases
-                          if r['tag_name'].startswith('ssi-ws-')],indent=2));return
+                          if r['tag_name'].startswith(('ssi-ws-','ssi-market-'))],indent=2));return
     files,proof=SSICheckpoints(REPOSITORY,recovery_key(),api=api).restore(args.tag)
     proof['local_folder']=install(files)
     print(json.dumps(proof,indent=2))

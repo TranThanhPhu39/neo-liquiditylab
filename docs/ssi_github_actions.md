@@ -6,12 +6,20 @@ Repo: `TranThanhPhu39/neo-liquiditylab`. Workflow: `.github/workflows/ssi-realti
 
 | Phiên | Cron UTC | Kích hoạt runner | Khoảng thu |
 | --- | --- | --- | --- |
-| Sáng | `37 1 * * 1-5` | 08:37 | 08:50–11:35 |
-| Chiều | `37 5 * * 1-5` | 12:37 | 12:45–15:10 |
+| Sáng | `19 1 * * 1-5` | 08:19 | 08:50–11:35 |
+| Chiều | `12 5 * * 1-5` | 12:12 | 12:45–15:10 |
 
 Runner có thời gian chuẩn bị trước phiên; không khẳng định cron luôn chạy đúng giờ. Thứ Bảy/Chủ nhật và ngày loại trừ cấu hình được ghi rõ không có phiên dự kiến. `excluded_dates` cần cập nhật khi có ngày nghỉ sở; weekday không tự chứng minh sở có giao dịch.
 
-Từ 16/11 có thêm `.github/workflows/ssi-schedule-guard.yml`, kiểm tra ở phút 07/17/27/47/57 trong giờ UTC 01–08 các ngày thứ Hai–thứ Sáu. Guard chỉ khởi chạy phiên còn trong cửa sổ khi không có collector đang chạy/đang xếp hàng. Có cooldown 10 phút và tối đa hai lượt trong cửa sổ để tránh tạo hàng đợi lặp. Guard dùng `GITHUB_TOKEN` quyền `actions: write`, không nhận khóa môi giới. Đây là lớp giảm bỏ lỡ; lịch guard vẫn dùng GitHub schedule nên không bảo đảm thời điểm chạy. Lần khởi chạy được yêu cầu thủ công không được gọi là đã chứng minh cron tự chạy.
+Workflow `.github/workflows/ssi-schedule-guard.yml` kiểm tra thêm lúc 08:24, 08:34, 08:44 và 08:54 cho phiên sáng. Từ 09:00 đến 15:59, guard kiểm tra ở phút 07/17/27/47/57 vào ngày thường. Guard chỉ khởi chạy phiên trong cửa sổ thu khi bộ thu vắng mặt, có thời gian chờ 10 phút và tối đa hai lượt. `GITHUB_TOKEN` chỉ đọc trạng thái và kích hoạt workflow trong repo. Cả hai cron phụ thuộc lịch GitHub, có thể đến trễ hoặc bị bỏ lỡ. Windows tiếp tục làm dự phòng khi máy bật và đã đăng nhập.
+
+## Thu cổ phiếu toàn thị trường
+
+Chế độ `collect` đọc danh mục SSI khi mở phiên, lấy `stockType=Stock` thuộc HOSE, HNX và UPCoM. Một kết nối đăng ký `quote` và `trade` theo ba sàn. Bộ thu lọc mã theo danh mục, giữ cặp giá và lượng gốc, thời gian nguồn và thời gian nhận. Kiểm tra tổng số mã trong danh mục cùng số mã thực có quote/trade theo từng sàn trong mục `market_capture` của Actions Summary.
+
+Kho toàn thị trường gồm các đoạn Parquet được mã hóa riêng dưới tag `ssi-market-…`. Mỗi đoạn được kiểm tra sau khi tải xuống và giải mã. Các mã không có bản tin được thể hiện qua chênh lệch giữa số mã trong danh mục và số mã có quan sát. Dùng `python -m scripts.restore_ssi_checkpoint --tag <tag>` để khôi phục một đoạn vào `data/realtime/ssi-market`. Các bản phát lại public lấy từ luồng ACB/FPT/HPG. Dữ liệu toàn thị trường đang ở đơn vị nguồn SSI. Nhãn số mã có quan sát không chứng nhận mức phủ đầy đủ của phiên.
+
+Trong **Run workflow**, chọn `market-probe` để thử đọc danh mục và đăng ký topic. Chế độ này trả số yêu cầu đăng ký đã được SSI chấp nhận và số bản tin đếm được, không ghi bản thu hoặc tạo Release. Để nghiệm thu độ phủ, dùng số liệu một lượt `collect` chạy trong phiên giao dịch.
 
 Hai biến `SSI_REALTIME_STORAGE_APPROVED=true` và `SSI_REALTIME_ENABLED=true` mới cho phép thu theo lịch. Khi đang kiểm tra, chỉ bật storage sau khi được chấp thuận, giữ enabled=false. Thử hai lượt `workflow_dispatch` mode `smoke` để kiểm chứng hai runner mới có quote/trade và checkpoint tải lại/giải mã được rồi mới bật enabled.
 

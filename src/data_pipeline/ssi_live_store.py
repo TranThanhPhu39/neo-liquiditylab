@@ -20,7 +20,7 @@ def atomic(path,value):
 
 
 class LiveJournal:
-    def __init__(self,root,symbols,*,folder=None,batch_size=1000,flush_seconds=10):
+    def __init__(self,root,symbols,*,folder=None,batch_size=1000,flush_seconds=10,sync_each_record=True):
         self.root=Path(root).resolve();now=datetime.now(timezone.utc)
         self.run_id=uuid.uuid4().hex
         self.folder=Path(folder) if folder else self.root/'data/realtime/ssi'/now.astimezone(__import__('zoneinfo').ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat()/self.run_id
@@ -37,6 +37,8 @@ class LiveJournal:
             atomic(self.manifest_path,self.manifest)
         self.pending=self.folder/'pending.jsonl';self.buffer=[];self.batch_size=batch_size;self.flush_seconds=flush_seconds
         self.last_flush=time.monotonic();self.ordinal=self.manifest['last_ordinal']
+        self.bytes_written=sum(part['bytes'] for part in self.manifest['files'])
+        self.sync_each_record=sync_each_record
         if self.pending.exists():
             lines=self.pending.read_bytes().splitlines(keepends=True)
             for index,line in enumerate(lines):
@@ -56,7 +58,9 @@ class LiveJournal:
 
     def append(self,record):
         self.ordinal+=1;record=dict(record,ordinal=self.ordinal)
-        self.handle.write(encoded(record)+b'\n');self.handle.flush();os.fsync(self.handle.fileno())
+        self.handle.write(encoded(record)+b'\n')
+        if self.sync_each_record:
+            self.handle.flush();os.fsync(self.handle.fileno())
         self.buffer.append(record)
         if len(self.buffer)>=self.batch_size:self.flush()
         return record
@@ -66,6 +70,8 @@ class LiveJournal:
 
     def flush(self):
         if not self.buffer:return
+        if not self.sync_each_record and hasattr(self,'handle'):
+            self.handle.flush();os.fsync(self.handle.fileno())
         import pyarrow as pa
         import pyarrow.parquet as pq
         rows=self.buffer
@@ -80,6 +86,7 @@ class LiveJournal:
         entry=dict(path=name,rows=len(rows),first=rows[0]['ordinal'],last=rows[-1]['ordinal'],bytes=path.stat().st_size,
                    sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         self.manifest['files'].append(entry);self.manifest['last_ordinal']=rows[-1]['ordinal']
+        self.bytes_written+=entry['bytes']
         for r in rows:
             key='quote_counts' if r['kind']=='QUOTE' else 'trade_counts' if r['kind']=='TRADE' else None
             if key:self.manifest[key][r['symbol']]+=1
