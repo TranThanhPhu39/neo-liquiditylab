@@ -30,7 +30,7 @@ const MonitorBreakout = (() => {
     function draw(){
       if(!result||$('breakoutResult').hidden||!$('breakoutPanel').open)return;
       const canvas=$('breakoutChart'),rect=canvas.getBoundingClientRect(),w=Math.max(300,rect.width),h=250,ratio=Math.min(2,globalThis.devicePixelRatio||1);
-      canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#0d172a';c.fillRect(0,0,w,h);
+      canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#0e2848';c.fillRect(0,0,w,h);
       const bars=result.chart||[];if(!bars.length)return;
       const ref=Number(result.reference.price),values=bars.flatMap(b=>[Number(b.low),Number(b.high)]);if(ref>0)values.push(ref);
       let low=Math.min(...values),high=Math.max(...values),pad=Math.max(1,(high-low)*.1);low-=pad;high+=pad;

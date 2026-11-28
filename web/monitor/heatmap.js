@@ -7,7 +7,7 @@ const MonitorHeatmap = (() => {
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = w * ratio; canvas.height = h * ratio;
     const ctx = canvas.getContext('2d'); ctx.scale(ratio, ratio);
-    ctx.fillStyle = '#0d172a'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#0e2848'; ctx.fillRect(0, 0, w, h);
     const left = 65, right = 12, top = 18, bottom = 35, iw = w - left - right, ih = h - top - bottom;
     const prices = [...geometry.cells.map(c => c.price),...bubbles.map(b=>b.price)], all = [...new Set(prices)].sort((a, b) => a - b);
     let step = Infinity; for (let i = 1; i < all.length; i++) step = Math.min(step, all[i] - all[i - 1]);
@@ -51,7 +51,7 @@ const MonitorHeatmap = (() => {
       ctx.strokeStyle = '#b4c0f0'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x(t), top); ctx.lineTo(x(t), top + ih); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = '#b4c0f0'; ctx.beginPath(); ctx.moveTo(x(t), top + 2); ctx.lineTo(x(t) - 4, top - 6); ctx.lineTo(x(t) + 4, top - 6); ctx.fill();
     }
-    ctx.restore(); ctx.font = '10px Segoe UI, Arial'; ctx.fillStyle = '#a9bbd7';
+    ctx.restore(); ctx.font = '10px Segoe UI, Arial'; ctx.fillStyle = '#bcdaf2';
     ctx.textAlign = 'right';
     for (let i = 0; i <= 5; i++) { const p = low + (high - low) * i / 5, yy = y(p); ctx.fillText(number(p), left - 10, yy + 3); ctx.strokeStyle = '#a4bfed25'; ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(w - right, yy); ctx.stroke(); }
     for (let i = 0; i <= 4; i++) {
@@ -66,9 +66,9 @@ const MonitorHeatmap = (() => {
   function timeline(canvas,data,index,events){
     const bounds=canvas.getBoundingClientRect(), w=Math.max(240,bounds.width), h=Math.max(26,bounds.height||70);
     const ratio=Math.min(2,window.devicePixelRatio||1), rail=Math.min(20,h*.21), height=Math.min(12,h*.18);
-    canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#101d34';c.fillRect(0,0,w,h);
+    canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#123257';c.fillRect(0,0,w,h);
     const start=EventReplay.time(data.frames[0].time),stop=EventReplay.time(data.frames.at(-1).time),now=EventReplay.time(data.frames[index].time),x=t=>12+(t-start)/Math.max(1,stop-start)*(w-24);
-    c.fillStyle='#283a5d';c.fillRect(12,rail,w-24,height);c.fillStyle='#567ebd';c.fillRect(12,rail,Math.max(0,x(now)-12),height);
+    c.fillStyle='#295580';c.fillRect(12,rail,w-24,height);c.fillStyle='#60a2dc';c.fillRect(12,rail,Math.max(0,x(now)-12),height);
     for(const e of events){c.fillStyle=({SPREAD_WIDENING:'#b8caff',DEPTH_DROP:'#f6b568',IMBALANCE_PERSISTENCE:'#75dac3'})[e.type]||'#9ab7d3';c.fillRect(x(EventReplay.time(e.detected_at))-1,rail-2,2,height+4);}
     c.fillStyle='#e1efff';c.fillRect(x(now)-1,rail-3,2,height+6);c.font='9px Segoe UI,Arial';c.fillStyle='#b5c8e9';c.textAlign='left';c.fillText(clock(start),12,h-4);c.textAlign='right';c.fillText(clock(stop),w-12,h-4);
   }
