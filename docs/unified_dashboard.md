@@ -15,7 +15,7 @@ Từ 20/11/2026, dùng một giao diện tại **https://neo-liquiditylab-monito
 
 - **Đang cập nhật** chỉ hiện khi đúng bản thu hiện tại, bộ thu còn hoạt động và sổ lệnh của chính mã đang xem còn mới trong 15 giây. Đứt relay, dữ liệu cũ hoặc đang xem lại không được gắn nhãn này.
 - Bảng sổ lệnh giữ các mức và đơn vị mà nguồn trả. Hai chỉ số depth vẫn là top 3 theo schema phân tích. Không tự nâng nhãn đơn vị hoặc mở khóa detector khi đổi chế độ.
-- Lịch sử dùng thời gian nguồn; bản thu dùng thứ tự/thời gian nhận. Thời gian nguồn gốc, đơn vị và tên nhà cung cấp nằm trong **Nguồn, chất lượng và phạm vi** để đối chiếu. Hai chuỗi không được nối thành một lịch sử giả hoặc cộng trùng giao dịch.
+- Lịch sử dùng thời gian nguồn; bản thu dùng thứ tự/thời gian nhận. Xem nhà cung cấp và thời gian nguồn tại **Theo dõi → Chất lượng đến mốc phát lại**. Đơn vị giá và khối lượng nằm dưới bảng sổ lệnh trong **Phân tích mã**. Hai chuỗi không được nối thành một lịch sử giả hoặc cộng trùng giao dịch.
 - Sự kiện và peak sau con trỏ được ẩn. Trong phát lại bản thu, kiểm tra sự kiện được cập nhật theo đợt; giao diện ghi mốc đã kiểm tra. Hồ sơ JSON bản thu chỉ xuất đến con trỏ nhận. Bubbles chỉ vẽ giao dịch khớp riêng, không suy ra từ thay đổi lượng chờ.
 - Trong chế độ bản thu, bảng theo dõi thể hiện mã đang chọn tại con trỏ; kiểm kê liệt kê các mã của bản thu. Thư viện hiển thị sự kiện đã kiểm tra của bản thu đến con trỏ. Đổi sang Lịch sử để xem bảng thị trường cùng cutoff và thư viện hồi tố cả phiên.
 
