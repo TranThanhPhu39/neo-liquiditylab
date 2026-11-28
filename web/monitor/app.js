@@ -89,7 +89,7 @@
     breakoutUI?.sync();
     for(const id of ['spread','bidDepth','askDepth','clock','sourceClock','position'])$(id).textContent='—';
     $('play').disabled=true;$('cursor').disabled=true;$('eventCount').textContent='—';$('reviewForm').hidden=true;
-    for(const id of ['events','watchEvents','evidence','comparison','quality','watchQuality'])$(id).replaceChildren();
+    for(const id of ['events','watchEvents','evidence','comparison','watchQuality'])$(id).replaceChildren();
     $('heatmap').width=$('heatmap').width;$('timeline').width=$('timeline').width;
     $('book').textContent=message;$('provenance').textContent=message;$('bubbleStatus').textContent='Chưa có giao dịch trong đoạn đang xem; không suy ra khối lượng bằng 0.';
     $('bookQuality').textContent='CHỜ DỮ LIỆU';$('bookUnits').textContent='';$('detectorState').textContent='Chưa có đầu vào';$('filterCount').textContent='Chưa có sự kiện để đánh giá';$('unitWarning').hidden=true;
@@ -302,7 +302,7 @@
     $('bookUnits').textContent=isCapture()
       ? (data.price_unit==='VND'?'Giá theo đồng':'Giá theo đơn vị nguồn')+' · '+(data.volume_unit==='shares'?'Lượng theo cổ phiếu':'Lượng theo đơn vị nguồn')
       : 'Giá theo đồng · Lượng theo cổ phiếu'+(['EMPIRICALLY_VERIFIED','OFFICIALLY_VERIFIED'].includes(f.units)?'':' · Quy đổi để quan sát');
-    $('filterCount').textContent=`${shown.length} / ${events.length} sự kiện đã biết · không lộ các sự kiện tương lai`;eventButtons($('events'),shown);eventButtons($('watchEvents'),events.slice(0,8));renderEvidence(events);quality($('quality'));quality($('watchQuality'));paint();
+    $('filterCount').textContent=`${shown.length} / ${events.length} sự kiện đã biết · không lộ các sự kiện tương lai`;eventButtons($('events'),shown);eventButtons($('watchEvents'),events.slice(0,8));renderEvidence(events);quality($('watchQuality'));paint();
     if(isCapture()){$('exportCSV').hidden=true;$('exportJSON').hidden=false;$('exportJSON').href=captureExport();}else{$('exportCSV').hidden=false;$('exportJSON').hidden=false;$('exportCSV').href='/api/export?dataset_id='+data.dataset_id+'&format=csv';$('exportJSON').href='/api/export?dataset_id='+data.dataset_id;}
     if(isCapture()){if(captureEventCutoff)$('filterCount').textContent+=' \u00b7 Ki\u1ec3m tra \u0111\u1ebfn '+clock(captureEventCutoff).slice(0,8);captureState();}if(page==='watch')updateWatch();
   }

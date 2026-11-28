@@ -132,7 +132,7 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
   assert.equal(get('error').hidden,true);assert.equal(get('eventCount').textContent,'0');assert.ok(draws>0);
   assert.equal(get('unitWarning').hidden,true);
   assert.match(get('sideWatch').textContent,/ACB/);
-  for(const id of ['sideWatch','quality','bookUnits','inventory'])assert.doesNotMatch(get(id).textContent,/xác minh|EMPIRICALLY_VERIFIED/i);
+  for(const id of ['sideWatch','watchQuality','bookUnits','inventory'])assert.doesNotMatch(get(id).textContent,/xác minh|EMPIRICALLY_VERIFIED/i);
   assert.equal(get('bookUnits').textContent,'Giá theo đồng · Lượng theo cổ phiếu');
   await get('sessionEnd').emit('click');assert.equal(get('eventCount').textContent,'1');
   assert.ok(arcs>0);assert.match(get('bubbleStatus').textContent,/bubbles/);
@@ -151,8 +151,8 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
     get('dataMode').value='capture';await get('dataMode').emit('change');
     assert.equal(get('dataMode').value,'capture');assert.equal(get('error').hidden,true,get('error').textContent);
     assert.equal(get('symbolSelect').value,'ACB');assert.match(get('provenance').textContent,/101/);
-    assert.match(get('quality').textContent,/SSI/);assert.equal(get('openConfig').disabled,true);
-    assert.doesNotMatch(get('quality').textContent,/UNVERIFIED_SSI_QUOTE|xác minh/i);
+    assert.match(get('watchQuality').textContent,/SSI/);assert.equal(get('openConfig').disabled,true);
+    assert.doesNotMatch(get('watchQuality').textContent,/UNVERIFIED_SSI_QUOTE|xác minh/i);
     assert.equal(get('bookUnits').textContent,'Giá theo đơn vị nguồn · Lượng theo đơn vị nguồn');
     assert.equal(get('exportCSV').hidden,true);assert.match(get('exportJSON').href,/api\/live\/export/);
     get('cursor').value='3';await get('cursor').emit('input');assert.equal(get('eventCount').textContent,'0');
@@ -165,7 +165,7 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
     get('symbolSelect').value='FPT';await get('symbolSelect').emit('change');assert.equal(get('symbolSelect').value,'FPT');
     get('dataMode').value='history';await get('dataMode').emit('change');
     assert.equal(get('dataMode').value,'history');assert.equal(get('symbolSelect').value,'FPT');
-    assert.match(get('quality').textContent,/DNSE/);assert.equal(get('captureActions').hidden,true);
+    assert.match(get('watchQuality').textContent,/DNSE/);assert.equal(get('captureActions').hidden,true);
     const vnm=structuredClone(fpt);vnm.symbol='VNM';vnm.dataset_id='7'.repeat(64);packs.set(vnm.dataset_id,vnm);catalog.push(entry(vnm));
     get('dataMode').value='history';await get('dataMode').emit('change');get('symbolSelect').value='VNM';await get('symbolSelect').emit('change');
     const count=requests.filter(r=>r.url.startsWith('/api/live/view?')).length;
@@ -176,7 +176,7 @@ for(const publicRead of [false,true])test('app loads history and evidence in '+(
     holdCapture=true;get('dataMode').value='capture';const opening=get('dataMode').emit('change');
     for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));assert.equal(typeof heldCapture,'function');
     get('dataMode').value='history';await get('dataMode').emit('change');heldCapture();await opening;
-    assert.equal(get('dataMode').value,'history');assert.match(get('quality').textContent,/DNSE/);
+    assert.equal(get('dataMode').value,'history');assert.match(get('watchQuality').textContent,/DNSE/);
     assert.equal(get('captureActions').hidden,true,'late capture responses cannot overwrite a history view');
     assert.equal(requests.some(r=>r.method==='POST'),false);
     return;
