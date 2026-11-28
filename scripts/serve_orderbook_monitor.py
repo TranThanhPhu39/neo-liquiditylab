@@ -29,6 +29,8 @@ ASSETS = {'/': ('index.html', 'text/html'), '/dashboard': ('index.html', 'text/h
           '/model.js': ('model.js', 'text/javascript'), '/heatmap.js': ('heatmap.js', 'text/javascript'),'/http.js':('http.js','text/javascript')}
 ASSETS.update({'/realtime':('index.html','text/html'),'/realtime/':('index.html','text/html'),'/live-model.js':('live-model.js','text/javascript'),'/capture-model.js':('capture-model.js','text/javascript')})
 ASSETS['/breakout.js']=('breakout.js','text/javascript')
+ASSETS['/night.css']=('night.css','text/css')
+ASSETS['/aurora.png']=('aurora.png','image/png')
 VERDICTS = {'useful', 'not_useful', 'data_issue', 'uncertain'}
 APPLICATION_VERSION='offline-monitor-v12-streamed-cutoff'
 
@@ -277,11 +279,12 @@ class Handler(BaseHTTPRequestHandler):
         pass  # Never log query strings, submitted notes, or request headers.
 
     def send_bytes(self, value, content_type='application/json', status=200, filename=None):
-        compressed=len(value)>4096 and 'gzip' in self.headers.get('Accept-Encoding','')
+        image=content_type.startswith('image/')
+        compressed=not image and len(value)>4096 and 'gzip' in self.headers.get('Accept-Encoding','')
         if compressed:value=gzip.compress(value,compresslevel=1)
         self.send_response(status)
         if compressed:self.send_header('Content-Encoding','gzip');self.send_header('Vary','Accept-Encoding')
-        self.send_header('Content-Type', content_type + '; charset=utf-8')
+        self.send_header('Content-Type', content_type if image else content_type + '; charset=utf-8')
         self.send_header('Content-Length', str(len(value)))
         self.send_header('Cache-Control', 'no-store')
         if status in (429,503):self.send_header('Retry-After','3')

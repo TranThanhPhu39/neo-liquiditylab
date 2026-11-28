@@ -118,8 +118,9 @@ class CloudHandler(Handler):
         if not self.valid_host():return self.send_json({'error':'INVALID_HOST'},403)
         if route.path in ('/','/about'):
             return self.send_bytes((self.server.assets/'landing.html').read_bytes(),'text/html')
-        if route.path=='/intro.css':
-            return self.send_bytes((self.server.assets/'intro.css').read_bytes(),'text/css')
+        if route.path in ('/intro.css','/night.css','/aurora.png'):
+            name, content_type = ('intro.css','text/css') if route.path=='/intro.css' else ASSETS[route.path]
+            return self.send_bytes((self.server.assets/name).read_bytes(),content_type)
         if route.path=='/robots.txt':
             return self.send_bytes(b'User-agent: *\nAllow: /$\nDisallow: /dashboard\nDisallow: /index.html\nDisallow: /realtime\nDisallow: /api/\n','text/plain')
         if self.server.public_read:

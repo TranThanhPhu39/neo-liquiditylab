@@ -113,10 +113,15 @@ def test_hosted_http_is_private_and_ingest_does_not_grant_browser_or_collection_
         assert request('GET','/healthz')[0]==200
         code,headers,body=request('GET','/')
         assert code==200 and 'WWW-Authenticate' not in headers and b'/dashboard' in body
-        assert b'intro.css' in body and b'<style>' not in body
+        assert b'intro.css' in body and b'night.css' in body and b'<style>' not in body
         code,headers,css=request('GET','/intro.css')
         assert code==200 and 'text/css' in headers['Content-Type'] and b'--paper' in css
         assert "style-src 'self'" in headers['Content-Security-Policy']
+        code,headers,css=request('GET','/night.css')
+        assert code==200 and 'text/css' in headers['Content-Type'] and b'aurora.png' in css
+        code,headers,wallpaper=request('GET','/aurora.png',headers={'Accept-Encoding':'gzip'})
+        assert code==200 and headers['Content-Type']=='image/png' and 'Content-Encoding' not in headers
+        assert wallpaper.startswith(b'\x89PNG\r\n\x1a\n') and 'WWW-Authenticate' not in headers
         assert password.encode() not in body and token.encode() not in body and b'/api/' not in body
         assert request('GET','/dashboard')[0]==401
         assert request('GET','/index.html')[0]==401

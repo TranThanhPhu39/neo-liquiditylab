@@ -30,21 +30,21 @@ const MonitorBreakout = (() => {
     function draw(){
       if(!result||$('breakoutResult').hidden||!$('breakoutPanel').open)return;
       const canvas=$('breakoutChart'),rect=canvas.getBoundingClientRect(),w=Math.max(300,rect.width),h=250,ratio=Math.min(2,globalThis.devicePixelRatio||1);
-      canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#f5f8f5';c.fillRect(0,0,w,h);
+      canvas.width=w*ratio;canvas.height=h*ratio;const c=canvas.getContext('2d');c.scale(ratio,ratio);c.fillStyle='#0d172a';c.fillRect(0,0,w,h);
       const bars=result.chart||[];if(!bars.length)return;
       const ref=Number(result.reference.price),values=bars.flatMap(b=>[Number(b.low),Number(b.high)]);if(ref>0)values.push(ref);
       let low=Math.min(...values),high=Math.max(...values),pad=Math.max(1,(high-low)*.1);low-=pad;high+=pad;
       const left=65,right=w-15,top=22,bottom=h-32,start=Date.parse(bars[0].time),stop=Math.max(start+60000,Date.parse(bars.at(-1).time));
       const x=t=>left+(t-start)/(stop-start)*(right-left),y=p=>bottom-(p-low)/(high-low)*(bottom-top);
-      c.font='11px Segoe UI, Arial';c.fillStyle='#53665c';c.textAlign='right';
-      for(let i=0;i<=4;i++){const p=low+(high-low)*i/4;c.fillText(format(p),left-8,y(p)+3);c.strokeStyle='#dce5de';c.beginPath();c.moveTo(left,y(p));c.lineTo(right,y(p));c.stroke();}
-      c.strokeStyle='#b26e30';c.setLineDash([6,4]);c.beginPath();c.moveTo(left,y(ref));c.lineTo(right,y(ref));c.stroke();c.setLineDash([]);
-      c.fillStyle='#94591e';c.textAlign='left';c.fillText('Mức tham chiếu '+format(ref),left+5,14);
-      c.strokeStyle='#2f7668';c.lineWidth=1.6;c.beginPath();let last=null;
+      c.font='11px Segoe UI, Arial';c.fillStyle='#a9bbd7';c.textAlign='right';
+      for(let i=0;i<=4;i++){const p=low+(high-low)*i/4;c.fillText(format(p),left-8,y(p)+3);c.strokeStyle='#263652';c.beginPath();c.moveTo(left,y(p));c.lineTo(right,y(p));c.stroke();}
+      c.strokeStyle='#eab079';c.setLineDash([6,4]);c.beginPath();c.moveTo(left,y(ref));c.lineTo(right,y(ref));c.stroke();c.setLineDash([]);
+      c.fillStyle='#f4cda7';c.textAlign='left';c.fillText('Mức tham chiếu '+format(ref),left+5,14);
+      c.strokeStyle='#8de3d0';c.lineWidth=1.6;c.beginPath();let last=null;
       for(const b of bars){const t=Date.parse(b.time),xx=x(t),yy=y(Number(b.close));if(last===null||t-last>90000)c.moveTo(xx,yy);else c.lineTo(xx,yy);last=t;}c.stroke();
-      c.strokeStyle='#69968b';c.lineWidth=1;for(const b of bars){c.beginPath();c.moveTo(x(Date.parse(b.time)),y(Number(b.low)));c.lineTo(x(Date.parse(b.time)),y(Number(b.high)));c.stroke();}
-      for(const e of result.episodes){c.fillStyle=e.crossing_status==='OBSERVED_CROSSING'?'#ad6635':'#8b9199';c.beginPath();c.arc(x(Date.parse(e.time)),y(Number(e.price)),3,0,2*Math.PI);c.fill();}
-      c.fillStyle='#53665c';c.textAlign='center';for(let i=0;i<=4;i++){const t=start+(stop-start)*i/4;c.fillText(clock(new Date(t).toISOString()),x(t),h-10);}
+      c.strokeStyle='#628b9f';c.lineWidth=1;for(const b of bars){c.beginPath();c.moveTo(x(Date.parse(b.time)),y(Number(b.low)));c.lineTo(x(Date.parse(b.time)),y(Number(b.high)));c.stroke();}
+      for(const e of result.episodes){c.fillStyle=e.crossing_status==='OBSERVED_CROSSING'?'#eab079':'#8fa2bb';c.beginPath();c.arc(x(Date.parse(e.time)),y(Number(e.price)),3,0,2*Math.PI);c.fill();}
+      c.fillStyle='#a9bbd7';for(let i=0;i<=4;i++){const t=start+(stop-start)*i/4;c.textAlign=i===4?'right':'center';c.fillText(clock(new Date(t).toISOString()),x(t),h-10);}
     }
     function render(r){
       $('breakoutStatus').textContent=(states[r.state]||r.state)+' · '+r.symbol+' · đến '+clock(r.cutoff)+(r.quality?' · '+format(r.quality.trades_to_cutoff)+' giao dịch khớp':'');
